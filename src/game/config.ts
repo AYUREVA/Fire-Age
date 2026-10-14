@@ -9,6 +9,14 @@ export function createGame(parent: string): Phaser.Game {
     height: 640,
     backgroundColor: '#0f172a',
     scene: [GameScene],
+    // По умолчанию Phaser первые 120 кадров после старта считает каждый кадр
+    // не длиннее 1/60 секунды. Если компьютер в начале не успевает выдать 60 FPS,
+    // вождь и все анимации первые секунды идут медленнее. panicMax: 0 отключает
+    // это: с первого кадра время считается честно. От очень длинных кадров
+    // (больше 200 мс) Phaser всё равно защищается сам.
+    fps: {
+      panicMax: 0,
+    },
     scale: {
       mode: Phaser.Scale.FIT,
       autoCenter: Phaser.Scale.CENTER_BOTH,
