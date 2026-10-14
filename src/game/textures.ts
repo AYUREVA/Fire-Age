@@ -96,6 +96,12 @@ const SNOW_TILE_SPECKS = 60;
 const CLUB_HANDLE_HALF_WIDTH = 3.5;
 const CLUB_TOP_RADIUS = 13;
 const CLUB_STEPS = 16;
+// Центр кулака на дубине — на столько пикселей выше нижнего края картинки
+// (вокруг него дубина вращается, см. CLUB_GRIP_Y в Player.ts).
+const CLUB_GRIP_FROM_BOTTOM = 13;
+// Сжатый кулак (на дубине и у свободной руки): половина ширины и половина высоты.
+const FIST_HALF_WIDTH = 7;
+const FIST_HALF_HEIGHT = 7;
 // Листиков на кроне куста и «зерно» их раскладки.
 const BUSH_LEAF_COUNT = 140;
 const BUSH_LEAVES_SEED = 'bush-leaves';
@@ -375,20 +381,45 @@ function drawArm(g: Graphics): void {
   g.fillEllipse(cx + 2.5, 24, 3.5, 14);
   g.fillStyle(COLORS.white, 0.35);
   g.fillEllipse(cx - 2, 12, 5, 4);
-  // Кожаная обмотка на запястье и кулак.
-  limb(g, cx - 4, 35, cx + 6, 35, 4, COLORS.leather);
-  outlinedCircle(g, cx + 1, 41, 6.5, COLORS.skin);
-  g.lineStyle(1.5, COLORS.skinShade, 1);
-  g.lineBetween(cx + 2, 38, cx + 6, 38);
-  g.lineBetween(cx + 2, 41.5, cx + 6.5, 41.5);
+  // Кожаная обмотка на запястье и сжатый кулак — такой же, как на дубине, только пустой.
+  limb(g, cx - 4, 34, cx + 6, 34, 4, COLORS.leather);
+  drawFistBack(g, cx + 1, 41);
+  drawFistFront(g, cx + 1, 41);
+}
+
+// ===== Кулак =====
+
+// Задняя часть кулака — ладонь. У дубины она рисуется до рукояти, поэтому рукоять
+// лежит в ладони, а пальцы (drawFistFront) потом обхватывают её спереди.
+function drawFistBack(g: Graphics, x: number, y: number): void {
+  g.fillStyle(COLORS.skinShade, 1);
+  g.fillRoundedRect(x - FIST_HALF_WIDTH, y - FIST_HALF_HEIGHT, FIST_HALF_WIDTH * 2, FIST_HALF_HEIGHT * 2, 5);
+  g.lineStyle(OUTLINE_WIDTH, COLORS.outline, 1);
+  g.strokeRoundedRect(x - FIST_HALF_WIDTH, y - FIST_HALF_HEIGHT, FIST_HALF_WIDTH * 2, FIST_HALF_HEIGHT * 2, 5);
+}
+
+// Передняя часть кулака: четыре согнутых пальца поперёк рукояти, один под другим,
+// и большой палец сверху наискосок — видно, что рука сжата.
+function drawFistFront(g: Graphics, x: number, y: number): void {
+  const fingerHeight = (FIST_HALF_HEIGHT * 2) / 4;
+  for (let i = 0; i < 4; i++) {
+    const top = y - FIST_HALF_HEIGHT + i * fingerHeight;
+    g.fillStyle(COLORS.skin, 1);
+    g.fillRoundedRect(x - FIST_HALF_WIDTH, top, FIST_HALF_WIDTH * 2, fingerHeight, 1.8);
+    // Тень снизу пальца — палец круглый и загибается за рукоять.
+    g.fillStyle(COLORS.skinShade, 1);
+    g.fillRect(x - FIST_HALF_WIDTH + 1.5, top + fingerHeight - 1.2, FIST_HALF_WIDTH * 2 - 3, 1.2);
+    g.lineStyle(1.2, COLORS.outline, 1);
+    g.strokeRoundedRect(x - FIST_HALF_WIDTH, top, FIST_HALF_WIDTH * 2, fingerHeight, 1.8);
+  }
+  // Большой палец — сверху, поверх пальцев.
+  limb(g, x - FIST_HALF_WIDTH + 1, y - FIST_HALF_HEIGHT + 1, x + 2, y - FIST_HALF_HEIGHT - 1, 4, COLORS.skin);
 }
 
 // Туловище, большая леопардовая шкура через плечо, пояс из верёвки и руки.
 function drawPlayerBody(g: Graphics): void {
-  // Туловище и блик на правом плече.
-  outlinedEllipse(g, 60, 96, 52, 46, COLORS.skin);
-  g.fillStyle(COLORS.white, 0.35);
-  g.fillEllipse(76, 84, 9, 5);
+  // Туловище — широкое в плечах.
+  outlinedEllipse(g, 60, 96, 60, 46, COLORS.skin);
 
   // Шкура через левое плечо: шире тела, закрывает грудь и бёдра, внизу рваный подол.
   const pelt = [
@@ -417,14 +448,22 @@ function drawPlayerBody(g: Graphics): void {
   limb(g, 61, 108, 63, 116, 2.5, COLORS.rope);
   outlinedCircle(g, 59, 107, 3.5, COLORS.rope);
 
-  // Рука с дубиной: от плеча вбок к локтю и вниз к кулаку на рукояти,
+  // Круглые плечи по краям тела, снаружи бороды. Из них растут обе руки:
+  // правая (с дубиной) нарисована здесь, левая (свободная) — отдельной картинкой.
+  // Левое плечо — под ремнём шкуры, поэтому меховое.
+  outlinedCircle(g, 30, 86, 8, COLORS.fur);
+  g.fillStyle(COLORS.furLight, 1);
+  g.fillEllipse(28, 82, 7, 4);
+  outlinedCircle(g, 90, 86, 8, COLORS.skin);
+
+  // Рука с дубиной: от правого плеча вбок к локтю и вниз к кулаку на рукояти,
   // бицепс в тени, кожаная обмотка на запястье. Кулак — на картинке дубины.
-  limbChain(g, [80, 84, 91, 95, 93, 103], 11, COLORS.skin);
+  limbChain(g, [90, 86, 98, 96, 100, 104], 11, COLORS.skin);
   g.fillStyle(COLORS.skinShade, 1);
-  g.fillEllipse(88, 93, 5, 9);
+  g.fillEllipse(97, 94, 4.5, 9);
   g.fillStyle(COLORS.white, 0.35);
-  g.fillEllipse(81, 85, 6, 4);
-  limb(g, 88, 101, 98, 101, 4, COLORS.leather);
+  g.fillEllipse(88, 83, 7, 4);
+  limb(g, 95, 102, 105, 102, 4, COLORS.leather);
 }
 
 // Голова почти анфас, как на картинке-образце: растрёпанная грива больше головы,
@@ -639,7 +678,7 @@ function fillLock(g: Graphics, lock: Lock, grow: number): void {
 
 // Дубина из цельного куска дерева: у кулака тонкая рукоять,
 // к концу плавно расширяется до толстого закруглённого «набалдашника».
-// Центр кулака — на 10 пикселей выше нижнего края: вокруг него дубина и вращается.
+// Центр кулака — на CLUB_GRIP_FROM_BOTTOM пикселей выше нижнего края: вокруг него дубина и вращается.
 function drawClub(g: Graphics): void {
   const { w, h } = CLUB_SIZE;
   const cx = w / 2;
@@ -660,18 +699,18 @@ function drawClub(g: Graphics): void {
     silhouette.push(cx + clubHalfWidth(t) * clubBumps(t), clubY(t));
   }
 
+  // Кулак обхватывает рукоять: ладонь — за рукоятью, пальцы — поверх неё.
+  // Под кулаком выглядывает закруглённый конец рукояти.
+  drawFistBack(g, cx, h - CLUB_GRIP_FROM_BOTTOM);
+  outlinedEllipse(g, cx, h - 4, 9, 5, COLORS.woodDark);
+
   fillPolygon(g, silhouette, COLORS.wood);
   drawClubShading(g, cx);
   drawClubGrain(g, cx);
   strokePolygon(g, silhouette);
   drawClubWrap(g, cx);
 
-  // Кулак: круг кожи и складки пальцев.
-  outlinedCircle(g, cx, h - 10, 8, COLORS.skin);
-  g.lineStyle(1.5, COLORS.skinShade, 1);
-  g.lineBetween(cx + 1, h - 14, cx + 6, h - 14);
-  g.lineBetween(cx + 1, h - 10, cx + 7, h - 10);
-  g.lineBetween(cx + 1, h - 6, cx + 6, h - 6);
+  drawFistFront(g, cx, h - CLUB_GRIP_FROM_BOTTOM);
 }
 
 // Полуширина дубины на доле длины t (0 — у рукояти, 1 — у толстого конца).
@@ -682,7 +721,7 @@ function clubHalfWidth(t: number): number {
 
 // Высота точки на доле длины t: от низа рукояти до центра закругления наверху.
 function clubY(t: number): number {
-  return Phaser.Math.Linear(CLUB_SIZE.h - 3, CLUB_TOP_RADIUS + 2, t);
+  return Phaser.Math.Linear(CLUB_SIZE.h - 4, CLUB_TOP_RADIUS + 2, t);
 }
 
 // Неровности правого края — дерево не бывает идеально гладким.

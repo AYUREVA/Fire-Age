@@ -26,11 +26,11 @@ const RING_PULSE_SCALE = 1.08;
 const RING_PULSE_TIME = 700;
 
 // Где кулак с дубиной относительно ног (когда вождь смотрит вправо).
-const HAND_OFFSET_X = 34;
-const HAND_OFFSET_Y = -31;
+const HAND_OFFSET_X = 40;
+const HAND_OFFSET_Y = -29;
 // Дубина вращается вокруг кулака. На картинке дубины кулак внизу:
 // его центр на этой доле высоты картинки (0 — верх, 1 — низ).
-const CLUB_GRIP_Y = 0.89;
+const CLUB_GRIP_Y = 0.86;
 // Угол дубины в покое: наклонена вперёд, от лица (0° — дубина стоит вертикально).
 const CLUB_REST_ANGLE = 65;
 
@@ -61,7 +61,7 @@ const HIP_OFFSET_Y = -26;
 // На картинке ноги бедро вверху: на этой доле высоты картинки.
 const LEG_HIP_Y = 0.09;
 // Плечо свободной руки (когда вождь смотрит вправо) и где плечо на картинке руки.
-const SHOULDER_OFFSET_X = -25;
+const SHOULDER_OFFSET_X = -30;
 const SHOULDER_OFFSET_Y = -52;
 const ARM_SHOULDER_Y = 0.22;
 // В покое свободная рука висит чуть в сторону от тела, а не прямо вниз (градусы).
