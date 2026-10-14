@@ -8,11 +8,14 @@ import {
   BUSH_POSITIONS,
   GATHER_RADIUS,
   HIT_INTERVAL,
+  WOODPILE_POSITION,
+  DROP_INTERVAL,
 } from './settings';
 import { TEXTURES, createTextures } from './textures';
 import { Player } from './objects/Player';
 import { CarryStack } from './objects/CarryStack';
 import { ResourceNode } from './objects/ResourceNode';
+import { DropZone } from './objects/DropZone';
 
 // ===== Слои отрисовки (depth) =====
 // Порядок снизу вверх во всей игре:
@@ -56,8 +59,10 @@ const FOREST_SCALE_MIN = 0.8;
 const FOREST_SCALE_MAX = 1.15;
 // Ширина тени относительно ширины предмета.
 const SHADOW_WIDTH_RATIO = 0.85;
-// Мелкий декор не кладём ближе этого расстояния к кусту — чтобы не торчал из куста.
+// Мелкий декор не кладём ближе этого расстояния к кусту — чтобы не торчал из куста —
+// и к поленнице — чтобы лагерь с костром стоял на чистом снегу.
 const BUSH_CLEAR_RADIUS = 80;
+const CAMP_CLEAR_RADIUS = 330;
 
 // ===== Камера =====
 
@@ -82,8 +87,14 @@ export class GameScene extends Phaser.Scene {
   private stack!: CarryStack;
   // Кусты хвороста.
   private bushes: ResourceNode[] = [];
+  // Поленница у костра — сюда сдаётся хворост.
+  private dropZone!: DropZone;
   // Сколько мс вождь уже стоит у куста. Набралось HIT_INTERVAL — удар.
   private hitTimer = 0;
+  // Сколько мс вождь уже стоит на поленнице. Набралось DROP_INTERVAL — сдаёт связку.
+  private dropTimer = 0;
+  // Сколько связок хвороста сдано за игру.
+  private woodDelivered = 0;
 
   constructor() {
     super('GameScene');
@@ -94,6 +105,8 @@ export class GameScene extends Phaser.Scene {
     // сохраняют старые значения, поэтому сбрасываем их здесь.
     this.bushes = [];
     this.hitTimer = 0;
+    this.dropTimer = 0;
+    this.woodDelivered = 0;
 
     createTextures(this);
 
@@ -104,6 +117,7 @@ export class GameScene extends Phaser.Scene {
     this.createGroundDecor(rng);
     this.createBorderForest(rng);
     this.createBushes();
+    this.dropZone = new DropZone(this, WOODPILE_POSITION.x, WOODPILE_POSITION.y);
 
     this.player = new Player(this, PLAYER_START.x, PLAYER_START.y);
     this.stack = new CarryStack(this);
@@ -113,7 +127,7 @@ export class GameScene extends Phaser.Scene {
 
   // Вызывается Phaser каждый кадр. delta — сколько мс прошло с прошлого кадра.
   // Порядок: сначала двигаем вождя, потом стопку за ним, потом проверяем,
-  // что вождь делает рядом с кустами.
+  // что вождь делает рядом с кустами и с поленницей.
   update(_time: number, delta: number): void {
     this.player.update(delta);
     // Стопке сообщаем, где спина вождя, как быстро он идёт и какая у него глубина.
@@ -124,6 +138,37 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.updateGathering(delta);
+    this.updateDropping(delta);
+  }
+
+  // ===== Сдача хвороста =====
+
+  // Вождь в зоне поленницы — каждые DROP_INTERVAL мс верхняя связка
+  // улетает со стопки в кучу на поленнице.
+  private updateDropping(delta: number): void {
+    const isInZone = this.dropZone.contains(this.player.x, this.player.y);
+    this.dropZone.setHighlighted(isInZone);
+
+    // Вождь не в зоне или нести нечего — таймер не копится.
+    if (!isInZone || this.stack.isEmpty()) {
+      this.dropTimer = 0;
+      return;
+    }
+
+    this.dropTimer += delta;
+    if (this.dropTimer < DROP_INTERVAL) return;
+    this.dropTimer -= DROP_INTERVAL;
+
+    // Верхняя связка может ещё лететь на стопку — тогда её пока не отдаём.
+    const item = this.stack.takeTop();
+    if (!item) return;
+
+    this.dropZone.receive(item, () => this.onWoodStored());
+  }
+
+  // Связка легла на поленницу: +1 к сданному хворосту.
+  private onWoodStored(): void {
+    this.woodDelivered += 1;
   }
 
   // ===== Добыча хвороста =====
@@ -182,7 +227,7 @@ export class GameScene extends Phaser.Scene {
       const x = rng.between(WORLD_EDGE, WORLD_WIDTH - WORLD_EDGE);
       const y = rng.between(WORLD_EDGE, WORLD_HEIGHT - WORLD_EDGE);
       const texture = rng.pick(GROUND_DECOR_TEXTURES);
-      if (this.isNearBush(x, y)) continue;
+      if (this.isNearImportantPlace(x, y)) continue;
 
       this.add
         .image(x, y, texture)
@@ -192,11 +237,14 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  // Есть ли куст ближе BUSH_CLEAR_RADIUS к точке (x, y).
-  private isNearBush(x: number, y: number): boolean {
-    return BUSH_POSITIONS.some(
+  // Рядом ли точка (x, y) с кустом или с лагерем — там декор не кладём.
+  private isNearImportantPlace(x: number, y: number): boolean {
+    const nearCamp =
+      Phaser.Math.Distance.Between(x, y, WOODPILE_POSITION.x, WOODPILE_POSITION.y) < CAMP_CLEAR_RADIUS;
+    const nearBush = BUSH_POSITIONS.some(
       (bush) => Phaser.Math.Distance.Between(x, y, bush.x, bush.y) < BUSH_CLEAR_RADIUS,
     );
+    return nearCamp || nearBush;
   }
 
   // Сажает кусты хвороста в точки из settings.ts.

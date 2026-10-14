@@ -34,6 +34,11 @@ export const TEXTURES = {
   bundle: 'bundle', // связка хвороста, перевязанная верёвкой
   snowflake: 'snowflake', // снежинка: падающий снег и снег из куста
   chip: 'chip', // щепка, летит из куста при ударе
+  dropZone: 'drop-zone', // площадка поленницы: рамка и иконка связки
+  firePit: 'fire-pit', // кострище: камни и поленья
+  flame: 'flame', // язык пламени; точка опоры — низ
+  glow: 'glow', // мягкий белый круг; его красят в цвет света
+  spark: 'spark', // искра костра (белая, цвет задаёт частица)
 } as const;
 
 // Шрифт всех надписей. Это тоже «ассет»: свой шрифт подключается здесь.
@@ -62,6 +67,11 @@ const STUMP_SIZE: Size = { w: 72, h: 56 };
 const BUNDLE_SIZE: Size = { w: 56, h: 28 };
 const SNOWFLAKE_SIZE: Size = { w: 12, h: 12 };
 const CHIP_SIZE: Size = { w: 12, h: 9 };
+const DROP_ZONE_SIZE: Size = { w: 220, h: 132 };
+const FIRE_PIT_SIZE: Size = { w: 110, h: 64 };
+const FLAME_SIZE: Size = { w: 64, h: 96 };
+const GLOW_SIZE: Size = { w: 128, h: 128 };
+const SPARK_SIZE: Size = { w: 8, h: 8 };
 
 // ===== Параметры рисования =====
 
@@ -74,6 +84,8 @@ const SNOW_TILE_SEED = 'snow-tile';
 const SNOW_TILE_SHADES = 8;
 const SNOW_TILE_LIGHTS = 6;
 const SNOW_TILE_SPECKS = 60;
+// Из скольких точек состоит контур языка пламени (больше — глаже).
+const FLAME_POINTS = 28;
 
 // Тип короче, чтобы не писать каждый раз полное имя.
 type Graphics = Phaser.GameObjects.Graphics;
@@ -102,6 +114,11 @@ export function createTextures(scene: Phaser.Scene): void {
   bake(scene, TEXTURES.bundle, BUNDLE_SIZE, drawBundle);
   bake(scene, TEXTURES.snowflake, SNOWFLAKE_SIZE, drawSnowflake);
   bake(scene, TEXTURES.chip, CHIP_SIZE, drawChip);
+  bake(scene, TEXTURES.dropZone, DROP_ZONE_SIZE, drawDropZone);
+  bake(scene, TEXTURES.firePit, FIRE_PIT_SIZE, drawFirePit);
+  bake(scene, TEXTURES.flame, FLAME_SIZE, drawFlame);
+  bake(scene, TEXTURES.glow, GLOW_SIZE, drawGlow);
+  bake(scene, TEXTURES.spark, SPARK_SIZE, drawSpark);
 }
 
 // Рисует картинку на временном Graphics и сохраняет её как текстуру под ключом key.
@@ -572,7 +589,155 @@ function drawRopeBand(g: Graphics, x: number): void {
   g.strokeRoundedRect(x - 3, 1, 6, 25, 2);
 }
 
+// ===== Поленница и костёр =====
+
+// Площадка поленницы — как зоны сдачи в мобильных играх:
+// скруглённая рамка, полупрозрачная заливка и иконка связки посередине.
+function drawDropZone(g: Graphics): void {
+  const { w, h } = DROP_ZONE_SIZE;
+  const inset = 8;
+  const radius = 30;
+  const width = w - inset * 2;
+  const height = h - inset * 2;
+
+  g.fillStyle(COLORS.zoneFill, 0.45);
+  g.fillRoundedRect(inset, inset, width, height, radius);
+  // Тёмный кант под рамкой — чтобы светлую рамку было видно на белом снегу.
+  g.lineStyle(12, COLORS.outline, 0.35);
+  g.strokeRoundedRect(inset, inset, width, height, radius);
+  g.lineStyle(6, COLORS.zoneBorder, 1);
+  g.strokeRoundedRect(inset, inset, width, height, radius);
+
+  drawBundleIcon(g, w / 2, h / 2);
+}
+
+// Иконка связки на площадке: три палки и две верёвки.
+function drawBundleIcon(g: Graphics, cx: number, cy: number): void {
+  g.fillStyle(COLORS.zoneBorder, 0.9);
+  g.fillRoundedRect(cx - 30, cy - 15, 60, 9, 4);
+  g.fillRoundedRect(cx - 35, cy - 4, 68, 9, 4);
+  g.fillRoundedRect(cx - 31, cy + 7, 62, 9, 4);
+  g.fillStyle(COLORS.zoneFill, 1);
+  g.fillRect(cx - 14, cy - 17, 6, 35);
+  g.fillRect(cx + 10, cy - 17, 6, 35);
+}
+
+// Кострище: подтаявшая земля, кольцо камней, угли и два скрещённых полена.
+// Пламя — отдельные картинки, чтобы оно могло мерцать.
+function drawFirePit(g: Graphics): void {
+  const { w, h } = FIRE_PIT_SIZE;
+  const cx = w / 2;
+
+  softEllipse(g, cx, h - 16, w, 34, COLORS.scorched, 0.18, 5);
+
+  // Дальние камни (за поленьями).
+  drawPitStone(g, 20, 38, 18, 12);
+  drawPitStone(g, 36, 31, 18, 12);
+  drawPitStone(g, 55, 29, 18, 12);
+  drawPitStone(g, 74, 31, 18, 12);
+  drawPitStone(g, 90, 38, 18, 12);
+
+  // Угли с тлеющими точками.
+  g.fillStyle(COLORS.charcoal, 1);
+  g.fillEllipse(cx, 44, 66, 18);
+  g.fillStyle(COLORS.ember, 0.8);
+  g.fillCircle(cx - 8, 45, 3);
+  g.fillCircle(cx + 10, 43, 2.5);
+  g.fillCircle(cx + 2, 48, 2);
+
+  drawLog(g, cx, 42, -0.35);
+  drawLog(g, cx, 42, 0.35);
+
+  // Ближние камни (перед поленьями).
+  drawPitStone(g, 24, 51, 20, 13);
+  drawPitStone(g, 43, 56, 20, 13);
+  drawPitStone(g, 67, 56, 20, 13);
+  drawPitStone(g, 86, 51, 20, 13);
+}
+
+// Камень кострища со снежной шапкой.
+function drawPitStone(g: Graphics, x: number, y: number, width: number, height: number): void {
+  g.fillStyle(COLORS.stoneDark, 1);
+  g.fillEllipse(x, y, width, height);
+  g.fillStyle(COLORS.stone, 1);
+  g.fillEllipse(x - 1, y - 1.5, width - 4, height - 4);
+  g.fillStyle(COLORS.snowLight, 1);
+  g.fillEllipse(x - 1, y - height * 0.3, width * 0.55, height * 0.35);
+  g.lineStyle(THIN_OUTLINE_WIDTH, COLORS.outline, 1);
+  g.strokeEllipse(x, y, width, height);
+}
+
+// Полено, повёрнутое на угол angle (в радианах) вокруг точки (x, y).
+function drawLog(g: Graphics, x: number, y: number, angle: number): void {
+  // save/restore: поворот действует только на рисование между ними.
+  g.save();
+  g.translateCanvas(x, y);
+  g.rotateCanvas(angle);
+
+  g.fillStyle(COLORS.wood, 1);
+  g.fillRoundedRect(-30, -6, 60, 12, 5);
+  g.fillStyle(COLORS.woodDark, 1);
+  g.fillRect(-26, 1, 52, 4);
+  // Тлеющая полоска на полене.
+  g.fillStyle(COLORS.ember, 1);
+  g.fillRect(-12, -2, 18, 2);
+  g.lineStyle(THIN_OUTLINE_WIDTH, COLORS.outline, 1);
+  g.strokeRoundedRect(-30, -6, 60, 12, 5);
+  // Светлые срезы на концах.
+  g.fillStyle(COLORS.woodEnd, 1);
+  g.fillEllipse(-27, 0, 6, 10);
+  g.fillEllipse(27, 0, 6, 10);
+
+  g.restore();
+}
+
+// Язык пламени: несколько «капель» одна в другой — от красного края до почти белой середины.
+function drawFlame(g: Graphics): void {
+  const { w, h } = FLAME_SIZE;
+  const cx = w / 2;
+  const width = w - 4;
+  const height = h - 4;
+  const bottom = h - 2;
+
+  fillFlameDrop(g, cx, bottom, width, height, COLORS.fireRed);
+  fillFlameDrop(g, cx, bottom - 2, width * 0.74, height * 0.76, COLORS.fireOrange);
+  fillFlameDrop(g, cx, bottom - 4, width * 0.5, height * 0.52, COLORS.fireYellow);
+  fillFlameDrop(g, cx, bottom - 5, width * 0.26, height * 0.3, COLORS.fireCore);
+}
+
+// Капля огня: снизу круглая, сверху острая. Точки контура считаются по формуле «капли».
+function fillFlameDrop(g: Graphics, cx: number, bottom: number, width: number, height: number, color: number): void {
+  const points: Phaser.Math.Vector2[] = [];
+  for (let i = 0; i < FLAME_POINTS; i++) {
+    // t обходит контур по кругу: 0 — верхний кончик, π — самый низ.
+    const t = (i / FLAME_POINTS) * Math.PI * 2;
+    // sin(t)·sin(t/2): у кончика ширина 0, а шире всего — ниже середины.
+    // Множитель 0.65 подобран так, чтобы самая широкая часть была равна width.
+    const x = cx + width * 0.65 * Math.sin(t) * Math.sin(t / 2);
+    const y = bottom - (height / 2) * (1 + Math.cos(t));
+    points.push(new Phaser.Math.Vector2(x, y));
+  }
+  g.fillStyle(color, 1);
+  g.fillPoints(points, true);
+}
+
+// Мягкий белый круг: в середине плотный, к краю прозрачный.
+// Белый — чтобы в игре его можно было покрасить (tint) в любой цвет света.
+function drawGlow(g: Graphics): void {
+  const { w, h } = GLOW_SIZE;
+  softEllipse(g, w / 2, h / 2, w, h, COLORS.white, 0.06, 14);
+}
+
 // ===== Частицы =====
+
+// Искра: белая точка с мягким краем. Цвет задаёт эмиттер частиц.
+function drawSpark(g: Graphics): void {
+  const center = SPARK_SIZE.w / 2;
+  g.fillStyle(COLORS.white, 0.4);
+  g.fillCircle(center, center, center);
+  g.fillStyle(COLORS.white, 1);
+  g.fillCircle(center, center, center * 0.55);
+}
 
 // Снежинка: белая точка с голубоватым краем — так её видно и на белом снегу.
 function drawSnowflake(g: Graphics): void {

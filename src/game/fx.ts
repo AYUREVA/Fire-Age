@@ -1,4 +1,6 @@
 import Phaser from 'phaser';
+import { COLORS, toCss } from './palette';
+import { FONT_FAMILY } from './textures';
 
 // =====================================================================
 //  Простые эффекты. Это функции, а не классы: вызвал — эффект сыграл.
@@ -10,6 +12,14 @@ import Phaser from 'phaser';
 const FLY_DEPTH = 10000;
 // В верхней точке дуги предмет чуть крупнее — будто ближе к нам.
 const FLY_APEX_GROW = 0.2;
+
+// Всплывающие надписи («+1») — ещё выше летящих предметов.
+const FLOAT_TEXT_DEPTH = 11000;
+// Надпись выскакивает за столько мс, поднимается на столько пикселей
+// за столько мс и тает во второй половине пути.
+const FLOAT_TEXT_APPEAR_TIME = 180;
+const FLOAT_TEXT_RISE = 46;
+const FLOAT_TEXT_TIME = 750;
 
 // Встряска: сколько раз объект качнётся туда-обратно.
 const SHAKE_SWINGS = 3;
@@ -61,6 +71,36 @@ export function flyArc(scene: Phaser.Scene, object: Phaser.GameObjects.Image, fl
       flight.onLand();
     },
   });
+}
+
+// Всплывающая надпись (например, «+1»): выскакивает, поднимается и тает.
+export function floatText(scene: Phaser.Scene, x: number, y: number, text: string, color: number): void {
+  const label = scene.add
+    .text(x, y, text, {
+      fontFamily: FONT_FAMILY,
+      fontSize: '28px',
+      fontStyle: 'bold',
+      color: toCss(color),
+      stroke: toCss(COLORS.outline),
+      strokeThickness: 6,
+      resolution: 2,
+    })
+    .setOrigin(0.5)
+    .setDepth(FLOAT_TEXT_DEPTH)
+    .setScale(0);
+
+  // Выскакивает из точки с отскоком.
+  scene.tweens.add({ targets: label, scale: 1, duration: FLOAT_TEXT_APPEAR_TIME, ease: 'Back.easeOut' });
+  // Поднимается вверх, замедляясь, и в конце удаляется.
+  scene.tweens.add({
+    targets: label,
+    y: y - FLOAT_TEXT_RISE,
+    duration: FLOAT_TEXT_TIME,
+    ease: 'Cubic.easeOut',
+    onComplete: () => label.destroy(),
+  });
+  // Тает во второй половине пути.
+  scene.tweens.add({ targets: label, alpha: 0, delay: FLOAT_TEXT_TIME / 2, duration: FLOAT_TEXT_TIME / 2 });
 }
 
 // Встряска: объект качается из стороны в сторону, и качание затухает.
