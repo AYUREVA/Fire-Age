@@ -87,6 +87,11 @@ const SHADOW_SHRINK_IN_JUMP = 0.1;
 // «Дыхание» на месте: насколько вытягивается тело и как быстро.
 const IDLE_BREATH = 0.025;
 const IDLE_BREATH_SPEED = 0.004;
+// На месте свободная рука и дубина мягко покачиваются в такт дыханию (градусы).
+const ARM_IDLE_SWAY = 3;
+const CLUB_IDLE_SWAY = 4;
+// На бегу тяжёлая дубина покачивается в такт шагам (градусы).
+const CLUB_RUN_SWAY = 6;
 
 /**
  * Вождь племени.
@@ -116,6 +121,8 @@ export class Player {
   private idleTime = 0;
   // Насколько тело сейчас подпрыгнуло вверх, в пикселях.
   private bob = 0;
+  // Волна «дыхания» на месте: от -1 (выдох) до 1 (вдох). На бегу — 0.
+  private breathWave = 0;
   // Взмах дубиной: на сколько градусов дубина сейчас отклонена от угла покоя.
   // Меняется цепочкой твинов в swing().
   private clubSwing = 0;
@@ -225,7 +232,7 @@ export class Player {
   getBackPoint(): { x: number; y: number } {
     return {
       x: this.x + BACK_OFFSET_X * this.facing,
-      y: this.y + BACK_OFFSET_Y - this.bob,
+      y: this.y + BACK_OFFSET_Y - this.bodyLiftAt(-BACK_OFFSET_Y),
     };
   }
 
@@ -306,6 +313,7 @@ export class Player {
       this.bob = Math.abs(Math.cos(this.stepPhase)) * RUN_BOB_HEIGHT;
       // Тело наклонено вперёд по ходу бега.
       this.walkTilt = RUN_LEAN * this.facing;
+      this.breathWave = 0;
       this.bodyImage.setScale(1);
     } else {
       this.stepPhase = 0;
@@ -314,9 +322,18 @@ export class Player {
       this.bob = 0;
       this.walkTilt = 0;
       // Медленное «дыхание»: тело чуть вытягивается и возвращается.
-      const breath = Math.sin(this.idleTime * IDLE_BREATH_SPEED) * IDLE_BREATH;
+      this.breathWave = Math.sin(this.idleTime * IDLE_BREATH_SPEED);
+      const breath = this.breathWave * IDLE_BREATH;
       this.bodyImage.setScale(1 - breath / 2, 1 + breath);
     }
+  }
+
+  // На сколько пикселей сейчас поднялась точка тела на высоте height над ногами.
+  // Картинка тела «дышит», растягиваясь от ног вверх: чем выше точка, тем сильнее
+  // она поднимается. Плюс подъём тела на шагах (bob). По этой высоте ставятся
+  // отдельные картинки — свободная рука, дубина и стопка, — чтобы они двигались вместе с телом.
+  private bodyLiftAt(height: number): number {
+    return height * this.breathWave * IDLE_BREATH + this.bob;
   }
 
   // Расставляет все части вождя вокруг точки ног (x, y).
@@ -339,18 +356,31 @@ export class Player {
 
     this.placeLegs(isLeft);
 
-    // Свободная рука машет в такт шагам (в паре с ногой на той же стороне — в противофазе)
-    // и отходит назад для равновесия, когда вождь бьёт дубиной.
+    // Свободная рука держится за плечо тела и двигается вместе с ним.
+    // На месте она чуть покачивается в такт дыханию, на бегу машет в такт шагам
+    // (в паре с ногой на той же стороне — в противофазе), при ударе отходит назад для равновесия.
+    const armAngle =
+      ARM_REST_ANGLE +
+      this.breathWave * ARM_IDLE_SWAY +
+      this.legSwing * ARM_SWING_ANGLE +
+      this.clubSwing * ARM_STRIKE_FACTOR;
     this.freeArm
-      .setPosition(this.x + SHOULDER_OFFSET_X * this.facing, this.y + SHOULDER_OFFSET_Y - this.bob)
-      .setAngle((ARM_REST_ANGLE + this.legSwing * ARM_SWING_ANGLE + this.clubSwing * ARM_STRIKE_FACTOR) * this.facing)
+      .setPosition(
+        this.x + SHOULDER_OFFSET_X * this.facing,
+        this.y + SHOULDER_OFFSET_Y - this.bodyLiftAt(-SHOULDER_OFFSET_Y),
+      )
+      .setAngle(armAngle * this.facing)
       .setFlipX(isLeft)
       .setDepth(this.y + ARM_DEPTH_SHIFT);
 
-    // Дубина в кулаке. Когда вождь смотрит влево, всё зеркально: и место, и угол.
+    // Дубина в кулаке: кулак двигается вместе с телом. Дубина покачивается на месте
+    // в такт дыханию и на бегу в такт шагам, а при взмахе к этому добавляется clubSwing.
+    // Когда вождь смотрит влево, всё зеркально: и место, и угол.
+    const clubAngle =
+      CLUB_REST_ANGLE + this.breathWave * CLUB_IDLE_SWAY + this.legSwing * CLUB_RUN_SWAY + this.clubSwing;
     this.club
-      .setPosition(this.x + HAND_OFFSET_X * this.facing, this.y + HAND_OFFSET_Y - this.bob)
-      .setAngle((CLUB_REST_ANGLE + this.clubSwing) * this.facing)
+      .setPosition(this.x + HAND_OFFSET_X * this.facing, this.y + HAND_OFFSET_Y - this.bodyLiftAt(-HAND_OFFSET_Y))
+      .setAngle(clubAngle * this.facing)
       .setFlipX(isLeft)
       .setDepth(this.y + CLUB_DEPTH_SHIFT);
   }
