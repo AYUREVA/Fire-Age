@@ -44,6 +44,10 @@ export const COLORS = {
   fur: 0xd0843f, // шкура
   furDark: 0x8f5326, // тёмный мех: сапоги
   furSpot: 0x6d3d1c, // пятна на шкуре
+  furShade: 0xb06a2e, // шкура в тени
+  furLight: 0xf3c27c, // светлый мех: кромка шкуры, отвороты сапог
+  bone: 0xf4ecd8, // косточка в волосах
+  boneShade: 0xcdbf9f, // тень на косточке
   eye: 0xffffff, // белок глаза
 
   // ===== Дерево =====
@@ -58,6 +62,7 @@ export const COLORS = {
   brushLight: 0x9e7e62, // светлые веточки
   rope: 0xe0bf74, // верёвка на связке
   ropeDark: 0xa98440, // тень на верёвке
+  berry: 0xd9303e, // красные ягоды на кусте
 
   // ===== Костёр =====
   fireRed: 0xe8452c, // внешний край пламени

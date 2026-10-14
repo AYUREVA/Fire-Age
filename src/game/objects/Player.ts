@@ -24,10 +24,14 @@ const RING_PULSE_TIME = 700;
 
 // Где кулак с дубиной относительно ног (когда вождь смотрит вправо).
 const HAND_OFFSET_X = 22;
-const HAND_OFFSET_Y = -28;
-// Угол дубины в покое и на сколько градусов она проворачивается при ударе.
-const CLUB_REST_ANGLE = -25;
-const CLUB_SWING_ANGLE = 120;
+const HAND_OFFSET_Y = -31;
+// Дубина вращается вокруг кулака. На картинке дубины кулак внизу:
+// его центр на этой доле высоты картинки (0 — верх, 1 — низ).
+const CLUB_GRIP_Y = 0.87;
+// Угол дубины в покое: наклонена вперёд, от лица (0° — дубина стоит вертикально).
+// При ударе она проворачивается ещё на CLUB_SWING_ANGLE градусов — вперёд и вниз, по кусту.
+const CLUB_REST_ANGLE = 65;
+const CLUB_SWING_ANGLE = 75;
 // Сколько мс дубина летит вниз. Обратно — столько же.
 const CLUB_SWING_TIME = 110;
 
@@ -109,9 +113,9 @@ export class Player {
       repeat: -1,
       ease: 'Sine.easeInOut',
     });
-    // Точка опоры тела и дубины — середина нижнего края (ноги и конец рукояти).
+    // Точка опоры тела — середина нижнего края (ноги), дубины — кулак.
     this.bodyImage = scene.add.image(x, y, TEXTURES.player).setOrigin(0.5, 1);
-    this.club = scene.add.image(x, y, TEXTURES.club).setOrigin(0.5, 1);
+    this.club = scene.add.image(x, y, TEXTURES.club).setOrigin(0.5, CLUB_GRIP_Y);
 
     // Джойстик живёт в координатах экрана: scrollFactor 0 — не едет вместе с камерой.
     this.joystickBase = this.createJoystickPart(TEXTURES.joystickBase);
