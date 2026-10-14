@@ -4,9 +4,12 @@ import { TEXTURES } from '../textures';
 
 // ===== Слои вождя =====
 
-// Тень и кольцо лежат на земле сразу под вождём, дубина — чуть впереди тела.
+// Тень и кольцо лежат на земле сразу под вождём. Ноги — чуть позади тела
+// (подол шкуры закрывает бёдра), свободная рука и дубина — чуть впереди.
 const SHADOW_DEPTH_SHIFT = -0.6;
 const RING_DEPTH_SHIFT = -0.5;
+const LEG_DEPTH_SHIFT = -0.05;
+const ARM_DEPTH_SHIFT = 0.05;
 const CLUB_DEPTH_SHIFT = 0.1;
 // Джойстик рисуется поверх всего мира.
 const JOYSTICK_DEPTH = 20000;
@@ -23,8 +26,8 @@ const RING_PULSE_SCALE = 1.08;
 const RING_PULSE_TIME = 700;
 
 // Где кулак с дубиной относительно ног (когда вождь смотрит вправо).
-const HAND_OFFSET_X = 24;
-const HAND_OFFSET_Y = -32;
+const HAND_OFFSET_X = 34;
+const HAND_OFFSET_Y = -31;
 // Дубина вращается вокруг кулака. На картинке дубины кулак внизу:
 // его центр на этой доле высоты картинки (0 — верх, 1 — низ).
 const CLUB_GRIP_Y = 0.89;
@@ -50,13 +53,37 @@ const BODY_LEAN_PER_DEGREE = 0.08;
 const BACK_OFFSET_X = -16;
 const BACK_OFFSET_Y = -58;
 
-// Пружинистая ходьба: высота подскока, частота шагов, наклон и сплющивание.
-const WALK_BOB_HEIGHT = 6;
-const WALK_BOB_SPEED = 0.018;
-const WALK_TILT = 4;
-const WALK_SQUASH = 0.06;
-// В прыжке тень становится меньше на эту долю.
-const SHADOW_SHRINK_IN_JUMP = 0.15;
+// ===== Ноги и свободная рука =====
+
+// Бёдра — точки, вокруг которых качаются ноги (от ног вождя; левое и правое — ±HIP_OFFSET_X).
+const HIP_OFFSET_X = 8;
+const HIP_OFFSET_Y = -26;
+// На картинке ноги бедро вверху: на этой доле высоты картинки.
+const LEG_HIP_Y = 0.09;
+// Плечо свободной руки (когда вождь смотрит вправо) и где плечо на картинке руки.
+const SHOULDER_OFFSET_X = -25;
+const SHOULDER_OFFSET_Y = -52;
+const ARM_SHOULDER_Y = 0.22;
+// В покое свободная рука висит чуть в сторону от тела, а не прямо вниз (градусы).
+const ARM_REST_ANGLE = 12;
+
+// ===== Бег: настоящие шаги =====
+
+// Как быстро идут шаги (радиан фазы шага на мс). Полный цикл — два шага.
+const STEP_SPEED = 0.015;
+// На сколько градусов нога отходит вперёд и назад от бедра.
+const LEG_SWING_ANGLE = 28;
+// На сколько пикселей приподнимается нога, которая идёт вперёд.
+const LEG_LIFT = 4;
+// Свободная рука машет в такт шагам — на сколько градусов вперёд-назад.
+const ARM_SWING_ANGLE = 30;
+// При взмахе дубиной свободная рука отходит для равновесия: градусов на градус взмаха.
+const ARM_STRIKE_FACTOR = 0.5;
+// Тело на каждом шаге чуть поднимается (пиксели) и наклоняется вперёд по ходу бега (градусы).
+const RUN_BOB_HEIGHT = 2.5;
+const RUN_LEAN = 5;
+// Когда тело приподнято, тень становится меньше на эту долю.
+const SHADOW_SHRINK_IN_JUMP = 0.1;
 // «Дыхание» на месте: насколько вытягивается тело и как быстро.
 const IDLE_BREATH = 0.025;
 const IDLE_BREATH_SPEED = 0.004;
@@ -64,9 +91,10 @@ const IDLE_BREATH_SPEED = 0.004;
 /**
  * Вождь племени.
  *
- * Ходит по миру (клавиатура или виртуальный джойстик), пружинисто
- * подпрыгивает при ходьбе, разворачивается по направлению и машет дубиной.
- * Состоит из нескольких картинок: тень, кольцо под ногами, тело и дубина.
+ * Ходит по миру (клавиатура или виртуальный джойстик): ноги шагают по очереди,
+ * свободная рука машет в такт, тело чуть наклоняется вперёд. Разворачивается
+ * по направлению и машет дубиной. Состоит из нескольких картинок: тень,
+ * кольцо под ногами, две ноги, тело, свободная рука и дубина.
  * О кустах, стопке и поленнице вождь ничего не знает — этим занимается сцена.
  */
 export class Player {
@@ -80,8 +108,10 @@ export class Player {
   private scene: Phaser.Scene;
   // Куда смотрит вождь: 1 — вправо, -1 — влево.
   private facing = 1;
-  // Сколько мс вождь идёт без остановки — из этого считаются шаги.
-  private walkTime = 0;
+  // Фаза шага (радианы): из неё считаются движения ног, руки и тела.
+  private stepPhase = 0;
+  // Куда сейчас отведены ноги: от -1 до 1 (0 — стоят ровно).
+  private legSwing = 0;
   // Сколько мс вождь стоит — из этого считается «дыхание».
   private idleTime = 0;
   // Насколько тело сейчас подпрыгнуло вверх, в пикселях.
@@ -89,7 +119,7 @@ export class Player {
   // Взмах дубиной: на сколько градусов дубина сейчас отклонена от угла покоя.
   // Меняется цепочкой твинов в swing().
   private clubSwing = 0;
-  // Наклон тела от шагов (градусы).
+  // Наклон тела вперёд по ходу бега (градусы).
   private walkTilt = 0;
   // Во сколько раз растянута текстура тени, чтобы её ширина была SHADOW_WIDTH.
   private shadowScale = 1;
@@ -98,6 +128,8 @@ export class Player {
   private shadow: Phaser.GameObjects.Image;
   private ring: Phaser.GameObjects.Image;
   private bodyImage: Phaser.GameObjects.Image;
+  private legs: Phaser.GameObjects.Image[];
+  private freeArm: Phaser.GameObjects.Image;
   private club: Phaser.GameObjects.Image;
 
   // Джойстик: круг-основа и ручка. Видны, только пока зажата мышь или палец.
@@ -127,8 +159,14 @@ export class Player {
       repeat: -1,
       ease: 'Sine.easeInOut',
     });
-    // Точка опоры тела — середина нижнего края (ноги), дубины — кулак.
+    // Точка опоры тела — середина нижнего края (ноги), ног — бедро,
+    // свободной руки — плечо, дубины — кулак.
     this.bodyImage = scene.add.image(x, y, TEXTURES.player).setOrigin(0.5, 1);
+    this.legs = [
+      scene.add.image(x, y, TEXTURES.leg).setOrigin(0.5, LEG_HIP_Y),
+      scene.add.image(x, y, TEXTURES.leg).setOrigin(0.5, LEG_HIP_Y),
+    ];
+    this.freeArm = scene.add.image(x, y, TEXTURES.arm).setOrigin(0.5, ARM_SHOULDER_Y);
     this.club = scene.add.image(x, y, TEXTURES.club).setOrigin(0.5, CLUB_GRIP_Y);
 
     // Джойстик живёт в координатах экрана: scrollFactor 0 — не едет вместе с камерой.
@@ -257,21 +295,21 @@ export class Player {
     if (this.velocityX < 0) this.facing = -1;
   }
 
-  // Пружинистая ходьба или «дыхание» на месте.
+  // Бег настоящими шагами или «дыхание» на месте.
   private animate(delta: number, isMoving: boolean): void {
     if (isMoving) {
       this.idleTime = 0;
-      this.walkTime += delta;
-      // step качается от -1 до 1. |step| — подскок: каждый шаг тело взлетает и опускается.
-      const step = Math.sin(this.walkTime * WALK_BOB_SPEED);
-      this.bob = Math.abs(step) * WALK_BOB_HEIGHT;
-      // На каждом шаге тело наклоняется то вправо, то влево.
-      this.walkTilt = step * WALK_TILT;
-      // Внизу шага тело чуть сплющено, вверху — вытянуто.
-      const stretch = (Math.abs(step) * 2 - 1) * WALK_SQUASH;
-      this.bodyImage.setScale(1 - stretch, 1 + stretch);
+      this.stepPhase += delta * STEP_SPEED;
+      // legSwing качается от -1 до 1: одна нога вперёд, другая назад, потом наоборот.
+      this.legSwing = Math.sin(this.stepPhase);
+      // Тело выше всего, когда ноги проходят под ним (|cos| — два подъёма за цикл, по одному на шаг).
+      this.bob = Math.abs(Math.cos(this.stepPhase)) * RUN_BOB_HEIGHT;
+      // Тело наклонено вперёд по ходу бега.
+      this.walkTilt = RUN_LEAN * this.facing;
+      this.bodyImage.setScale(1);
     } else {
-      this.walkTime = 0;
+      this.stepPhase = 0;
+      this.legSwing = 0;
       this.idleTime += delta;
       this.bob = 0;
       this.walkTilt = 0;
@@ -288,7 +326,7 @@ export class Player {
 
     this.shadow.setPosition(this.x, this.y).setDepth(this.y + SHADOW_DEPTH_SHIFT);
     // Чем выше подпрыгнуло тело, тем меньше тень.
-    this.shadow.setScale(this.shadowScale * (1 - (this.bob / WALK_BOB_HEIGHT) * SHADOW_SHRINK_IN_JUMP));
+    this.shadow.setScale(this.shadowScale * (1 - (this.bob / RUN_BOB_HEIGHT) * SHADOW_SHRINK_IN_JUMP));
     this.ring.setPosition(this.x, this.y).setDepth(this.y + RING_DEPTH_SHIFT);
 
     // Наклон тела: от шагов и вслед за взмахом дубины (зеркально, если вождь смотрит влево).
@@ -299,11 +337,39 @@ export class Player {
       .setDepth(this.y)
       .setFlipX(isLeft);
 
+    this.placeLegs(isLeft);
+
+    // Свободная рука машет в такт шагам (в паре с ногой на той же стороне — в противофазе)
+    // и отходит назад для равновесия, когда вождь бьёт дубиной.
+    this.freeArm
+      .setPosition(this.x + SHOULDER_OFFSET_X * this.facing, this.y + SHOULDER_OFFSET_Y - this.bob)
+      .setAngle((ARM_REST_ANGLE + this.legSwing * ARM_SWING_ANGLE + this.clubSwing * ARM_STRIKE_FACTOR) * this.facing)
+      .setFlipX(isLeft)
+      .setDepth(this.y + ARM_DEPTH_SHIFT);
+
     // Дубина в кулаке. Когда вождь смотрит влево, всё зеркально: и место, и угол.
     this.club
       .setPosition(this.x + HAND_OFFSET_X * this.facing, this.y + HAND_OFFSET_Y - this.bob)
       .setAngle((CLUB_REST_ANGLE + this.clubSwing) * this.facing)
       .setFlipX(isLeft)
       .setDepth(this.y + CLUB_DEPTH_SHIFT);
+  }
+
+  // Ноги качаются вокруг бёдер в противофазе: одна вперёд, другая назад.
+  // Нога, которая идёт вперёд, чуть приподнимается — получается шаг, а не скольжение.
+  private placeLegs(isLeft: boolean): void {
+    this.legs.forEach((leg, index) => {
+      // Левая нога (index 0) — на −HIP_OFFSET_X, правая — на +HIP_OFFSET_X.
+      const side = index === 0 ? -1 : 1;
+      // Для левой ноги шаг = legSwing, для правой — наоборот.
+      const swing = index === 0 ? this.legSwing : -this.legSwing;
+      const lift = Math.max(0, swing) * LEG_LIFT;
+      leg
+        .setPosition(this.x + side * HIP_OFFSET_X, this.y + HIP_OFFSET_Y - this.bob - lift)
+        // Нога висит вниз; поворот против часовой (минус) уносит ступню вперёд-вправо.
+        .setAngle(-swing * LEG_SWING_ANGLE * this.facing)
+        .setFlipX(isLeft)
+        .setDepth(this.y + LEG_DEPTH_SHIFT);
+    });
   }
 }

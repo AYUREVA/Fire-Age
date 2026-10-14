@@ -24,7 +24,9 @@ export const TEXTURES = {
   fir: 'fir', // заснеженная ель
   rock: 'rock', // скала со снегом
   shadow: 'shadow', // мягкая тень-эллипс под предметами
-  player: 'player', // вождь (без дубины), смотрит чуть вправо
+  player: 'player', // вождь без ног, свободной руки и дубины, смотрит чуть вправо
+  leg: 'leg', // нога в сапоге; вращается вокруг бедра (см. Player.ts)
+  arm: 'arm', // свободная рука с кулаком; вращается вокруг плеча (см. Player.ts)
   club: 'club', // дубина с кулаком внизу; вращается вокруг кулака (см. Player.ts)
   ring: 'ring', // светлое кольцо под ногами вождя
   joystickBase: 'joystick-base', // круг джойстика
@@ -60,6 +62,8 @@ const FIR_SIZE: Size = { w: 124, h: 180 };
 const ROCK_SIZE: Size = { w: 100, h: 78 };
 const SHADOW_SIZE: Size = { w: 80, h: 36 };
 const PLAYER_SIZE: Size = { w: 124, h: 160 };
+const LEG_SIZE: Size = { w: 26, h: 34 };
+const ARM_SIZE: Size = { w: 26, h: 50 };
 const CLUB_SIZE: Size = { w: 36, h: 92 };
 const RING_SIZE: Size = { w: 90, h: 44 };
 const JOYSTICK_BASE_SIZE: Size = { w: 128, h: 128 };
@@ -116,6 +120,8 @@ export function createTextures(scene: Phaser.Scene): void {
   bake(scene, TEXTURES.rock, ROCK_SIZE, drawRock);
   bake(scene, TEXTURES.shadow, SHADOW_SIZE, drawShadow);
   bake(scene, TEXTURES.player, PLAYER_SIZE, drawPlayer);
+  bake(scene, TEXTURES.leg, LEG_SIZE, drawLeg);
+  bake(scene, TEXTURES.arm, ARM_SIZE, drawArm);
   bake(scene, TEXTURES.club, CLUB_SIZE, drawClub);
   bake(scene, TEXTURES.ring, RING_SIZE, drawRing);
   bake(scene, TEXTURES.joystickBase, JOYSTICK_BASE_SIZE, drawJoystickBase);
@@ -324,7 +330,8 @@ function drawShadow(g: Graphics): void {
 
 // Вождь — весёлый пещерный человек, почти анфас, чуть повёрнут вправо.
 // Свет падает слева сверху: справа и снизу — тени, слева и сверху — блики.
-// Дубина с кулаком — отдельная картинка, чтобы ею можно было махать.
+// Ноги, свободная рука и дубина с кулаком — отдельные картинки,
+// чтобы ноги шагали, рука махала, а дубиной можно было бить.
 //
 // Вождь нарисован в своих координатах: ноги внизу по центру в точке (60, 138).
 // translateCanvas сдвигает весь рисунок так, чтобы растрёпанная грива
@@ -332,39 +339,52 @@ function drawShadow(g: Graphics): void {
 function drawPlayer(g: Graphics): void {
   g.save();
   g.translateCanvas(PLAYER_SIZE.w / 2 - 60, PLAYER_SIZE.h - 140);
-  drawPlayerLegs(g);
   drawPlayerBody(g);
   drawPlayerHead(g);
   g.restore();
 }
 
-// Короткие ноги в меховых сапогах с пушистыми отворотами. Дальняя нога темнее.
-function drawPlayerLegs(g: Graphics): void {
+// Нога в меховом сапоге с пушистым отворотом. Бедро — сверху по центру картинки,
+// вокруг него нога качается при ходьбе.
+function drawLeg(g: Graphics): void {
+  const cx = LEG_SIZE.w / 2;
   g.lineStyle(OUTLINE_WIDTH, COLORS.outline, 1);
-  g.fillStyle(COLORS.skinShade, 1);
-  g.fillRoundedRect(48, 110, 10, 18, 4);
-  g.strokeRoundedRect(48, 110, 10, 18, 4);
   g.fillStyle(COLORS.skin, 1);
-  g.fillRoundedRect(62, 110, 11, 18, 4);
-  g.strokeRoundedRect(62, 110, 11, 18, 4);
+  g.fillRoundedRect(cx - 5.5, 2, 11, 20, 4);
+  g.strokeRoundedRect(cx - 5.5, 2, 11, 20, 4);
+  // Тень на правой стороне ноги.
+  g.fillStyle(COLORS.skinShade, 1);
+  g.fillRect(cx + 1, 4, 3, 16);
 
-  // Сапоги: тёмный мех и блик сверху.
-  outlinedEllipse(g, 52, 131, 20, 13, COLORS.furDark);
-  outlinedEllipse(g, 70, 131, 22, 13, COLORS.furDark);
+  // Сапог: тёмный мех и блик сверху.
+  outlinedEllipse(g, cx, 26, 21, 12, COLORS.furDark);
   g.fillStyle(COLORS.fur, 1);
-  g.fillEllipse(49, 129, 9, 4);
-  g.fillEllipse(67, 129, 10, 4);
-  // Пушистые отвороты.
-  outlinedBlobs(g, [46, 123, 3.5, 52, 122, 4, 58, 123, 3.5], COLORS.furLight);
-  outlinedBlobs(g, [64, 123, 3.5, 70, 122, 4, 76, 123, 3.5], COLORS.furLight);
+  g.fillEllipse(cx - 3, 24, 9, 4);
+  // Пушистый отворот.
+  outlinedBlobs(g, [cx - 6, 19, 3.5, cx, 18, 4, cx + 6, 19, 3.5], COLORS.furLight);
+}
+
+// Свободная рука: плечо сверху по центру (вокруг него рука качается),
+// чуть согнутый локоть, кожаная обмотка на запястье и кулак внизу.
+function drawArm(g: Graphics): void {
+  const cx = ARM_SIZE.w / 2;
+  // Плечо → локоть → запястье одной линией с общей обводкой.
+  limbChain(g, [cx, 11, cx - 2, 25, cx + 1, 35], 11, COLORS.skin);
+  // Тень вдоль руки и блик на плече.
+  g.fillStyle(COLORS.skinShade, 1);
+  g.fillEllipse(cx + 2.5, 24, 3.5, 14);
+  g.fillStyle(COLORS.white, 0.35);
+  g.fillEllipse(cx - 2, 12, 5, 4);
+  // Кожаная обмотка на запястье и кулак.
+  limb(g, cx - 4, 35, cx + 6, 35, 4, COLORS.leather);
+  outlinedCircle(g, cx + 1, 41, 6.5, COLORS.skin);
+  g.lineStyle(1.5, COLORS.skinShade, 1);
+  g.lineBetween(cx + 2, 38, cx + 6, 38);
+  g.lineBetween(cx + 2, 41.5, cx + 6.5, 41.5);
 }
 
 // Туловище, большая леопардовая шкура через плечо, пояс из верёвки и руки.
 function drawPlayerBody(g: Graphics): void {
-  // Дальняя рука — за телом, в тени, с кожаной обмоткой на запястье.
-  outlinedEllipse(g, 35, 98, 14, 28, COLORS.skinShade);
-  g.fillStyle(COLORS.leather, 1);
-  g.fillRect(29, 104, 12, 4);
   // Туловище и блик на правом плече.
   outlinedEllipse(g, 60, 96, 52, 46, COLORS.skin);
   g.fillStyle(COLORS.white, 0.35);
@@ -397,13 +417,14 @@ function drawPlayerBody(g: Graphics): void {
   limb(g, 61, 108, 63, 116, 2.5, COLORS.rope);
   outlinedCircle(g, 59, 107, 3.5, COLORS.rope);
 
-  // Ближняя рука: от плеча к кулаку на рукояти дубины, бицепс в тени, обмотка на запястье.
-  limb(g, 78, 86, 84, 104, 13, COLORS.skin);
+  // Рука с дубиной: от плеча вбок к локтю и вниз к кулаку на рукояти,
+  // бицепс в тени, кожаная обмотка на запястье. Кулак — на картинке дубины.
+  limbChain(g, [80, 84, 91, 95, 93, 103], 11, COLORS.skin);
   g.fillStyle(COLORS.skinShade, 1);
-  g.fillEllipse(83, 95, 5, 10);
+  g.fillEllipse(88, 93, 5, 9);
   g.fillStyle(COLORS.white, 0.35);
-  g.fillEllipse(77, 88, 6, 4);
-  limb(g, 78, 100, 89, 101, 4, COLORS.leather);
+  g.fillEllipse(81, 85, 6, 4);
+  limb(g, 88, 101, 98, 101, 4, COLORS.leather);
 }
 
 // Голова почти анфас, как на картинке-образце: растрёпанная грива больше головы,
@@ -469,14 +490,20 @@ function drawPlayerBeard(g: Graphics): void {
   drawLocks(g, [[54, 69, 170, 6, 1.8, 0], [72, 69, 10, 6, 1.8, 0]], COLORS.hairLight);
 }
 
-// Нос картошкой: крупный, круглый, чуть красный, с бликом и ноздрями.
+// Нос картошкой: небольшой овальный (шире, чем выше), чуть красный,
+// с ноздрями-крылышками по бокам и бликом.
 function drawPlayerNose(g: Graphics): void {
-  outlinedCircle(g, 63, 64, 8.5, COLORS.nose);
-  g.fillStyle(COLORS.skinShade, 1);
-  g.fillCircle(59, 69, 2);
-  g.fillCircle(67, 69, 2);
+  outlinedEllipse(g, 63, 65, 13, 10.5, COLORS.nose);
+  // Крылышки ноздрей — короткие дуги внизу по бокам.
+  g.lineStyle(1.5, COLORS.skinShade, 1);
+  g.beginPath();
+  g.arc(59.5, 66.5, 2.5, Math.PI * 0.5, Math.PI * 1.2);
+  g.strokePath();
+  g.beginPath();
+  g.arc(66.5, 66.5, 2.5, -Math.PI * 0.2, Math.PI * 0.5);
+  g.strokePath();
   g.fillStyle(COLORS.white, 0.6);
-  g.fillCircle(60, 61, 2.5);
+  g.fillCircle(60.5, 62.5, 1.8);
 }
 
 // Большой круглый глаз: белок, карий зрачок смотрит чуть вправо, блик.
@@ -1206,6 +1233,20 @@ function limb(g: Graphics, x1: number, y1: number, x2: number, y2: number, width
   g.fillStyle(color, 1);
   g.fillCircle(x1, y1, width / 2);
   g.fillCircle(x2, y2, width / 2);
+}
+
+// Рука или нога из нескольких отрезков (плечо → локоть → запястье) с одной общей обводкой:
+// сначала все отрезки цветом обводки чуть толще, потом поверх — нужным цветом.
+// Так в суставах не остаётся тёмных полос. points — [x1, y1, x2, y2, …].
+function limbChain(g: Graphics, points: number[], width: number, color: number): void {
+  for (const [lineColor, extra] of [[COLORS.outline, OUTLINE_WIDTH], [color, 0]]) {
+    g.lineStyle(width + extra * 2, lineColor, 1);
+    g.fillStyle(lineColor, 1);
+    for (let i = 0; i < points.length; i += 2) {
+      g.fillCircle(points[i], points[i + 1], width / 2 + extra);
+      if (i + 3 < points.length) g.lineBetween(points[i], points[i + 1], points[i + 2], points[i + 3]);
+    }
+  }
 }
 
 // Закрашенный эллипс с тёмной обводкой.
