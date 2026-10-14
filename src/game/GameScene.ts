@@ -1,7 +1,8 @@
 import Phaser from 'phaser';
 // Игровые параметры (размер мира и т. д.) — в settings.ts.
-import { WORLD_WIDTH, WORLD_HEIGHT, WORLD_EDGE } from './settings';
+import { WORLD_WIDTH, WORLD_HEIGHT, WORLD_EDGE, PLAYER_START } from './settings';
 import { TEXTURES, createTextures } from './textures';
+import { Player } from './objects/Player';
 
 // ===== Слои отрисовки (depth) =====
 // Порядок снизу вверх во всей игре:
@@ -46,6 +47,13 @@ const FOREST_SCALE_MAX = 1.15;
 // Ширина тени относительно ширины предмета.
 const SHADOW_WIDTH_RATIO = 0.85;
 
+// ===== Камера =====
+
+// Плавность камеры: какую долю пути до вождя камера проходит за кадр (1 — сразу).
+const CAMERA_LERP = 0.08;
+// Камера смотрит чуть выше ног вождя, чтобы в кадр помещалась стопка за спиной.
+const CAMERA_OFFSET_Y = 60;
+
 /**
  * Игра «Племя у огня», версия 0.1.
  *
@@ -56,6 +64,9 @@ const SHADOW_WIDTH_RATIO = 0.85;
  * Только сцена знает обо всех объектах — сами объекты друг о друге не знают.
  */
 export class GameScene extends Phaser.Scene {
+  // Вождь — его водит игрок.
+  private player!: Player;
+
   constructor() {
     super('GameScene');
   }
@@ -69,7 +80,15 @@ export class GameScene extends Phaser.Scene {
     this.createGround();
     this.createGroundDecor(rng);
     this.createBorderForest(rng);
+
+    this.player = new Player(this, PLAYER_START.x, PLAYER_START.y);
+
     this.setupCamera();
+  }
+
+  // Вызывается Phaser каждый кадр. delta — сколько мс прошло с прошлого кадра.
+  update(_time: number, delta: number): void {
+    this.player.update(delta);
   }
 
   // ===== Мир =====
@@ -154,10 +173,11 @@ export class GameScene extends Phaser.Scene {
 
   // ===== Камера =====
 
-  // Камера не показывает ничего за пределами мира.
+  // Камера плавно следует за вождём и не показывает ничего за пределами мира.
   private setupCamera(): void {
     const camera = this.cameras.main;
     camera.setBounds(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
-    camera.centerOn(WORLD_WIDTH / 2, WORLD_HEIGHT / 2);
+    // Следить можно за любым объектом с x и y — у вождя это точка ног.
+    camera.startFollow(this.player, false, CAMERA_LERP, CAMERA_LERP, 0, CAMERA_OFFSET_Y);
   }
 }

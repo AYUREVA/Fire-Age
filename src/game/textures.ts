@@ -24,6 +24,11 @@ export const TEXTURES = {
   fir: 'fir', // заснеженная ель
   rock: 'rock', // скала со снегом
   shadow: 'shadow', // мягкая тень-эллипс под предметами
+  player: 'player', // вождь (без дубины), смотрит вправо
+  club: 'club', // дубина; точка опоры — конец рукояти
+  ring: 'ring', // светлое кольцо под ногами вождя
+  joystickBase: 'joystick-base', // круг джойстика
+  joystickKnob: 'joystick-knob', // ручка джойстика
 } as const;
 
 // ===== Размеры текстур в пикселях =====
@@ -39,6 +44,11 @@ const GRASS_TUFT_SIZE: Size = { w: 36, h: 32 };
 const FIR_SIZE: Size = { w: 124, h: 180 };
 const ROCK_SIZE: Size = { w: 100, h: 78 };
 const SHADOW_SIZE: Size = { w: 80, h: 36 };
+const PLAYER_SIZE: Size = { w: 96, h: 122 };
+const CLUB_SIZE: Size = { w: 30, h: 70 };
+const RING_SIZE: Size = { w: 90, h: 44 };
+const JOYSTICK_BASE_SIZE: Size = { w: 128, h: 128 };
+const JOYSTICK_KNOB_SIZE: Size = { w: 60, h: 60 };
 
 // ===== Параметры рисования =====
 
@@ -68,6 +78,11 @@ export function createTextures(scene: Phaser.Scene): void {
   bake(scene, TEXTURES.fir, FIR_SIZE, drawFir);
   bake(scene, TEXTURES.rock, ROCK_SIZE, drawRock);
   bake(scene, TEXTURES.shadow, SHADOW_SIZE, drawShadow);
+  bake(scene, TEXTURES.player, PLAYER_SIZE, drawPlayer);
+  bake(scene, TEXTURES.club, CLUB_SIZE, drawClub);
+  bake(scene, TEXTURES.ring, RING_SIZE, drawRing);
+  bake(scene, TEXTURES.joystickBase, JOYSTICK_BASE_SIZE, drawJoystickBase);
+  bake(scene, TEXTURES.joystickKnob, JOYSTICK_KNOB_SIZE, drawJoystickKnob);
 }
 
 // Рисует картинку на временном Graphics и сохраняет её как текстуру под ключом key.
@@ -256,7 +271,189 @@ function drawShadow(g: Graphics): void {
   softEllipse(g, w / 2, h / 2, w, h, COLORS.shadow, 0.08, 8);
 }
 
+// ===== Вождь =====
+
+// Вождь — смешной пещерный человек, смотрит вправо. Ноги внизу по центру.
+// Дубина — отдельная картинка, чтобы ею можно было махать.
+function drawPlayer(g: Graphics): void {
+  drawPlayerLegs(g);
+  drawPlayerBody(g);
+  drawPlayerHead(g);
+}
+
+// Короткие ноги в меховых сапогах. Дальняя нога темнее.
+function drawPlayerLegs(g: Graphics): void {
+  g.lineStyle(OUTLINE_WIDTH, COLORS.outline, 1);
+  g.fillStyle(COLORS.skinShade, 1);
+  g.fillRoundedRect(36, 92, 10, 20, 4);
+  g.strokeRoundedRect(36, 92, 10, 20, 4);
+  g.fillStyle(COLORS.skin, 1);
+  g.fillRoundedRect(51, 92, 10, 20, 4);
+  g.strokeRoundedRect(51, 92, 10, 20, 4);
+
+  outlinedEllipse(g, 40, 114, 18, 12, COLORS.furDark);
+  outlinedEllipse(g, 58, 114, 20, 12, COLORS.furDark);
+}
+
+// Туловище, шкура через плечо и руки.
+function drawPlayerBody(g: Graphics): void {
+  // Дальняя рука — за телом, в тени.
+  outlinedEllipse(g, 30, 84, 14, 24, COLORS.skinShade);
+  // Туловище.
+  outlinedEllipse(g, 48, 84, 46, 40, COLORS.skin);
+
+  // Шкура через левое плечо, низ — зубцами, на ней тёмные пятна.
+  const pelt = [26, 78, 40, 66, 52, 70, 72, 90, 70, 101, 64, 97, 58, 103, 52, 97, 46, 104, 40, 97, 34, 103, 28, 96];
+  fillPolygon(g, pelt, COLORS.fur);
+  g.fillStyle(COLORS.furSpot, 1);
+  g.fillCircle(40, 86, 4);
+  g.fillCircle(56, 93, 3.5);
+  g.fillCircle(33, 94, 3);
+  g.fillCircle(48, 76, 2.5);
+  strokePolygon(g, pelt);
+
+  // Ближняя рука и кулак — в нём рукоять дубины.
+  outlinedEllipse(g, 66, 80, 12, 22, COLORS.skin);
+  outlinedCircle(g, 70, 92, 6, COLORS.skin);
+}
+
+// Крупная голова: копна волос, чёлка, сросшаяся бровь, нос картошкой и борода.
+function drawPlayerHead(g: Graphics): void {
+  // Копна волос сзади и сверху: круги x, y, радиус.
+  outlinedBlobs(g, [34, 34, 16, 46, 24, 16, 60, 24, 13, 28, 48, 12, 70, 32, 9], COLORS.hair);
+
+  outlinedCircle(g, 52, 46, 24, COLORS.skin);
+  // Ухо.
+  outlinedCircle(g, 33, 50, 6, COLORS.skin);
+  g.fillStyle(COLORS.skinShade, 1);
+  g.fillCircle(33, 50, 3);
+
+  // Чёлка зубцами и блик на волосах.
+  const bangs = [30, 38, 36, 24, 50, 19, 66, 21, 77, 32, 72, 37, 66, 30, 62, 39, 56, 30, 50, 39, 44, 30, 38, 39];
+  fillPolygon(g, bangs, COLORS.hair);
+  strokePolygon(g, bangs);
+  g.fillStyle(COLORS.hairLight, 1);
+  g.fillEllipse(48, 25, 14, 4);
+
+  // Сросшаяся бровь, глаз и румянец.
+  g.fillStyle(COLORS.hair, 1);
+  g.fillRoundedRect(54, 41, 22, 5, 2);
+  g.fillStyle(COLORS.eye, 1);
+  g.fillEllipse(65, 50, 9, 11);
+  g.lineStyle(2, COLORS.outline, 1);
+  g.strokeEllipse(65, 50, 9, 11);
+  g.fillStyle(COLORS.outline, 1);
+  g.fillCircle(67, 51, 2.6);
+  g.fillStyle(COLORS.cheek, 0.6);
+  g.fillCircle(58, 60, 4.5);
+
+  // Борода с зубчатым низом и светлыми прядями.
+  const beard = [38, 56, 48, 63, 60, 63, 72, 61, 80, 63, 79, 72, 74, 80, 68, 77, 62, 86, 56, 79, 49, 85, 44, 76, 37, 68];
+  fillPolygon(g, beard, COLORS.hair);
+  strokePolygon(g, beard);
+  g.lineStyle(2, COLORS.hairLight, 1);
+  g.lineBetween(47, 70, 50, 78);
+  g.lineBetween(57, 72, 59, 80);
+
+  // Улыбка с зубами.
+  g.fillStyle(COLORS.outline, 1);
+  g.fillEllipse(68, 69, 11, 6);
+  g.fillStyle(COLORS.eye, 1);
+  g.fillRect(64, 66, 7, 2);
+
+  // Нос картошкой — поверх бороды.
+  outlinedCircle(g, 77, 56, 7.5, COLORS.skin);
+  g.fillStyle(COLORS.skinShade, 1);
+  g.fillCircle(78, 59, 2);
+}
+
+// Дубина: рукоять внизу (конец рукояти — точка опоры), шишковатая голова сверху.
+function drawClub(g: Graphics): void {
+  const { w, h } = CLUB_SIZE;
+  const cx = w / 2;
+
+  g.fillStyle(COLORS.woodDark, 1);
+  g.fillRoundedRect(cx - 4, 34, 8, h - 36, 3);
+  g.lineStyle(OUTLINE_WIDTH, COLORS.outline, 1);
+  g.strokeRoundedRect(cx - 4, 34, 8, h - 36, 3);
+
+  // Голова дубины: тень справа, блик слева, сучки.
+  g.fillStyle(COLORS.wood, 1);
+  g.fillEllipse(cx, 22, 24, 40);
+  g.fillStyle(COLORS.woodDark, 1);
+  g.fillEllipse(cx + 5, 25, 10, 28);
+  g.fillStyle(COLORS.woodLight, 1);
+  g.fillEllipse(cx - 5, 16, 6, 16);
+  g.fillStyle(COLORS.woodDark, 1);
+  g.fillCircle(cx - 4, 30, 2.5);
+  g.fillCircle(cx + 2, 9, 2);
+  g.lineStyle(OUTLINE_WIDTH, COLORS.outline, 1);
+  g.strokeEllipse(cx, 22, 24, 40);
+}
+
+// Светлое кольцо под ногами. Сплюснуто — мы смотрим сверху под углом.
+function drawRing(g: Graphics): void {
+  const { w, h } = RING_SIZE;
+  g.fillStyle(COLORS.ui, 0.15);
+  g.fillEllipse(w / 2, h / 2, w - 6, h - 6);
+  g.lineStyle(4, COLORS.ui, 0.9);
+  g.strokeEllipse(w / 2, h / 2, w - 6, h - 6);
+}
+
+// ===== Джойстик =====
+
+// Круг джойстика: полупрозрачный, со светлым краем.
+function drawJoystickBase(g: Graphics): void {
+  const center = JOYSTICK_BASE_SIZE.w / 2;
+  g.fillStyle(COLORS.ui, 0.18);
+  g.fillCircle(center, center, center - 4);
+  g.lineStyle(4, COLORS.ui, 0.6);
+  g.strokeCircle(center, center, center - 4);
+}
+
+// Ручка джойстика: белый кружок с тенью.
+function drawJoystickKnob(g: Graphics): void {
+  const center = JOYSTICK_KNOB_SIZE.w / 2;
+  g.fillStyle(COLORS.shadow, 0.25);
+  g.fillCircle(center, center + 3, center - 4);
+  g.fillStyle(COLORS.ui, 0.95);
+  g.fillCircle(center, center, center - 5);
+  g.lineStyle(3, COLORS.snowDeep, 1);
+  g.strokeCircle(center, center, center - 5);
+}
+
 // ===== Помощники рисования =====
+
+// Закрашенный эллипс с тёмной обводкой.
+function outlinedEllipse(g: Graphics, x: number, y: number, width: number, height: number, color: number): void {
+  g.fillStyle(color, 1);
+  g.fillEllipse(x, y, width, height);
+  g.lineStyle(OUTLINE_WIDTH, COLORS.outline, 1);
+  g.strokeEllipse(x, y, width, height);
+}
+
+// Закрашенный круг с тёмной обводкой.
+function outlinedCircle(g: Graphics, x: number, y: number, radius: number, color: number): void {
+  g.fillStyle(color, 1);
+  g.fillCircle(x, y, radius);
+  g.lineStyle(OUTLINE_WIDTH, COLORS.outline, 1);
+  g.strokeCircle(x, y, radius);
+}
+
+// Несколько кругов с одной общей обводкой (копна волос, куст).
+// blobs — список [x, y, радиус, x, y, радиус, …].
+// Сначала рисуем все круги цвета обводки чуть больше, потом поверх — те же
+// круги нужного цвета. Внутренние края скрываются, обводка остаётся только снаружи.
+function outlinedBlobs(g: Graphics, blobs: number[], color: number): void {
+  g.fillStyle(COLORS.outline, 1);
+  for (let i = 0; i < blobs.length; i += 3) {
+    g.fillCircle(blobs[i], blobs[i + 1], blobs[i + 2] + OUTLINE_WIDTH);
+  }
+  g.fillStyle(color, 1);
+  for (let i = 0; i < blobs.length; i += 3) {
+    g.fillCircle(blobs[i], blobs[i + 1], blobs[i + 2]);
+  }
+}
 
 // Мягкий эллипс: несколько полупрозрачных слоёв от большого к маленькому.
 // В середине слои накладываются и цвет гуще, к краю — прозрачнее.
