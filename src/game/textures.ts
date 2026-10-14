@@ -24,7 +24,7 @@ export const TEXTURES = {
   fir: 'fir', // заснеженная ель
   rock: 'rock', // скала со снегом
   shadow: 'shadow', // мягкая тень-эллипс под предметами
-  player: 'player', // вождь (без дубины), смотрит вправо
+  player: 'player', // вождь (без дубины), смотрит чуть вправо
   club: 'club', // дубина с кулаком внизу; вращается вокруг кулака (см. Player.ts)
   ring: 'ring', // светлое кольцо под ногами вождя
   joystickBase: 'joystick-base', // круг джойстика
@@ -59,7 +59,7 @@ const GRASS_TUFT_SIZE: Size = { w: 36, h: 32 };
 const FIR_SIZE: Size = { w: 124, h: 180 };
 const ROCK_SIZE: Size = { w: 100, h: 78 };
 const SHADOW_SIZE: Size = { w: 80, h: 36 };
-const PLAYER_SIZE: Size = { w: 100, h: 130 };
+const PLAYER_SIZE: Size = { w: 124, h: 160 };
 const CLUB_SIZE: Size = { w: 36, h: 92 };
 const RING_SIZE: Size = { w: 90, h: 44 };
 const JOYSTICK_BASE_SIZE: Size = { w: 128, h: 128 };
@@ -322,208 +322,290 @@ function drawShadow(g: Graphics): void {
 
 // ===== Вождь =====
 
-// Вождь — пещерный человек, смотрит вправо. Ноги внизу по центру.
+// Вождь — весёлый пещерный человек, почти анфас, чуть повёрнут вправо.
 // Свет падает слева сверху: справа и снизу — тени, слева и сверху — блики.
 // Дубина с кулаком — отдельная картинка, чтобы ею можно было махать.
+//
+// Вождь нарисован в своих координатах: ноги внизу по центру в точке (60, 138).
+// translateCanvas сдвигает весь рисунок так, чтобы растрёпанная грива
+// не вылезала за верх картинки, а ноги стояли на её нижнем крае.
 function drawPlayer(g: Graphics): void {
+  g.save();
+  g.translateCanvas(PLAYER_SIZE.w / 2 - 60, PLAYER_SIZE.h - 140);
   drawPlayerLegs(g);
   drawPlayerBody(g);
   drawPlayerHead(g);
+  g.restore();
 }
 
 // Короткие ноги в меховых сапогах с пушистыми отворотами. Дальняя нога темнее.
 function drawPlayerLegs(g: Graphics): void {
   g.lineStyle(OUTLINE_WIDTH, COLORS.outline, 1);
   g.fillStyle(COLORS.skinShade, 1);
-  g.fillRoundedRect(39, 100, 10, 16, 4);
-  g.strokeRoundedRect(39, 100, 10, 16, 4);
+  g.fillRoundedRect(48, 110, 10, 18, 4);
+  g.strokeRoundedRect(48, 110, 10, 18, 4);
   g.fillStyle(COLORS.skin, 1);
-  g.fillRoundedRect(53, 100, 11, 16, 4);
-  g.strokeRoundedRect(53, 100, 11, 16, 4);
+  g.fillRoundedRect(62, 110, 11, 18, 4);
+  g.strokeRoundedRect(62, 110, 11, 18, 4);
 
   // Сапоги: тёмный мех и блик сверху.
-  outlinedEllipse(g, 43, 121, 20, 13, COLORS.furDark);
-  outlinedEllipse(g, 61, 121, 22, 13, COLORS.furDark);
+  outlinedEllipse(g, 52, 131, 20, 13, COLORS.furDark);
+  outlinedEllipse(g, 70, 131, 22, 13, COLORS.furDark);
   g.fillStyle(COLORS.fur, 1);
-  g.fillEllipse(40, 119, 9, 4);
-  g.fillEllipse(58, 119, 10, 4);
+  g.fillEllipse(49, 129, 9, 4);
+  g.fillEllipse(67, 129, 10, 4);
   // Пушистые отвороты.
-  outlinedBlobs(g, [37, 113, 3.5, 43, 112, 4, 49, 113, 3.5], COLORS.furLight);
-  outlinedBlobs(g, [55, 113, 3.5, 61, 112, 4, 67, 113, 3.5], COLORS.furLight);
+  outlinedBlobs(g, [46, 123, 3.5, 52, 122, 4, 58, 123, 3.5], COLORS.furLight);
+  outlinedBlobs(g, [64, 123, 3.5, 70, 122, 4, 76, 123, 3.5], COLORS.furLight);
 }
 
-// Туловище, шкура через плечо, пояс из верёвки и руки.
+// Туловище, большая леопардовая шкура через плечо, пояс из верёвки и руки.
 function drawPlayerBody(g: Graphics): void {
-  // Дальняя рука — за телом, в тени.
-  outlinedEllipse(g, 29, 90, 14, 26, COLORS.skinShade);
-  // Туловище и блик на плече.
-  outlinedEllipse(g, 50, 90, 52, 44, COLORS.skin);
+  // Дальняя рука — за телом, в тени, с кожаной обмоткой на запястье.
+  outlinedEllipse(g, 35, 98, 14, 28, COLORS.skinShade);
+  g.fillStyle(COLORS.leather, 1);
+  g.fillRect(29, 104, 12, 4);
+  // Туловище и блик на правом плече.
+  outlinedEllipse(g, 60, 96, 52, 46, COLORS.skin);
   g.fillStyle(COLORS.white, 0.35);
-  g.fillEllipse(35, 78, 10, 6);
+  g.fillEllipse(76, 84, 9, 5);
 
-  // Шкура через левое плечо: тень справа, светлая кромка, пятна, штрихи меха, зубчатый низ.
-  const pelt = [27, 84, 42, 70, 55, 74, 76, 96, 74, 107, 68, 103, 62, 109, 56, 103, 50, 110, 44, 103, 38, 109, 30, 102];
+  // Шкура через левое плечо: шире тела, закрывает грудь и бёдра, внизу рваный подол.
+  const pelt = [
+    31, 90, 36, 80, 44, 75, 52, 79, 62, 85, 72, 90, 80, 94, 85, 104, 85, 112, 81, 120, 77, 113, 72, 121,
+    67, 114, 61, 122, 55, 115, 49, 120, 44, 113, 39, 119, 34, 112, 31, 104,
+  ];
   fillPolygon(g, pelt, COLORS.fur);
-  fillPolygon(g, [60, 80, 76, 96, 74, 107, 68, 103, 62, 109, 60, 105], COLORS.furShade);
+  // Тень на правой стороне шкуры.
+  fillPolygon(g, [70, 90, 80, 94, 85, 104, 85, 112, 81, 120, 77, 113, 72, 121, 71, 108], COLORS.furShade);
+  // Светлая кромка у плеча.
   g.lineStyle(4, COLORS.furLight, 1);
-  g.lineBetween(30, 83, 42, 73);
-  g.lineBetween(42, 73, 54, 77);
+  g.lineBetween(36, 81, 44, 76);
+  g.lineBetween(44, 76, 52, 80);
+  // Леопардовые пятна: каждое — два круга внахлёст, поэтому форма неровная.
   g.fillStyle(COLORS.furSpot, 1);
-  g.fillCircle(42, 92, 4);
-  g.fillCircle(61, 97, 3.5);
-  g.fillCircle(35, 98, 3);
-  g.fillCircle(49, 82, 2.5);
-  g.lineStyle(1.5, COLORS.furDark, 1);
-  g.lineBetween(32, 92, 35, 88);
-  g.lineBetween(48, 99, 51, 95);
-  g.lineBetween(66, 93, 68, 90);
+  const spots = [40, 95, 4, 55, 101, 3.5, 68, 99, 4, 46, 110, 3, 62, 112, 3.5, 77, 106, 3, 37, 105, 2.5, 50, 88, 2.5];
+  for (let i = 0; i < spots.length; i += 3) {
+    g.fillCircle(spots[i], spots[i + 1], spots[i + 2]);
+    g.fillCircle(spots[i] + spots[i + 2] * 0.7, spots[i + 1] + 1, spots[i + 2] * 0.7);
+  }
   strokePolygon(g, pelt);
 
-  // Пояс из верёвки с узлом.
-  limb(g, 31, 101, 73, 101, 3, COLORS.rope);
-  outlinedCircle(g, 60, 102, 3.5, COLORS.rope);
+  // Пояс из верёвки: узел и два свисающих конца.
+  limb(g, 32, 106, 84, 106, 3, COLORS.rope);
+  limb(g, 57, 108, 54, 117, 2.5, COLORS.rope);
+  limb(g, 61, 108, 63, 116, 2.5, COLORS.rope);
+  outlinedCircle(g, 59, 107, 3.5, COLORS.rope);
 
-  // Ближняя рука: от плеча к кулаку на рукояти дубины, бицепс в тени.
-  limb(g, 64, 79, 74, 96, 13, COLORS.skin);
+  // Ближняя рука: от плеча к кулаку на рукояти дубины, бицепс в тени, обмотка на запястье.
+  limb(g, 78, 86, 84, 104, 13, COLORS.skin);
   g.fillStyle(COLORS.skinShade, 1);
-  g.fillEllipse(71, 89, 5, 9);
+  g.fillEllipse(83, 95, 5, 10);
   g.fillStyle(COLORS.white, 0.35);
-  g.fillEllipse(63, 80, 6, 4);
+  g.fillEllipse(77, 88, 6, 4);
+  limb(g, 78, 100, 89, 101, 4, COLORS.leather);
 }
 
-// Голова в повороте 3/4: грива с косточкой, аккуратная чёлка, два миндалевидных глаза,
-// сросшаяся бровь, нос-капля и ровная борода, в которой прячется улыбка.
+// Голова почти анфас, как на картинке-образце: растрёпанная грива больше головы,
+// лохматые брови, большие весёлые глаза, нос картошкой, широкая улыбка в лохматой бороде.
 function drawPlayerHead(g: Graphics): void {
-  // Грива сзади и сверху, сзади свисает до плеча: круги x, y, радиус.
-  outlinedBlobs(g, [34, 30, 17, 48, 20, 17, 64, 19, 15, 28, 46, 14, 29, 62, 10, 78, 26, 10], COLORS.hair);
-  g.fillStyle(COLORS.hairLight, 1);
-  g.fillEllipse(36, 22, 12, 5);
-  g.fillEllipse(24, 44, 5, 10);
+  // Грива: середина из кругов и пряди, торчащие во все стороны, с общей обводкой.
+  drawShaggyMass(g, HAIR_BLOBS, hairLocks(), COLORS.hair);
+  // Светлые пряди поверх — объём.
+  drawLocks(g, hairLightLocks(), COLORS.hairLight);
 
-  // Голова — чуть вытянутый овал, блик на лбу.
-  outlinedEllipse(g, 56, 48, 52, 54, COLORS.skin);
-  g.fillStyle(COLORS.white, 0.35);
-  g.fillEllipse(52, 34, 22, 8);
-  // Ухо.
-  outlinedCircle(g, 32, 52, 6, COLORS.skin);
+  // Уши выглядывают по бокам.
+  outlinedCircle(g, 36, 60, 6, COLORS.skin);
+  outlinedCircle(g, 88, 60, 5.5, COLORS.skin);
   g.fillStyle(COLORS.skinShade, 1);
-  g.fillCircle(32, 52, 3);
+  g.fillCircle(36, 60, 3);
+  g.fillCircle(88, 60, 2.5);
 
-  // Аккуратная чёлка неглубокими прядями, светлые пряди и косточка в волосах.
-  const bangs = [
-    31, 40, 35, 28, 49, 20, 65, 20, 79, 27, 84, 38, 80, 35, 76, 32, 72, 37, 67, 32, 61, 36, 55, 31, 49, 36, 43, 32, 37, 38,
-  ];
-  fillPolygon(g, bangs, COLORS.hair);
-  strokePolygon(g, bangs);
-  g.lineStyle(THIN_OUTLINE_WIDTH, COLORS.hairLight, 1);
-  g.lineBetween(46, 25, 53, 23);
-  g.lineBetween(60, 23, 67, 24);
-  drawBone(g, 42, 16, -0.5);
+  // Голова и блик на лбу.
+  outlinedEllipse(g, 62, 56, 52, 54, COLORS.skin);
+  g.fillStyle(COLORS.white, 0.35);
+  g.fillEllipse(56, 44, 20, 7);
 
-  // Глаза: ближний (левый) крупнее, дальний (правый) чуть меньше. Румянец под ближним.
-  drawAlmondEye(g, 61, 47, 11, 9);
-  drawAlmondEye(g, 76, 46, 9, 8);
-  g.fillStyle(COLORS.cheek, 0.45);
-  g.fillCircle(55, 57, 4.5);
-  // Густая сросшаяся бровь с ложбинкой над переносицей.
-  fillPolygon(
-    g,
-    [53, 42, 59, 38, 66, 38.5, 69.5, 40.5, 73, 38, 80, 37.5, 83, 40, 79, 40.5, 73, 41.5, 69.5, 43.5, 66, 41.5, 59, 41, 54, 44.5],
-    COLORS.hair,
-  );
+  // Чёлка: «шапка» волос на макушке и пряди, свисающие на лоб вразнобой.
+  // Обводку рисуем только у прядей — сначала их тёмный контур, потом шапку и сами пряди.
+  g.fillStyle(COLORS.outline, 1);
+  for (const lock of FRINGE_LOCKS) fillLock(g, lock, OUTLINE_WIDTH);
+  g.fillStyle(COLORS.hair, 1);
+  g.fillEllipse(62, 30, 50, 16);
+  for (const lock of FRINGE_LOCKS) fillLock(g, lock, 0);
+  drawLocks(g, [[52, 28, 100, 8, 2, 10], [68, 28, 75, 8, 2, -10]], COLORS.hairLight);
+
+  // Большие весёлые глаза и лохматые брови дугой.
+  drawRoundEye(g, 54, 54, 13, 15);
+  drawRoundEye(g, 71, 54, 12, 14);
+  outlinedBlobs(g, [47, 46, 2.2, 51, 43.5, 2.6, 55.5, 43, 2.6, 59, 44.5, 2], COLORS.hair);
+  outlinedBlobs(g, [66, 44.5, 2, 69.5, 43, 2.6, 74, 43.5, 2.6, 78, 46, 2.2], COLORS.hair);
+
+  // Румяные щёки.
+  g.fillStyle(COLORS.cheek, 0.5);
+  g.fillCircle(47, 66, 5);
+  g.fillCircle(78, 66, 4.5);
 
   drawPlayerBeard(g);
   drawPlayerNose(g);
 }
 
-// Ровная аккуратная борода от висков до клинышка на подбородке,
-// бороздки прядей, улыбка внутри бороды и усы над ней.
+// Лохматая борода, широкая улыбка внутри неё и пышные усы.
 function drawPlayerBeard(g: Graphics): void {
-  // Контур: от левого виска вниз по челюсти к клинышку на подбородке, вверх к правому виску
-  // и обратно по щекам плавной дугой (щёки остаются открытыми).
-  const beard = [
-    36, 48, 34, 58, 37, 68, 43, 78, 51, 86, 58, 92, 63, 95, 69, 91, 76, 84, 81, 75, 83, 64, 82, 56,
-    79, 61, 75, 64, 69, 65, 63, 66, 57, 65, 51, 63, 45, 59, 40, 53,
-  ];
-  fillPolygon(g, beard, COLORS.hair);
-  // Ровные бороздки сверху вниз и светлые пряди рядом с ними.
-  g.lineStyle(1.5, COLORS.outline, 0.45);
-  g.lineBetween(44, 64, 49, 79);
-  g.lineBetween(53, 70, 57, 87);
-  g.lineBetween(76, 72, 72, 84);
-  g.lineStyle(1.5, COLORS.hairLight, 1);
-  g.lineBetween(46, 64, 51, 78);
-  g.lineBetween(55, 70, 59, 85);
-  g.lineBetween(64, 78, 64, 88);
-  strokePolygon(g, beard);
+  drawShaggyMass(g, BEARD_BLOBS, beardLocks(), COLORS.hair);
+  // Светлые пряди.
+  drawLocks(g, [[52, 84, 100, 9, 2, 15], [63, 89, 90, 10, 2, -10], [74, 84, 80, 9, 2, -15]], COLORS.hairLight);
 
-  // Улыбка внутри бороды: тёмный рот, верхние зубы и язык.
+  // Широкая улыбка: тёмный рот, ряд верхних зубов и язык.
   g.fillStyle(COLORS.outline, 1);
-  g.fillEllipse(70, 73, 12, 8);
+  g.fillEllipse(63, 81, 20, 13);
   g.fillStyle(COLORS.eye, 1);
-  g.fillEllipse(70, 71, 8, 3);
-  g.fillStyle(COLORS.cheek, 1);
-  g.fillEllipse(71, 75.5, 6, 2.5);
-  // Усы над улыбкой переходят в бороду.
-  const mustache = [60, 68, 66, 64, 71, 63.5, 76, 64, 81, 67, 78, 69, 72, 67, 66, 69];
-  fillPolygon(g, mustache, COLORS.hair);
-  strokePolygon(g, mustache);
+  g.fillRoundedRect(55, 76, 16, 4.5, 2);
+  g.fillStyle(COLORS.tongue, 1);
+  g.fillEllipse(63, 85, 11, 4.5);
+
+  // Пышные усы двумя крыльями, концы загнуты вниз.
+  drawShaggyMass(g, [57, 70, 5.5, 51, 72, 4.5, 47, 75, 3.5, 69, 70, 5.5, 75, 72, 4.5, 79, 75, 3.5], [], COLORS.hair);
+  drawLocks(g, [[54, 69, 170, 6, 1.8, 0], [72, 69, 10, 6, 1.8, 0]], COLORS.hairLight);
 }
 
-// Нос-капля: узкий сверху, округлый снизу. Обводка только по правому краю и низу —
-// сверху нос плавно переходит в лоб, как у мультяшных героев.
+// Нос картошкой: крупный, круглый, чуть красный, с бликом и ноздрями.
 function drawPlayerNose(g: Graphics): void {
-  const nose = [69, 50, 72, 54, 75, 58, 75, 61, 72, 63, 68, 63, 65, 61, 66, 57];
-  fillPolygon(g, nose, COLORS.skin);
-  // Тень под кончиком носа.
-  fillPolygon(g, [65, 61, 68, 63, 72, 63, 75, 61, 70, 61.5], COLORS.skinShade);
-  g.lineStyle(THIN_OUTLINE_WIDTH, COLORS.outline, 1);
-  g.strokePoints(toPoints([70, 51, 73, 55, 75, 58, 75, 61, 72, 63, 68, 63, 65, 61]));
-  // Ноздря и блик на кончике.
-  g.fillStyle(COLORS.outline, 1);
-  g.fillCircle(71.5, 61, 1.1);
+  outlinedCircle(g, 63, 64, 8.5, COLORS.nose);
+  g.fillStyle(COLORS.skinShade, 1);
+  g.fillCircle(59, 69, 2);
+  g.fillCircle(67, 69, 2);
   g.fillStyle(COLORS.white, 0.6);
-  g.fillCircle(70, 57, 1.6);
+  g.fillCircle(60, 61, 2.5);
 }
 
-// Миндалевидный глаз: белок, карий зрачок с бликом, верхнее веко тёмной дугой.
-function drawAlmondEye(g: Graphics, x: number, y: number, width: number, height: number): void {
+// Большой круглый глаз: белок, карий зрачок смотрит чуть вправо, блик.
+function drawRoundEye(g: Graphics, x: number, y: number, width: number, height: number): void {
   g.fillStyle(COLORS.eye, 1);
   g.fillEllipse(x, y, width, height);
-  g.fillStyle(COLORS.iris, 1);
-  g.fillCircle(x + width * 0.15, y + 0.5, height * 0.38);
-  g.fillStyle(COLORS.outline, 1);
-  g.fillCircle(x + width * 0.18, y + 0.5, height * 0.2);
-  g.fillStyle(COLORS.eye, 1);
-  g.fillCircle(x + width * 0.25, y - height * 0.12, height * 0.12);
-  // Верхнее веко — толстая дуга, нижнее — тонкая.
-  g.lineStyle(2.5, COLORS.outline, 1);
-  g.beginPath();
-  g.arc(x, y + height * 0.35, width * 0.55, Math.PI + 0.35, Math.PI * 2 - 0.35);
-  g.strokePath();
-  g.lineStyle(1.2, COLORS.outline, 0.6);
+  g.lineStyle(THIN_OUTLINE_WIDTH, COLORS.outline, 1);
   g.strokeEllipse(x, y, width, height);
+  g.fillStyle(COLORS.iris, 1);
+  g.fillCircle(x + 1.5, y + 0.5, width * 0.32);
+  g.fillStyle(COLORS.outline, 1);
+  g.fillCircle(x + 1.8, y + 0.5, width * 0.16);
+  g.fillStyle(COLORS.eye, 1);
+  g.fillCircle(x + 3, y - 1.5, width * 0.12);
 }
 
-// Косточка в волосах — пещерное украшение. Повёрнута на угол angle (радианы).
-function drawBone(g: Graphics, x: number, y: number, angle: number): void {
-  g.save();
-  g.translateCanvas(x, y);
-  g.rotateCanvas(angle);
-  // Обводка: та же косточка цвета обводки, чуть толще.
+// ===== Лохматые волосы и борода =====
+
+// Прядь: [x основания, y основания, угол в градусах (0 — вправо, 90 — вниз), длина, полуширина, изгиб в градусах].
+// Изгиб поворачивает кончик пряди — так она похожа на язычок пламени, а не на шип.
+type Lock = [number, number, number, number, number, number];
+
+// Середина гривы — круги x, y, радиус (за головой).
+const HAIR_BLOBS = [62, 42, 26, 45, 54, 15, 79, 54, 15];
+// Пряди гривы: угол, длина, полуширина, изгиб. Длины и изгибы разные —
+// поэтому грива растрёпанная: левые пряди загибаются влево, правые — вправо.
+const HAIR_LOCK_SHAPES = [
+  168, 14, 8, -25, 190, 20, 9, -30, 212, 17, 9, -20, 232, 24, 10, -35, 250, 18, 9, -15, 266, 26, 10, -25,
+  282, 20, 9, 20, 298, 27, 10, 30, 316, 19, 9, 25, 334, 23, 9, 35, 352, 17, 8, 30, 12, 13, 8, 25,
+];
+// Чёлка: пряди свисают на лоб вразнобой.
+const FRINGE_LOCKS: Lock[] = [
+  [42, 36, 120, 10, 6, 20],
+  [50, 32, 100, 10, 6, 15],
+  [59, 31, 85, 7, 5, -10],
+  [67, 31, 78, 10, 6, -20],
+  [76, 33, 60, 9, 6, -15],
+  [83, 37, 45, 8, 5, -10],
+];
+// Середина бороды — круги x, y, радиус.
+const BEARD_BLOBS = [46, 72, 8, 53, 82, 10, 63, 87, 12, 73, 82, 10, 80, 72, 8, 63, 78, 11];
+// Пряди бороды вниз и в стороны: угол, длина, полуширина, изгиб.
+const BEARD_LOCK_SHAPES = [
+  15, 7, 5, 20, 40, 9, 6, 25, 62, 10, 6, 20, 80, 12, 6, 10, 98, 12, 6, -10, 117, 10, 6, -20, 140, 9, 6, -25, 165, 7, 5, -20,
+];
+
+// Пряди гривы расходятся лучами из середины головы.
+function hairLocks(): Lock[] {
+  return locksAround(62, 42, 22, HAIR_LOCK_SHAPES);
+}
+
+// Светлые пряди — короче и тоньше, только сверху и слева, где падает свет.
+function hairLightLocks(): Lock[] {
+  return locksAround(62, 42, 18, [205, 14, 4, -20, 235, 17, 4, -30, 268, 19, 4, -20, 296, 17, 4, 25]);
+}
+
+// Пряди бороды расходятся вниз из середины бороды.
+function beardLocks(): Lock[] {
+  return locksAround(63, 82, 11, BEARD_LOCK_SHAPES);
+}
+
+// Делает пряди, которые растут лучами из точки (cx, cy), начинаясь на расстоянии radius.
+// shapes — список [угол, длина, полуширина, изгиб, …].
+function locksAround(cx: number, cy: number, radius: number, shapes: number[]): Lock[] {
+  const locks: Lock[] = [];
+  for (let i = 0; i < shapes.length; i += 4) {
+    const angle = Phaser.Math.DegToRad(shapes[i]);
+    locks.push([
+      cx + Math.cos(angle) * radius,
+      cy + Math.sin(angle) * radius,
+      shapes[i],
+      shapes[i + 1],
+      shapes[i + 2],
+      shapes[i + 3],
+    ]);
+  }
+  return locks;
+}
+
+// Лохматая масса (грива, борода, усы): круги-середина и пряди с одной общей обводкой.
+// Как в outlinedBlobs: сначала всё цветом обводки чуть больше, потом поверх — нужным цветом.
+function drawShaggyMass(g: Graphics, blobs: number[], locks: Lock[], color: number): void {
   g.fillStyle(COLORS.outline, 1);
-  g.fillRect(-9, -4, 18, 8);
-  for (const [knobX, knobY] of [[-9, -3], [-9, 3], [9, -3], [9, 3]]) {
-    g.fillCircle(knobX, knobY, 4.5);
-  }
-  g.fillStyle(COLORS.bone, 1);
-  g.fillRect(-9, -2.5, 18, 5);
-  for (const [knobX, knobY] of [[-9, -3], [-9, 3], [9, -3], [9, 3]]) {
-    g.fillCircle(knobX, knobY, 3);
-  }
-  g.fillStyle(COLORS.boneShade, 1);
-  g.fillRect(-7, 1, 14, 1.5);
-  g.restore();
+  for (let i = 0; i < blobs.length; i += 3) g.fillCircle(blobs[i], blobs[i + 1], blobs[i + 2] + OUTLINE_WIDTH);
+  for (const lock of locks) fillLock(g, lock, OUTLINE_WIDTH);
+  g.fillStyle(color, 1);
+  for (let i = 0; i < blobs.length; i += 3) g.fillCircle(blobs[i], blobs[i + 1], blobs[i + 2]);
+  for (const lock of locks) fillLock(g, lock, 0);
+}
+
+// Пряди одним цветом без обводки (светлые пряди поверх массы).
+function drawLocks(g: Graphics, locks: Lock[], color: number): void {
+  g.fillStyle(color, 1);
+  for (const lock of locks) fillLock(g, lock, 0);
+}
+
+// Одна прядь — изогнутый язычок: широкое основание, середина чуть сдвинута в сторону изгиба,
+// острый кончик. grow делает прядь шире и длиннее — так рисуется её обводка.
+function fillLock(g: Graphics, lock: Lock, grow: number): void {
+  const [x, y, degrees, length, halfWidth, bend] = lock;
+  const angle = Phaser.Math.DegToRad(degrees);
+  const tipAngle = Phaser.Math.DegToRad(degrees + bend);
+  const width = halfWidth + grow;
+  const fullLength = length + grow * 1.5;
+  // Направление пряди и поперёк неё.
+  const dirX = Math.cos(angle);
+  const dirY = Math.sin(angle);
+  const sideX = -dirY;
+  const sideY = dirX;
+  // Основание чуть утоплено назад, чтобы пряди срастались с серединой гривы.
+  const baseX = x - dirX * (grow + 2);
+  const baseY = y - dirY * (grow + 2);
+  // Середина пряди: на половине длины, повёрнута на половину изгиба.
+  const midAngle = Phaser.Math.DegToRad(degrees + bend / 2);
+  const midX = x + Math.cos(midAngle) * fullLength * 0.5;
+  const midY = y + Math.sin(midAngle) * fullLength * 0.5;
+  const tipX = x + Math.cos(tipAngle) * fullLength;
+  const tipY = y + Math.sin(tipAngle) * fullLength;
+
+  g.fillPoints(
+    toPoints([
+      baseX + sideX * width, baseY + sideY * width,
+      midX + sideX * width * 0.6, midY + sideY * width * 0.6,
+      tipX, tipY,
+      midX - sideX * width * 0.6, midY - sideY * width * 0.6,
+      baseX - sideX * width, baseY - sideY * width,
+    ]),
+    true,
+  );
 }
 
 // ===== Дубина =====

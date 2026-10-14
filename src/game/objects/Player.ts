@@ -29,11 +29,22 @@ const HAND_OFFSET_Y = -32;
 // его центр на этой доле высоты картинки (0 — верх, 1 — низ).
 const CLUB_GRIP_Y = 0.89;
 // Угол дубины в покое: наклонена вперёд, от лица (0° — дубина стоит вертикально).
-// При ударе она проворачивается ещё на CLUB_SWING_ANGLE градусов — вперёд и вниз, по кусту.
 const CLUB_REST_ANGLE = 65;
-const CLUB_SWING_ANGLE = 75;
-// Сколько мс дубина летит вниз. Обратно — столько же.
-const CLUB_SWING_TIME = 110;
+
+// ===== Взмах дубиной: замах → удар → возврат =====
+
+// На сколько градусов от угла покоя дубина отходит назад-вверх на замахе
+// и на сколько уходит вперёд-вниз в момент удара по кусту.
+const CLUB_WINDUP_ANGLE = -50;
+const CLUB_STRIKE_ANGLE = 45;
+// Длительность фаз, мс: неспешный замах, резкий удар, возврат в покой с пружинкой.
+// Вместе они короче HIT_INTERVAL из settings.ts, поэтому взмахи не накладываются.
+const SWING_WINDUP_TIME = 120;
+const SWING_STRIKE_TIME = 80;
+const SWING_RECOVER_TIME = 220;
+// Тело наклоняется вслед за дубиной: градусов наклона на градус взмаха
+// (назад на замахе, вперёд при ударе).
+const BODY_LEAN_PER_DEGREE = 0.08;
 
 // Где спина — точка, от которой растёт стопка (когда вождь смотрит вправо).
 const BACK_OFFSET_X = -16;
@@ -75,8 +86,11 @@ export class Player {
   private idleTime = 0;
   // Насколько тело сейчас подпрыгнуло вверх, в пикселях.
   private bob = 0;
-  // Взмах дубиной: 0 — в покое, 1 — дубина в нижней точке удара.
-  private swingAmount = 0;
+  // Взмах дубиной: на сколько градусов дубина сейчас отклонена от угла покоя.
+  // Меняется цепочкой твинов в swing().
+  private clubSwing = 0;
+  // Наклон тела от шагов (градусы).
+  private walkTilt = 0;
   // Во сколько раз растянута текстура тени, чтобы её ширина была SHADOW_WIDTH.
   private shadowScale = 1;
 
@@ -145,20 +159,26 @@ export class Player {
     this.place();
   }
 
-  // Взмах дубиной: вождь поворачивается к цели (кусту) и бьёт.
-  swing(targetX: number): void {
+  // Взмах дубиной: вождь поворачивается к цели (кусту), замахивается и бьёт.
+  // onImpact вызывается в момент, когда дубина попадает по цели.
+  swing(targetX: number, onImpact: () => void): void {
     this.facing = targetX >= this.x ? 1 : -1;
 
-    // Твин числа от 0 до 1 и обратно (yoyo). Само число мы превращаем в угол дубины в place().
-    this.scene.tweens.addCounter({
-      from: 0,
-      to: 1,
-      duration: CLUB_SWING_TIME,
-      yoyo: true,
-      ease: 'Quad.easeIn',
-      onUpdate: (tween) => {
-        this.swingAmount = tween.getValue() ?? 0;
-      },
+    // Если прошлый взмах ещё идёт — останавливаем его, чтобы два взмаха не спорили.
+    this.scene.tweens.killTweensOf(this);
+
+    // Цепочка из трёх твинов, они идут друг за другом. Каждый меняет число clubSwing,
+    // а place() превращает его в угол дубины и наклон тела.
+    this.scene.tweens.chain({
+      targets: this,
+      tweens: [
+        // 1. Замах: дубина плавно отходит назад-вверх.
+        { clubSwing: CLUB_WINDUP_ANGLE, duration: SWING_WINDUP_TIME, ease: 'Sine.easeOut' },
+        // 2. Удар: резко вперёд-вниз, с разгоном. В конце — попадание.
+        { clubSwing: CLUB_STRIKE_ANGLE, duration: SWING_STRIKE_TIME, ease: 'Quad.easeIn', onComplete: onImpact },
+        // 3. Возврат в покой: Back.easeOut чуть проскакивает — получается пружинка.
+        { clubSwing: 0, duration: SWING_RECOVER_TIME, ease: 'Back.easeOut' },
+      ],
     });
   }
 
@@ -246,7 +266,7 @@ export class Player {
       const step = Math.sin(this.walkTime * WALK_BOB_SPEED);
       this.bob = Math.abs(step) * WALK_BOB_HEIGHT;
       // На каждом шаге тело наклоняется то вправо, то влево.
-      this.bodyImage.setAngle(step * WALK_TILT);
+      this.walkTilt = step * WALK_TILT;
       // Внизу шага тело чуть сплющено, вверху — вытянуто.
       const stretch = (Math.abs(step) * 2 - 1) * WALK_SQUASH;
       this.bodyImage.setScale(1 - stretch, 1 + stretch);
@@ -254,7 +274,7 @@ export class Player {
       this.walkTime = 0;
       this.idleTime += delta;
       this.bob = 0;
-      this.bodyImage.setAngle(0);
+      this.walkTilt = 0;
       // Медленное «дыхание»: тело чуть вытягивается и возвращается.
       const breath = Math.sin(this.idleTime * IDLE_BREATH_SPEED) * IDLE_BREATH;
       this.bodyImage.setScale(1 - breath / 2, 1 + breath);
@@ -271,12 +291,18 @@ export class Player {
     this.shadow.setScale(this.shadowScale * (1 - (this.bob / WALK_BOB_HEIGHT) * SHADOW_SHRINK_IN_JUMP));
     this.ring.setPosition(this.x, this.y).setDepth(this.y + RING_DEPTH_SHIFT);
 
-    this.bodyImage.setPosition(this.x, this.y - this.bob).setDepth(this.y).setFlipX(isLeft);
+    // Наклон тела: от шагов и вслед за взмахом дубины (зеркально, если вождь смотрит влево).
+    const lean = this.clubSwing * BODY_LEAN_PER_DEGREE * this.facing;
+    this.bodyImage
+      .setPosition(this.x, this.y - this.bob)
+      .setAngle(this.walkTilt + lean)
+      .setDepth(this.y)
+      .setFlipX(isLeft);
 
     // Дубина в кулаке. Когда вождь смотрит влево, всё зеркально: и место, и угол.
     this.club
       .setPosition(this.x + HAND_OFFSET_X * this.facing, this.y + HAND_OFFSET_Y - this.bob)
-      .setAngle((CLUB_REST_ANGLE + this.swingAmount * CLUB_SWING_ANGLE) * this.facing)
+      .setAngle((CLUB_REST_ANGLE + this.clubSwing) * this.facing)
       .setFlipX(isLeft)
       .setDepth(this.y + CLUB_DEPTH_SHIFT);
   }

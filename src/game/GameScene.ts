@@ -181,9 +181,11 @@ export class GameScene extends Phaser.Scene {
     if (this.hitTimer < HIT_INTERVAL) return;
     this.hitTimer -= HIT_INTERVAL;
 
-    this.player.swing(bush.x);
-    bush.hit();
-    this.stack.add(bush.getLootPoint());
+    // Удар засчитывается, когда дубина долетает до куста, а не в начале замаха.
+    this.player.swing(bush.x, () => {
+      bush.hit();
+      this.stack.add(bush.getLootPoint());
+    });
   }
 
   // Ближайший к вождю куст с хворостом не дальше GATHER_RADIUS. Если такого нет — undefined.
