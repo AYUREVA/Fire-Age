@@ -29,6 +29,15 @@ const REGROW_ANIMATION_TIME = 600;
 const SNOW_BURST_COUNT = 7;
 const CHIP_BURST_COUNT = 5;
 
+// Снег на кусте лежит чуть впереди листвы.
+const SNOW_LAYER_DEPTH_SHIFT = 0.1;
+// Первый удар стряхивает снег: за сколько мс он слетает,
+// на сколько пикселей сползает вниз и вбок и сколько снежинок взлетает.
+const SNOW_SHAKE_OFF_TIME = 350;
+const SNOW_SHAKE_OFF_DROP = 14;
+const SNOW_SHAKE_OFF_SIDE = 6;
+const SNOW_SHAKE_OFF_BURST = 16;
+
 // Снег из куста: разлетается вверх и в стороны, медленно падает и тает.
 // Углы в Phaser: 0° — вправо, 90° — вниз, 270° — вверх.
 const SNOW_BURST: Phaser.Types.GameObjects.Particles.ParticleEmitterConfig = {
@@ -55,6 +64,7 @@ const CHIP_BURST: Phaser.Types.GameObjects.Particles.ParticleEmitterConfig = {
 /**
  * Куст хвороста.
  *
+ * Куст стоит присыпанный снегом. Первый удар стряхивает снег.
  * В кусте запас связок. Каждый удар забирает одну: куст трясётся,
  * сыплет снег и щепки и становится меньше. Запас кончился — куст
  * превращается в пенёк и через время отрастает снова.
@@ -70,8 +80,12 @@ export class ResourceNode {
   private stock = BUSH_STOCK;
   // Сколько мс осталось до отрастания. 0 — куст не пенёк и ничего не ждёт.
   private regrowTimeLeft = 0;
+  // Лежит ли ещё снег на кусте. Первый удар его стряхивает.
+  private isSnowy = true;
 
   private image: Phaser.GameObjects.Image;
+  // Снег на кроне — отдельная картинка поверх куста.
+  private snowLayer: Phaser.GameObjects.Image;
   private shadow: Phaser.GameObjects.Image;
   private snowBurst: Phaser.GameObjects.Particles.ParticleEmitter;
   private chipBurst: Phaser.GameObjects.Particles.ParticleEmitter;
@@ -85,6 +99,10 @@ export class ResourceNode {
     this.setShadowWidth(BUSH_SHADOW_WIDTH);
     // Точка опоры — середина нижнего края: куст стоит на земле и качается от корня.
     this.image = scene.add.image(x, y, TEXTURES.bush).setOrigin(0.5, 1).setDepth(y);
+    this.snowLayer = scene.add
+      .image(x, y, TEXTURES.bushSnow)
+      .setOrigin(0.5, 1)
+      .setDepth(y + SNOW_LAYER_DEPTH_SHIFT);
 
     const loot = this.getLootPoint();
     this.snowBurst = scene.add
@@ -110,6 +128,9 @@ export class ResourceNode {
     if (!this.hasStock()) return;
 
     this.stock -= 1;
+    if (this.isSnowy) {
+      this.shakeOffSnow();
+    }
     shake(this.scene, this.image, HIT_SHAKE_ANGLE, HIT_SHAKE_TIME);
     this.snowBurst.explode(SNOW_BURST_COUNT);
     this.chipBurst.explode(CHIP_BURST_COUNT);
@@ -129,6 +150,21 @@ export class ResourceNode {
     if (this.regrowTimeLeft <= 0) {
       this.regrow();
     }
+  }
+
+  // Снег слетает с куста: сползает вниз и вбок и тает, вверх взлетают снежинки.
+  private shakeOffSnow(): void {
+    this.isSnowy = false;
+    this.snowBurst.explode(SNOW_SHAKE_OFF_BURST);
+    this.scene.tweens.add({
+      targets: this.snowLayer,
+      y: this.y + SNOW_SHAKE_OFF_DROP,
+      x: this.x + SNOW_SHAKE_OFF_SIDE,
+      alpha: 0,
+      duration: SNOW_SHAKE_OFF_TIME,
+      ease: 'Cubic.easeIn',
+      onComplete: () => this.snowLayer.setVisible(false),
+    });
   }
 
   // Куст редеет: чем меньше в нём хвороста, тем он меньше.
@@ -160,9 +196,12 @@ export class ResourceNode {
     this.regrowTimeLeft = 0;
 
     this.image.setTexture(TEXTURES.bush).setScale(REGROW_START_SCALE);
+    // Куст вырастает снова заснеженным.
+    this.isSnowy = true;
+    this.snowLayer.setPosition(this.x, this.y).setAlpha(1).setVisible(true).setScale(REGROW_START_SCALE);
     this.setShadowWidth(BUSH_SHADOW_WIDTH);
     this.scene.tweens.add({
-      targets: this.image,
+      targets: [this.image, this.snowLayer],
       scale: 1,
       duration: REGROW_ANIMATION_TIME,
       ease: 'Back.easeOut',
