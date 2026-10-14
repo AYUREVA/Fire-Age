@@ -1,8 +1,18 @@
 import Phaser from 'phaser';
-// Игровые параметры (размер мира и т. д.) — в settings.ts.
-import { WORLD_WIDTH, WORLD_HEIGHT, WORLD_EDGE, PLAYER_START } from './settings';
+// Игровые параметры (мир, вождь, кусты и т. д.) — в settings.ts.
+import {
+  WORLD_WIDTH,
+  WORLD_HEIGHT,
+  WORLD_EDGE,
+  PLAYER_START,
+  BUSH_POSITIONS,
+  GATHER_RADIUS,
+  HIT_INTERVAL,
+} from './settings';
 import { TEXTURES, createTextures } from './textures';
 import { Player } from './objects/Player';
+import { CarryStack } from './objects/CarryStack';
+import { ResourceNode } from './objects/ResourceNode';
 
 // ===== Слои отрисовки (depth) =====
 // Порядок снизу вверх во всей игре:
@@ -46,6 +56,8 @@ const FOREST_SCALE_MIN = 0.8;
 const FOREST_SCALE_MAX = 1.15;
 // Ширина тени относительно ширины предмета.
 const SHADOW_WIDTH_RATIO = 0.85;
+// Мелкий декор не кладём ближе этого расстояния к кусту — чтобы не торчал из куста.
+const BUSH_CLEAR_RADIUS = 80;
 
 // ===== Камера =====
 
@@ -66,12 +78,23 @@ const CAMERA_OFFSET_Y = 60;
 export class GameScene extends Phaser.Scene {
   // Вождь — его водит игрок.
   private player!: Player;
+  // Стопка хвороста за спиной вождя.
+  private stack!: CarryStack;
+  // Кусты хвороста.
+  private bushes: ResourceNode[] = [];
+  // Сколько мс вождь уже стоит у куста. Набралось HIT_INTERVAL — удар.
+  private hitTimer = 0;
 
   constructor() {
     super('GameScene');
   }
 
   create(): void {
+    // При перезапуске сцены create() вызывается снова, а поля класса
+    // сохраняют старые значения, поэтому сбрасываем их здесь.
+    this.bushes = [];
+    this.hitTimer = 0;
+
     createTextures(this);
 
     // Одинаковый seed — одинаковый декор при каждом запуске.
@@ -80,15 +103,67 @@ export class GameScene extends Phaser.Scene {
     this.createGround();
     this.createGroundDecor(rng);
     this.createBorderForest(rng);
+    this.createBushes();
 
     this.player = new Player(this, PLAYER_START.x, PLAYER_START.y);
+    this.stack = new CarryStack(this);
 
     this.setupCamera();
   }
 
   // Вызывается Phaser каждый кадр. delta — сколько мс прошло с прошлого кадра.
+  // Порядок: сначала двигаем вождя, потом стопку за ним, потом проверяем,
+  // что вождь делает рядом с кустами.
   update(_time: number, delta: number): void {
     this.player.update(delta);
+    // Стопке сообщаем, где спина вождя, как быстро он идёт и какая у него глубина.
+    this.stack.update(delta, this.player.getBackPoint(), this.player.velocityX, this.player.y);
+
+    for (const bush of this.bushes) {
+      bush.update(delta);
+    }
+
+    this.updateGathering(delta);
+  }
+
+  // ===== Добыча хвороста =====
+
+  // Вождь рядом с кустом — бьёт его каждые HIT_INTERVAL мс,
+  // и связка хвороста летит из куста на стопку.
+  private updateGathering(delta: number): void {
+    const bush = this.findBushNearPlayer();
+
+    // Рядом нет куста с хворостом или стопка полная — удары не копятся.
+    if (!bush || this.stack.isFull()) {
+      this.hitTimer = 0;
+      return;
+    }
+
+    this.hitTimer += delta;
+    if (this.hitTimer < HIT_INTERVAL) return;
+    this.hitTimer -= HIT_INTERVAL;
+
+    this.player.swing(bush.x);
+    bush.hit();
+    this.stack.add(bush.getLootPoint());
+  }
+
+  // Ближайший к вождю куст с хворостом не дальше GATHER_RADIUS. Если такого нет — undefined.
+  private findBushNearPlayer(): ResourceNode | undefined {
+    let nearest: ResourceNode | undefined;
+    let nearestDistance = GATHER_RADIUS;
+
+    for (const bush of this.bushes) {
+      if (!bush.hasStock()) continue;
+
+      const distance = Phaser.Math.Distance.Between(this.player.x, this.player.y, bush.x, bush.y);
+      if (distance <= nearestDistance) {
+        nearest = bush;
+        nearestDistance = distance;
+      }
+    }
+
+    return nearest;
   }
 
   // ===== Мир =====
@@ -107,12 +182,27 @@ export class GameScene extends Phaser.Scene {
       const x = rng.between(WORLD_EDGE, WORLD_WIDTH - WORLD_EDGE);
       const y = rng.between(WORLD_EDGE, WORLD_HEIGHT - WORLD_EDGE);
       const texture = rng.pick(GROUND_DECOR_TEXTURES);
+      if (this.isNearBush(x, y)) continue;
 
       this.add
         .image(x, y, texture)
         .setDepth(GROUND_DECOR_DEPTH)
         // Половина декора отражена — так он меньше повторяется.
         .setFlipX(rng.frac() < 0.5);
+    }
+  }
+
+  // Есть ли куст ближе BUSH_CLEAR_RADIUS к точке (x, y).
+  private isNearBush(x: number, y: number): boolean {
+    return BUSH_POSITIONS.some(
+      (bush) => Phaser.Math.Distance.Between(x, y, bush.x, bush.y) < BUSH_CLEAR_RADIUS,
+    );
+  }
+
+  // Сажает кусты хвороста в точки из settings.ts.
+  private createBushes(): void {
+    for (const position of BUSH_POSITIONS) {
+      this.bushes.push(new ResourceNode(this, position.x, position.y));
     }
   }
 

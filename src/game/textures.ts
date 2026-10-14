@@ -29,7 +29,15 @@ export const TEXTURES = {
   ring: 'ring', // светлое кольцо под ногами вождя
   joystickBase: 'joystick-base', // круг джойстика
   joystickKnob: 'joystick-knob', // ручка джойстика
+  bush: 'bush', // заснеженный куст хвороста
+  stump: 'stump', // пенёк — куст без хвороста
+  bundle: 'bundle', // связка хвороста, перевязанная верёвкой
+  snowflake: 'snowflake', // снежинка: падающий снег и снег из куста
+  chip: 'chip', // щепка, летит из куста при ударе
 } as const;
+
+// Шрифт всех надписей. Это тоже «ассет»: свой шрифт подключается здесь.
+export const FONT_FAMILY = '"Trebuchet MS", "Segoe UI", system-ui, sans-serif';
 
 // ===== Размеры текстур в пикселях =====
 
@@ -49,11 +57,17 @@ const CLUB_SIZE: Size = { w: 30, h: 70 };
 const RING_SIZE: Size = { w: 90, h: 44 };
 const JOYSTICK_BASE_SIZE: Size = { w: 128, h: 128 };
 const JOYSTICK_KNOB_SIZE: Size = { w: 60, h: 60 };
+const BUSH_SIZE: Size = { w: 112, h: 92 };
+const STUMP_SIZE: Size = { w: 72, h: 56 };
+const BUNDLE_SIZE: Size = { w: 56, h: 28 };
+const SNOWFLAKE_SIZE: Size = { w: 12, h: 12 };
+const CHIP_SIZE: Size = { w: 12, h: 9 };
 
 // ===== Параметры рисования =====
 
-// Толщина обводки у всех рисунков.
+// Толщина обводки у всех рисунков и тонкая обводка для мелких деталей.
 const OUTLINE_WIDTH = 3;
+const THIN_OUTLINE_WIDTH = 2;
 // «Зерно» случайных чисел для узора снежной плитки: узор всегда одинаковый.
 const SNOW_TILE_SEED = 'snow-tile';
 // Сколько на плитке голубых теней, светлых пятен и крупинок.
@@ -83,6 +97,11 @@ export function createTextures(scene: Phaser.Scene): void {
   bake(scene, TEXTURES.ring, RING_SIZE, drawRing);
   bake(scene, TEXTURES.joystickBase, JOYSTICK_BASE_SIZE, drawJoystickBase);
   bake(scene, TEXTURES.joystickKnob, JOYSTICK_KNOB_SIZE, drawJoystickKnob);
+  bake(scene, TEXTURES.bush, BUSH_SIZE, drawBush);
+  bake(scene, TEXTURES.stump, STUMP_SIZE, drawStump);
+  bake(scene, TEXTURES.bundle, BUNDLE_SIZE, drawBundle);
+  bake(scene, TEXTURES.snowflake, SNOWFLAKE_SIZE, drawSnowflake);
+  bake(scene, TEXTURES.chip, CHIP_SIZE, drawChip);
 }
 
 // Рисует картинку на временном Graphics и сохраняет её как текстуру под ключом key.
@@ -165,7 +184,7 @@ function drawPebble(g: Graphics): void {
   g.fillEllipse(cx - 2, cy - 2, width - 6, height - 5);
   g.fillStyle(COLORS.snowLight, 1);
   g.fillEllipse(cx - 2, cy - height * 0.28, width * 0.6, height * 0.35);
-  g.lineStyle(2, COLORS.outline, 1);
+  g.lineStyle(THIN_OUTLINE_WIDTH, COLORS.outline, 1);
   g.strokeEllipse(cx, cy, width, height);
 }
 
@@ -340,7 +359,7 @@ function drawPlayerHead(g: Graphics): void {
   g.fillRoundedRect(54, 41, 22, 5, 2);
   g.fillStyle(COLORS.eye, 1);
   g.fillEllipse(65, 50, 9, 11);
-  g.lineStyle(2, COLORS.outline, 1);
+  g.lineStyle(THIN_OUTLINE_WIDTH, COLORS.outline, 1);
   g.strokeEllipse(65, 50, 9, 11);
   g.fillStyle(COLORS.outline, 1);
   g.fillCircle(67, 51, 2.6);
@@ -351,7 +370,7 @@ function drawPlayerHead(g: Graphics): void {
   const beard = [38, 56, 48, 63, 60, 63, 72, 61, 80, 63, 79, 72, 74, 80, 68, 77, 62, 86, 56, 79, 49, 85, 44, 76, 37, 68];
   fillPolygon(g, beard, COLORS.hair);
   strokePolygon(g, beard);
-  g.lineStyle(2, COLORS.hairLight, 1);
+  g.lineStyle(THIN_OUTLINE_WIDTH, COLORS.hairLight, 1);
   g.lineBetween(47, 70, 50, 78);
   g.lineBetween(57, 72, 59, 80);
 
@@ -420,6 +439,156 @@ function drawJoystickKnob(g: Graphics): void {
   g.fillCircle(center, center, center - 5);
   g.lineStyle(3, COLORS.snowDeep, 1);
   g.strokeCircle(center, center, center - 5);
+}
+
+// ===== Куст, пенёк и связка хвороста =====
+
+// Заснеженный куст хвороста: сухие ветки торчат во все стороны, сверху шапки снега.
+function drawBush(g: Graphics): void {
+  const { w, h } = BUSH_SIZE;
+  const cx = w / 2;
+
+  // Ветки позади куста: от основания к кончикам (x, y).
+  const twigTips = [14, 30, 28, 12, 82, 10, 100, 28, 106, 50, 5, 50];
+  for (let i = 0; i < twigTips.length; i += 2) {
+    drawTwig(g, cx, h - 18, twigTips[i], twigTips[i + 1]);
+  }
+
+  // Тело куста — клубок веток с общей обводкой.
+  outlinedBlobs(g, [32, 62, 22, 80, 62, 22, 56, 48, 24, 44, 70, 16, 68, 70, 16], COLORS.brush);
+  // Тень внизу справа и светлые веточки — так куст выглядит объёмным.
+  g.fillStyle(COLORS.brushDark, 1);
+  g.fillCircle(78, 70, 13);
+  g.fillCircle(60, 76, 11);
+  g.lineStyle(THIN_OUTLINE_WIDTH, COLORS.brushLight, 1);
+  g.lineBetween(50, 58, 58, 50);
+  g.lineBetween(72, 58, 84, 52);
+  g.lineBetween(40, 72, 48, 66);
+  g.lineBetween(26, 58, 34, 52);
+
+  // Снежные шапки сверху: левые — белые, правая — в голубой тени.
+  g.fillStyle(COLORS.snowLight, 1);
+  g.fillEllipse(54, 30, 36, 14);
+  g.fillEllipse(30, 44, 28, 11);
+  g.fillCircle(44, 35, 4);
+  g.fillCircle(58, 37, 3.5);
+  g.fillCircle(24, 48, 3);
+  g.fillStyle(COLORS.snowShade, 1);
+  g.fillEllipse(82, 44, 28, 11);
+  g.fillCircle(88, 48, 3);
+
+  // Пара веток торчит прямо из снега.
+  drawTwig(g, 46, 32, 38, 12);
+  drawTwig(g, 64, 30, 74, 10);
+
+  // Снег у подножия.
+  g.fillStyle(COLORS.snowShade, 1);
+  g.fillEllipse(cx, h - 6, w - 18, 10);
+  g.fillStyle(COLORS.snowLight, 1);
+  g.fillEllipse(cx - 4, h - 8, w - 34, 7);
+}
+
+// Сухая ветка от (x1, y1) до (x2, y2) с тёмной обводкой и развилкой у кончика.
+function drawTwig(g: Graphics, x1: number, y1: number, x2: number, y2: number): void {
+  // Развилка отходит вбок из точки на 70% длины ветки.
+  const forkX = Phaser.Math.Linear(x1, x2, 0.7);
+  const forkY = Phaser.Math.Linear(y1, y2, 0.7);
+  const forkTipX = forkX + (y2 - y1) * 0.18;
+  const forkTipY = forkY - (x2 - x1) * 0.18;
+
+  // Сначала толстая тёмная линия (обводка), поверх — тонкая светлая (сама ветка).
+  g.lineStyle(5, COLORS.outline, 1);
+  g.lineBetween(x1, y1, x2, y2);
+  g.lineBetween(forkX, forkY, forkTipX, forkTipY);
+  g.lineStyle(2.5, COLORS.brushLight, 1);
+  g.lineBetween(x1, y1, x2, y2);
+  g.lineBetween(forkX, forkY, forkTipX, forkTipY);
+}
+
+// Пенёк: короткий ствол со светлым срезом и кольцами, корни и снег у подножия.
+function drawStump(g: Graphics): void {
+  const { w, h } = STUMP_SIZE;
+  const cx = w / 2;
+
+  g.fillStyle(COLORS.snowShade, 1);
+  g.fillEllipse(cx, h - 6, w - 6, 10);
+
+  // Корни.
+  g.fillStyle(COLORS.woodDark, 1);
+  g.fillTriangle(10, h - 5, 24, h - 22, 26, h - 5);
+  g.fillTriangle(w - 10, h - 5, w - 24, h - 22, w - 26, h - 5);
+
+  // Ствол: светлая левая сторона, тёмная правая, полоски коры.
+  const trunk = [cx - 16, 22, cx + 16, 22, cx + 18, h - 4, cx - 18, h - 4];
+  fillPolygon(g, trunk, COLORS.wood);
+  fillPolygon(g, [cx + 4, 22, cx + 16, 22, cx + 18, h - 4, cx + 5, h - 4], COLORS.woodDark);
+  g.lineStyle(THIN_OUTLINE_WIDTH, COLORS.woodDark, 1);
+  g.lineBetween(cx - 8, 28, cx - 9, h - 8);
+  g.lineBetween(cx - 1, 30, cx - 1, h - 10);
+  strokePolygon(g, trunk);
+
+  // Срез сверху с годовыми кольцами и шапкой снега.
+  outlinedEllipse(g, cx, 22, 34, 14, COLORS.woodEnd);
+  g.lineStyle(1.5, COLORS.woodLight, 1);
+  g.strokeEllipse(cx, 22, 22, 8);
+  g.strokeEllipse(cx, 22, 10, 4);
+  g.fillStyle(COLORS.snowLight, 1);
+  g.fillEllipse(cx - 7, 18, 18, 7);
+
+  g.fillEllipse(cx - 4, h - 5, w - 26, 6);
+}
+
+// Связка хвороста: четыре палки, перевязанные двумя верёвками.
+// Верх и низ ровные — из таких связок стопка получается аккуратной, как из монет.
+function drawBundle(g: Graphics): void {
+  // Палки сверху вниз: x левого конца, y верха, длина, цвет. Нижние перекрывают верхние.
+  drawStick(g, 6, 3, 44, COLORS.woodLight);
+  drawStick(g, 3, 8, 49, COLORS.wood);
+  drawStick(g, 5, 13, 48, COLORS.woodLight);
+  drawStick(g, 4, 18, 45, COLORS.wood);
+
+  drawRopeBand(g, 17);
+  drawRopeBand(g, 38);
+}
+
+// Одна палка связки: скруглённый брусок с обводкой и светлым срезом слева.
+function drawStick(g: Graphics, x: number, y: number, length: number, color: number): void {
+  const height = 7;
+  g.fillStyle(color, 1);
+  g.fillRoundedRect(x, y, length, height, 3);
+  g.lineStyle(THIN_OUTLINE_WIDTH, COLORS.outline, 1);
+  g.strokeRoundedRect(x, y, length, height, 3);
+  g.fillStyle(COLORS.woodEnd, 1);
+  g.fillEllipse(x + 3, y + height / 2, 4, 5);
+}
+
+// Верёвка поперёк связки, в точке x.
+function drawRopeBand(g: Graphics, x: number): void {
+  g.fillStyle(COLORS.rope, 1);
+  g.fillRoundedRect(x - 3, 1, 6, 25, 2);
+  g.fillStyle(COLORS.ropeDark, 1);
+  g.fillRect(x + 1, 2, 2, 23);
+  g.lineStyle(THIN_OUTLINE_WIDTH, COLORS.outline, 1);
+  g.strokeRoundedRect(x - 3, 1, 6, 25, 2);
+}
+
+// ===== Частицы =====
+
+// Снежинка: белая точка с голубоватым краем — так её видно и на белом снегу.
+function drawSnowflake(g: Graphics): void {
+  const center = SNOWFLAKE_SIZE.w / 2;
+  g.fillStyle(COLORS.snowDeep, 0.45);
+  g.fillCircle(center, center, center);
+  g.fillStyle(COLORS.snowLight, 1);
+  g.fillCircle(center, center, center * 0.6);
+}
+
+// Щепка: светлый кусочек дерева с тёмным краем.
+function drawChip(g: Graphics): void {
+  const chip = [1, 5, 4, 1, 11, 2, 10, 7, 3, 8];
+  fillPolygon(g, chip, COLORS.woodEnd);
+  g.lineStyle(1.5, COLORS.woodDark, 1);
+  g.strokePoints(toPoints(chip), true, true);
 }
 
 // ===== Помощники рисования =====

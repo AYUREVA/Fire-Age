@@ -47,7 +47,22 @@ export const COLORS = {
   wood: 0x9a6234, // дерево
   woodDark: 0x6b4226, // дерево в тени
   woodLight: 0xc98b4e, // светлое дерево
+  woodEnd: 0xebc48c, // свежий срез: торцы палок, верх пенька
+
+  // ===== Куст хвороста и связки =====
+  brush: 0x7a5c48, // сухие ветки куста
+  brushDark: 0x56402f, // ветки в тени
+  brushLight: 0x9e7e62, // светлые веточки
+  rope: 0xe0bf74, // верёвка на связке
+  ropeDark: 0xa98440, // тень на верёвке
 
   // ===== Интерфейс =====
   ui: 0xffffff, // кольцо под ногами, джойстик
+  maxText: 0xff5a3c, // надпись «МАКС» над полной стопкой
 };
+
+// Переводит цвет-число 0xRRGGBB в строку '#rrggbb'.
+// Надписи (Text) в Phaser принимают цвет только строкой.
+export function toCss(color: number): string {
+  return '#' + color.toString(16).padStart(6, '0');
+}
