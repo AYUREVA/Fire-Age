@@ -18,6 +18,9 @@ const SHADOW_WIDTH = 64;
 // Прозрачность кольца под ногами и джойстика.
 const RING_ALPHA = 0.75;
 const JOYSTICK_ALPHA = 0.9;
+// Кольцо под ногами мягко «дышит»: до какого размера и за сколько мс.
+const RING_PULSE_SCALE = 1.08;
+const RING_PULSE_TIME = 700;
 
 // Где кулак с дубиной относительно ног (когда вождь смотрит вправо).
 const HAND_OFFSET_X = 22;
@@ -98,6 +101,14 @@ export class Player {
     this.shadow = scene.add.image(x, y, TEXTURES.shadow);
     this.shadowScale = SHADOW_WIDTH / this.shadow.width;
     this.ring = scene.add.image(x, y, TEXTURES.ring).setAlpha(RING_ALPHA);
+    scene.tweens.add({
+      targets: this.ring,
+      scale: RING_PULSE_SCALE,
+      duration: RING_PULSE_TIME,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
+    });
     // Точка опоры тела и дубины — середина нижнего края (ноги и конец рукояти).
     this.bodyImage = scene.add.image(x, y, TEXTURES.player).setOrigin(0.5, 1);
     this.club = scene.add.image(x, y, TEXTURES.club).setOrigin(0.5, 1);

@@ -16,6 +16,7 @@ import { Player } from './objects/Player';
 import { CarryStack } from './objects/CarryStack';
 import { ResourceNode } from './objects/ResourceNode';
 import { DropZone } from './objects/DropZone';
+import { Hud } from './objects/Hud';
 
 // ===== Слои отрисовки (depth) =====
 // Порядок снизу вверх во всей игре:
@@ -28,6 +29,10 @@ const GROUND_DEPTH = -300;
 const GROUND_DECOR_DEPTH = -200;
 // Тень лежит сразу под своим предметом.
 const SHADOW_DEPTH_SHIFT = -0.5;
+// Дальше (в других файлах): площадка поленницы и свет костра — -100 (DropZone.ts),
+// летящие связки — 10000, «+1» — 11000 (fx.ts), «МАКС» — 10500 (CarryStack.ts),
+// падающий снег — 12000 (здесь), HUD и джойстик — 20000 (Hud.ts, Player.ts).
+const SNOWFALL_DEPTH = 12000;
 
 // ===== Декор мира =====
 
@@ -64,6 +69,20 @@ const SHADOW_WIDTH_RATIO = 0.85;
 const BUSH_CLEAR_RADIUS = 80;
 const CAMP_CLEAR_RADIUS = 330;
 
+// ===== Падающий снег =====
+
+// Снежинки медленно падают, их чуть сносит ветром, они появляются и тают.
+// Живых снежинок немного — игра должна идти плавно и на слабом ноутбуке.
+const SNOWFALL: Phaser.Types.GameObjects.Particles.ParticleEmitterConfig = {
+  speedX: { min: -20, max: 8 },
+  speedY: { min: 25, max: 60 },
+  lifespan: { min: 3000, max: 4500 },
+  scale: { min: 0.35, max: 0.8 },
+  alpha: { values: [0, 0.9, 0.9, 0] }, // появляется, летит, тает
+  frequency: 90, // новая снежинка раз в 90 мс
+  maxAliveParticles: 45, // не больше 45 снежинок сразу
+};
+
 // ===== Камера =====
 
 // Плавность камеры: какую долю пути до вождя камера проходит за кадр (1 — сразу).
@@ -89,6 +108,8 @@ export class GameScene extends Phaser.Scene {
   private bushes: ResourceNode[] = [];
   // Поленница у костра — сюда сдаётся хворост.
   private dropZone!: DropZone;
+  // Интерфейс: сколько хвороста сдано и подсказка.
+  private hud!: Hud;
   // Сколько мс вождь уже стоит у куста. Набралось HIT_INTERVAL — удар.
   private hitTimer = 0;
   // Сколько мс вождь уже стоит на поленнице. Набралось DROP_INTERVAL — сдаёт связку.
@@ -121,8 +142,10 @@ export class GameScene extends Phaser.Scene {
 
     this.player = new Player(this, PLAYER_START.x, PLAYER_START.y);
     this.stack = new CarryStack(this);
+    this.hud = new Hud(this);
 
     this.setupCamera();
+    this.createSnowfall();
   }
 
   // Вызывается Phaser каждый кадр. delta — сколько мс прошло с прошлого кадра.
@@ -139,36 +162,6 @@ export class GameScene extends Phaser.Scene {
 
     this.updateGathering(delta);
     this.updateDropping(delta);
-  }
-
-  // ===== Сдача хвороста =====
-
-  // Вождь в зоне поленницы — каждые DROP_INTERVAL мс верхняя связка
-  // улетает со стопки в кучу на поленнице.
-  private updateDropping(delta: number): void {
-    const isInZone = this.dropZone.contains(this.player.x, this.player.y);
-    this.dropZone.setHighlighted(isInZone);
-
-    // Вождь не в зоне или нести нечего — таймер не копится.
-    if (!isInZone || this.stack.isEmpty()) {
-      this.dropTimer = 0;
-      return;
-    }
-
-    this.dropTimer += delta;
-    if (this.dropTimer < DROP_INTERVAL) return;
-    this.dropTimer -= DROP_INTERVAL;
-
-    // Верхняя связка может ещё лететь на стопку — тогда её пока не отдаём.
-    const item = this.stack.takeTop();
-    if (!item) return;
-
-    this.dropZone.receive(item, () => this.onWoodStored());
-  }
-
-  // Связка легла на поленницу: +1 к сданному хворосту.
-  private onWoodStored(): void {
-    this.woodDelivered += 1;
   }
 
   // ===== Добыча хвороста =====
@@ -209,6 +202,37 @@ export class GameScene extends Phaser.Scene {
     }
 
     return nearest;
+  }
+
+  // ===== Сдача хвороста =====
+
+  // Вождь в зоне поленницы — каждые DROP_INTERVAL мс верхняя связка
+  // улетает со стопки в кучу на поленнице.
+  private updateDropping(delta: number): void {
+    const isInZone = this.dropZone.contains(this.player.x, this.player.y);
+    this.dropZone.setHighlighted(isInZone);
+
+    // Вождь не в зоне или нести нечего — таймер не копится.
+    if (!isInZone || this.stack.isEmpty()) {
+      this.dropTimer = 0;
+      return;
+    }
+
+    this.dropTimer += delta;
+    if (this.dropTimer < DROP_INTERVAL) return;
+    this.dropTimer -= DROP_INTERVAL;
+
+    // Верхняя связка может ещё лететь на стопку — тогда её пока не отдаём.
+    const item = this.stack.takeTop();
+    if (!item) return;
+
+    this.dropZone.receive(item, () => this.onWoodStored());
+  }
+
+  // Связка легла на поленницу: +1 к сданному хворосту.
+  private onWoodStored(): void {
+    this.woodDelivered += 1;
+    this.hud.setWood(this.woodDelivered);
   }
 
   // ===== Мир =====
@@ -307,6 +331,30 @@ export class GameScene extends Phaser.Scene {
     shadow.setDepth(y + SHADOW_DEPTH_SHIFT);
 
     return image;
+  }
+
+  // Лёгкий падающий снег. Снежинки рождаются в видимой части мира:
+  // эмиттер следит за левым верхним углом того, что видит камера (worldView).
+  // Сами снежинки остаются в мире — когда камера едет, они не едут за ней.
+  private createSnowfall(): void {
+    const { width, height } = this.scale;
+    this.add
+      .particles(0, 0, TEXTURES.snowflake, {
+        ...SNOWFALL,
+        // Место рождения снежинки — случайная точка в прямоугольнике размером с экран.
+        emitZone: {
+          type: 'random',
+          source: {
+            getRandomPoint: (point) => {
+              point.x = Phaser.Math.Between(0, width);
+              point.y = Phaser.Math.Between(0, height);
+            },
+          },
+        },
+        // Прямоугольник едет вместе с камерой.
+        follow: this.cameras.main.worldView,
+      })
+      .setDepth(SNOWFALL_DEPTH);
   }
 
   // ===== Камера =====

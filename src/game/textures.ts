@@ -39,6 +39,7 @@ export const TEXTURES = {
   flame: 'flame', // язык пламени; точка опоры — низ
   glow: 'glow', // мягкий белый круг; его красят в цвет света
   spark: 'spark', // искра костра (белая, цвет задаёт частица)
+  hudPanel: 'hud-panel', // плашка счёта со скруглёнными углами
 } as const;
 
 // Шрифт всех надписей. Это тоже «ассет»: свой шрифт подключается здесь.
@@ -72,6 +73,7 @@ const FIRE_PIT_SIZE: Size = { w: 110, h: 64 };
 const FLAME_SIZE: Size = { w: 64, h: 96 };
 const GLOW_SIZE: Size = { w: 128, h: 128 };
 const SPARK_SIZE: Size = { w: 8, h: 8 };
+const HUD_PANEL_SIZE: Size = { w: 170, h: 66 };
 
 // ===== Параметры рисования =====
 
@@ -119,6 +121,7 @@ export function createTextures(scene: Phaser.Scene): void {
   bake(scene, TEXTURES.flame, FLAME_SIZE, drawFlame);
   bake(scene, TEXTURES.glow, GLOW_SIZE, drawGlow);
   bake(scene, TEXTURES.spark, SPARK_SIZE, drawSpark);
+  bake(scene, TEXTURES.hudPanel, HUD_PANEL_SIZE, drawHudPanel);
 }
 
 // Рисует картинку на временном Graphics и сохраняет её как текстуру под ключом key.
@@ -754,6 +757,27 @@ function drawChip(g: Graphics): void {
   fillPolygon(g, chip, COLORS.woodEnd);
   g.lineStyle(1.5, COLORS.woodDark, 1);
   g.strokePoints(toPoints(chip), true, true);
+}
+
+// ===== Интерфейс =====
+
+// Плашка счёта: тёмное дерево со светлой рамкой, скруглённые углы и мягкая тень снизу.
+function drawHudPanel(g: Graphics): void {
+  const { w, h } = HUD_PANEL_SIZE;
+  const radius = 18;
+  const height = h - 6;
+
+  // Тень плашки чуть ниже неё.
+  g.fillStyle(COLORS.shadow, 0.35);
+  g.fillRoundedRect(2, 6, w - 4, height - 2, radius);
+  // Сама плашка.
+  g.fillStyle(COLORS.hudPanel, 0.9);
+  g.fillRoundedRect(2, 2, w - 4, height - 2, radius);
+  // Блик по верху — плашка выглядит выпуклой.
+  g.fillStyle(COLORS.white, 0.12);
+  g.fillRoundedRect(8, 6, w - 16, height / 3, radius / 2);
+  g.lineStyle(3, COLORS.zoneBorder, 1);
+  g.strokeRoundedRect(2, 2, w - 4, height - 2, radius);
 }
 
 // ===== Помощники рисования =====
