@@ -59,7 +59,8 @@ export const BUSH_STOCK = 4;
 export const HIT_INTERVAL = 450;
 
 // Как близко нужно подойти к кусту, чтобы бить его (пиксели).
-export const GATHER_RADIUS = 85;
+// Радиус больше самого куста: можно бегать вокруг, и куст всё равно рубится.
+export const GATHER_RADIUS = 140;
 
 // Через сколько мс пенёк снова становится кустом.
 export const BUSH_REGROW_TIME = 8000;
