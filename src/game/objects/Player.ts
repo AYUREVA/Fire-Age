@@ -40,11 +40,13 @@ const CLUB_REST_ANGLE = 65;
 // и на сколько уходит вперёд-вниз в момент удара по кусту.
 const CLUB_WINDUP_ANGLE = -50;
 const CLUB_STRIKE_ANGLE = 45;
-// Длительность фаз, мс: неспешный замах, резкий удар, возврат в покой с пружинкой.
-// Вместе они короче HIT_INTERVAL из settings.ts, поэтому взмахи не накладываются.
-const SWING_WINDUP_TIME = 120;
-const SWING_STRIKE_TIME = 80;
-const SWING_RECOVER_TIME = 220;
+// Какую долю всего взмаха занимает каждая фаза (в сумме 1):
+// неспешный замах, резкий удар, возврат в покой с пружинкой.
+// Весь взмах длится столько, сколько передали в swing() (сцена передаёт HIT_INTERVAL),
+// поэтому попадание (замах + удар = половина взмаха) всегда раньше следующего удара.
+const SWING_WINDUP_SHARE = 0.3;
+const SWING_STRIKE_SHARE = 0.2;
+const SWING_RECOVER_SHARE = 0.5;
 // Тело наклоняется вслед за дубиной: градусов наклона на градус взмаха
 // (назад на замахе, вперёд при ударе).
 const BODY_LEAN_PER_DEGREE = 0.08;
@@ -205,8 +207,9 @@ export class Player {
   }
 
   // Взмах дубиной: вождь поворачивается к цели (кусту), замахивается и бьёт.
-  // onImpact вызывается в момент, когда дубина попадает по цели.
-  swing(targetX: number, onImpact: () => void): void {
+  // duration — сколько мс длится весь взмах, onImpact вызывается в момент,
+  // когда дубина попадает по цели.
+  swing(targetX: number, duration: number, onImpact: () => void): void {
     this.facing = targetX >= this.x ? 1 : -1;
 
     // Если прошлый взмах ещё идёт — останавливаем его, чтобы два взмаха не спорили.
@@ -218,11 +221,16 @@ export class Player {
       targets: this,
       tweens: [
         // 1. Замах: дубина плавно отходит назад-вверх.
-        { clubSwing: CLUB_WINDUP_ANGLE, duration: SWING_WINDUP_TIME, ease: 'Sine.easeOut' },
+        { clubSwing: CLUB_WINDUP_ANGLE, duration: duration * SWING_WINDUP_SHARE, ease: 'Sine.easeOut' },
         // 2. Удар: резко вперёд-вниз, с разгоном. В конце — попадание.
-        { clubSwing: CLUB_STRIKE_ANGLE, duration: SWING_STRIKE_TIME, ease: 'Quad.easeIn', onComplete: onImpact },
+        {
+          clubSwing: CLUB_STRIKE_ANGLE,
+          duration: duration * SWING_STRIKE_SHARE,
+          ease: 'Quad.easeIn',
+          onComplete: onImpact,
+        },
         // 3. Возврат в покой: Back.easeOut чуть проскакивает — получается пружинка.
-        { clubSwing: 0, duration: SWING_RECOVER_TIME, ease: 'Back.easeOut' },
+        { clubSwing: 0, duration: duration * SWING_RECOVER_SHARE, ease: 'Back.easeOut' },
       ],
     });
   }

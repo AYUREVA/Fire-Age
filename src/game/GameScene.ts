@@ -182,7 +182,8 @@ export class GameScene extends Phaser.Scene {
     this.hitTimer -= HIT_INTERVAL;
 
     // Удар засчитывается, когда дубина долетает до куста, а не в начале замаха.
-    this.player.swing(bush.x, () => {
+    // Весь взмах укладывается в HIT_INTERVAL — до следующего удара.
+    this.player.swing(bush.x, HIT_INTERVAL, () => {
       bush.hit();
       this.stack.add(bush.getLootPoint());
     });
