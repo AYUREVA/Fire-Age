@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { COLORS, toCss } from '../palette';
-import { FONT_FAMILY, TEXTURES } from '../textures';
+import { FONT_FAMILY, TEXTURES, TITLE_FONT } from '../textures';
 
 // HUD рисуется поверх всего мира (джойстик — на том же уровне, см. Player.ts).
 const HUD_DEPTH = 20000;
@@ -30,9 +30,8 @@ export class Hud {
 
     this.timeText = scene.add
       .text(PANEL_MARGIN + TIME_X, panelCenterY, '', {
-        fontFamily: FONT_FAMILY,
+        fontFamily: TITLE_FONT,
         fontSize: '34px',
-        fontStyle: 'bold',
         color: toCss(COLORS.hudText),
         stroke: toCss(COLORS.outline),
         strokeThickness: 6,

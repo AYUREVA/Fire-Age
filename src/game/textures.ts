@@ -46,10 +46,25 @@ export const TEXTURES = {
   heatBarFill: 'heat-bar-fill', // заливка шкалы жара (белая, красится tint)
   hudPanel: 'hud-panel', // плашка интерфейса со скруглёнными углами
   moonIcon: 'moon-icon', // луна на плашке таймера: ночь, до рассвета
+  stoneTablet: 'stone-tablet', // каменная табличка: пауза, итоги
+  stoneButton: 'stone-button', // каменная кнопка на табличке
 } as const;
 
 // Шрифт всех надписей. Это тоже «ассет»: свой шрифт подключается здесь.
 export const FONT_FAMILY = '"Trebuchet MS", "Segoe UI", system-ui, sans-serif';
+
+// Шрифт заголовков, кнопок табличек и таймера — Russo One:
+// лицензия SIL Open Font License (OFL), есть кириллица.
+// Файл лежит в проекте: public/fonts/, рядом — текст лицензии OFL.txt.
+const TITLE_FONT_NAME = 'Russo One';
+const TITLE_FONT_URL = 'fonts/RussoOne-Regular.ttf';
+// Если шрифт не загрузился, надписи нарисуются обычным шрифтом.
+export const TITLE_FONT = '"' + TITLE_FONT_NAME + '", ' + FONT_FAMILY;
+
+// Загружает шрифт заголовков. Вызывается в GameScene.preload().
+export function loadFonts(scene: Phaser.Scene): void {
+  scene.load.font(TITLE_FONT_NAME, TITLE_FONT_URL);
+}
 
 // ===== Размеры текстур в пикселях =====
 
@@ -85,6 +100,8 @@ const HEAT_BAR_BACK_SIZE: Size = { w: 116, h: 24 };
 const HEAT_BAR_FILL_SIZE: Size = { w: 104, h: 12 };
 const HUD_PANEL_SIZE: Size = { w: 170, h: 66 };
 const MOON_ICON_SIZE: Size = { w: 40, h: 40 };
+const STONE_TABLET_SIZE: Size = { w: 520, h: 300 };
+const STONE_BUTTON_SIZE: Size = { w: 210, h: 66 };
 
 // ===== Параметры рисования =====
 
@@ -153,6 +170,8 @@ export function createTextures(scene: Phaser.Scene): void {
   bake(scene, TEXTURES.heatBarFill, HEAT_BAR_FILL_SIZE, drawHeatBarFill);
   bake(scene, TEXTURES.hudPanel, HUD_PANEL_SIZE, drawHudPanel);
   bake(scene, TEXTURES.moonIcon, MOON_ICON_SIZE, drawMoonIcon);
+  bake(scene, TEXTURES.stoneTablet, STONE_TABLET_SIZE, drawStoneTablet);
+  bake(scene, TEXTURES.stoneButton, STONE_BUTTON_SIZE, drawStoneButton);
 }
 
 // Рисует картинку на временном Graphics и сохраняет её как текстуру под ключом key.
@@ -1303,6 +1322,57 @@ function drawMoonIcon(g: Graphics): void {
   g.fillCircle(cx - 6, cy - 4, 5);
   g.fillCircle(cx + 6, cy + 5, 4);
   g.fillCircle(cx + 5, cy - 8, 2.5);
+}
+
+// ===== Каменные таблички =====
+
+// Каменная табличка: плита со скошенными углами, светлая кромка сверху,
+// тёмная снизу, пара трещин и снежная шапка по верхнему краю.
+function drawStoneTablet(g: Graphics): void {
+  const { w, h } = STONE_TABLET_SIZE;
+  // Нижний край чуть ниже, чтобы под плитой поместилась тень.
+  const bottom = h - 10;
+  const slab = [18, 14, w - 26, 10, w - 6, 34, w - 10, bottom - 22, w - 30, bottom, 24, bottom - 4, 6, bottom - 28, 8, 40];
+
+  // Тень под плитой.
+  g.fillStyle(COLORS.shadow, 0.35);
+  g.fillEllipse(w / 2, bottom + 2, w - 40, 22);
+
+  fillPolygon(g, slab, COLORS.tablet);
+  // Тёмная нижняя часть — плита выглядит толстой.
+  fillPolygon(g, [8, bottom - 50, w - 9, bottom - 46, w - 10, bottom - 22, w - 30, bottom, 24, bottom - 4, 6, bottom - 28], COLORS.tabletDark);
+  // Светлая кромка по верху.
+  fillPolygon(g, [18, 14, w - 26, 10, w - 14, 22, 26, 26], COLORS.tabletLight);
+  // Трещины.
+  g.lineStyle(THIN_OUTLINE_WIDTH, COLORS.tabletDark, 1);
+  g.strokePoints(toPoints([40, 60, 58, 84, 52, 110]), false);
+  g.strokePoints(toPoints([w - 50, 70, w - 70, 96, w - 62, 128, w - 80, 150]), false);
+  strokePolygon(g, slab);
+
+  // Снежная шапка по верхнему краю: несколько сугробиков.
+  outlinedBlobs(g, [70, 14, 18, 120, 10, 14, 170, 14, 16, w - 160, 10, 15, w - 110, 13, 19, w - 70, 10, 13], COLORS.snow);
+  g.fillStyle(COLORS.snowLight, 1);
+  g.fillCircle(66, 9, 7);
+  g.fillCircle(w - 114, 8, 7);
+}
+
+// Каменная кнопка: скруглённая плита с тёмным «торцом» снизу — будто её можно нажать.
+function drawStoneButton(g: Graphics): void {
+  const { w, h } = STONE_BUTTON_SIZE;
+  const radius = 16;
+  const lip = 8;
+
+  // Торец кнопки (видно снизу).
+  g.fillStyle(COLORS.tabletDark, 1);
+  g.fillRoundedRect(2, lip, w - 4, h - lip - 2, radius);
+  // Лицевая сторона.
+  g.fillStyle(COLORS.tablet, 1);
+  g.fillRoundedRect(2, 2, w - 4, h - lip - 4, radius);
+  // Светлая кромка по верху.
+  g.fillStyle(COLORS.tabletLight, 1);
+  g.fillRoundedRect(10, 5, w - 20, 8, 4);
+  g.lineStyle(OUTLINE_WIDTH, COLORS.outline, 1);
+  g.strokeRoundedRect(2, 2, w - 4, h - 4, radius);
 }
 
 // ===== Помощники рисования =====

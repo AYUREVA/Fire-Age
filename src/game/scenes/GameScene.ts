@@ -10,7 +10,7 @@ import {
   CAMPFIRE_POSITION,
   WOODPILE_POSITION,
 } from '../settings';
-import { TEXTURES, createTextures } from '../textures';
+import { TEXTURES, createTextures, loadFonts } from '../textures';
 import { Player } from '../objects/Player';
 import { CarryStack } from '../objects/CarryStack';
 import { ResourceNode } from '../objects/ResourceNode';
@@ -119,6 +119,11 @@ export class GameScene extends Phaser.Scene {
 
   constructor() {
     super('GameScene');
+  }
+
+  // Загрузка перед create(): шрифт заголовков (картинки рисуются кодом в create()).
+  preload(): void {
+    loadFonts(this);
   }
 
   create(): void {
