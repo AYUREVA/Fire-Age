@@ -18,22 +18,24 @@ import { DropZone } from '../objects/DropZone';
 // =====================================================================
 
 // Огонь горит: жар убывает, поленница подкармливает огонь.
+// burnMultiplier — во сколько раз быстрее прогорает костёр (ночью — быстрее).
 // Вернёт true, если костёр погас: угли тлели EMBER_TIME мс, а топлива не было.
-export function updateFire(fire: Campfire, woodpile: DropZone, delta: number): boolean {
-  burn(fire, delta);
+export function updateFire(fire: Campfire, woodpile: DropZone, delta: number, burnMultiplier: number): boolean {
+  burn(fire, delta, burnMultiplier);
   feedFromWoodpile(fire, woodpile, delta);
   return fire.emberTime >= EMBER_TIME;
 }
 
-// Жар убывает с постоянной скоростью: полный костёр сгорает за FIRE_BURN_TIME мс.
+// Жар убывает с постоянной скоростью: полный костёр сгорает за FIRE_BURN_TIME мс,
+// а с множителем burnMultiplier — во столько раз быстрее.
 // Когда жар на нуле, костёр тлеет углями — копится время углей.
-function burn(fire: Campfire, delta: number): void {
+function burn(fire: Campfire, delta: number, burnMultiplier: number): void {
   if (fire.isEmbers()) {
     fire.emberTime += delta;
     return;
   }
 
-  fire.heat = Math.max(0, fire.heat - (delta * FIRE_MAX_HEAT) / FIRE_BURN_TIME);
+  fire.heat = Math.max(0, fire.heat - (delta * burnMultiplier * FIRE_MAX_HEAT) / FIRE_BURN_TIME);
 }
 
 // Жар ниже FIRE_FEED_BELOW — верхняя связка из поленницы сама летит в огонь,

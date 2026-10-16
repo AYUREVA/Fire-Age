@@ -8,6 +8,7 @@ import {
   BUSH_POSITIONS,
   CAMPFIRE_POSITION,
   WOODPILE_POSITION,
+  PHASES,
 } from '../settings';
 import { TEXTURES, createTextures, loadFonts } from '../textures';
 import { Player } from '../objects/Player';
@@ -163,7 +164,11 @@ export class GameScene extends Phaser.Scene {
   // Порядок: сначала двигаем вождя, потом стопку за ним, потом системы
   // (systems/) проверяют, что вождь делает рядом с кустами и с поленницей.
   update(_time: number, delta: number): void {
-    this.player.update(delta);
+    // Параметры текущей фазы суток. Ночью меняются ровно два: скорость вождя
+    // и скорость горения костра (таблица PHASES в settings.ts).
+    const phase = PHASES[this.cycle.phase];
+
+    this.player.update(delta, phase.playerSpeedMultiplier);
     // Стопке сообщаем, где спина вождя, как быстро он идёт и какая у него глубина.
     this.stack.update(delta, this.player.getBackPoint(), this.player.velocityX, this.player.y);
 
@@ -173,7 +178,7 @@ export class GameScene extends Phaser.Scene {
 
     updateGathering(this.player, this.stack, this.bushes, delta);
     updateDropping(this.player, this.stack, this.dropZone, delta);
-    const isFireOut = updateFire(this.campfire, this.dropZone, delta);
+    const isFireOut = updateFire(this.campfire, this.dropZone, delta, phase.fireBurnMultiplier);
     this.campfire.update(delta);
 
     const cycleEvent = this.cycle.update(delta);
