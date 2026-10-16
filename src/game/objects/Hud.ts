@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { COLORS, toCss } from '../palette';
-import { FONT_FAMILY, TEXTURES, TITLE_FONT } from '../textures';
+import { TEXTURES, TITLE_FONT } from '../textures';
 
 // HUD рисуется поверх всего мира (джойстик — на том же уровне, см. Player.ts).
 const HUD_DEPTH = 20000;
@@ -10,18 +10,13 @@ const PANEL_MARGIN = 16;
 const ICON_X = 38;
 // Где начинается время (от левого края плашки).
 const TIME_X = 68;
-// Подсказка по управлению — у нижнего края экрана.
-const HINT_MARGIN_BOTTOM = 12;
-const HINT_TEXT =
-  'WASD, стрелки или зажми и веди мышь / палец — идти. P / Esc — пауза\n' +
-  'Руби кусты и неси хворост в поленницу — костёр берёт его сам. Не дай огню погаснуть до рассвета!';
 // Кнопка паузы чуть темнее, при наведении — светлеет до настоящего цвета.
 const PAUSE_IDLE_TINT = 0xdddddd;
 const PAUSE_HOVER_TINT = 0xffffff;
 
 /**
  * Интерфейс поверх игры: плашка «сколько осталось до рассвета»,
- * кнопка паузы в правом верхнем углу (для телефона) и подсказка.
+ * и кнопка паузы в правом верхнем углу (для телефона).
  * Всё в координатах экрана (scrollFactor 0) — не двигается вместе с камерой.
  */
 export class Hud {
@@ -46,20 +41,6 @@ export class Hud {
       })
       .setOrigin(0, 0.5);
 
-    const hint = scene.add
-      .text(scene.scale.width / 2, scene.scale.height - HINT_MARGIN_BOTTOM, HINT_TEXT, {
-        fontFamily: FONT_FAMILY,
-        fontSize: '16px',
-        fontStyle: 'bold',
-        color: toCss(COLORS.hudText),
-        stroke: toCss(COLORS.outline),
-        strokeThickness: 4,
-        align: 'center',
-        lineSpacing: 2,
-        resolution: 2,
-      })
-      .setOrigin(0.5, 1);
-
     const pauseButton = scene.add.image(0, 0, TEXTURES.pauseButton).setTint(PAUSE_IDLE_TINT);
     pauseButton.setPosition(
       scene.scale.width - PANEL_MARGIN - pauseButton.width / 2,
@@ -71,7 +52,7 @@ export class Hud {
     pauseButton.on('pointerdown', onPause);
 
     // Всё в координатах экрана и поверх мира.
-    for (const object of [panel, icon, this.timeText, hint, pauseButton]) {
+    for (const object of [panel, icon, this.timeText, pauseButton]) {
       object.setScrollFactor(0).setDepth(HUD_DEPTH);
     }
   }
