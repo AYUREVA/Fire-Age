@@ -101,7 +101,7 @@ const HEAT_BAR_BACK_SIZE: Size = { w: 116, h: 24 };
 const HEAT_BAR_FILL_SIZE: Size = { w: 104, h: 12 };
 const HUD_PANEL_SIZE: Size = { w: 170, h: 66 };
 const MOON_ICON_SIZE: Size = { w: 40, h: 40 };
-const STONE_TABLET_SIZE: Size = { w: 520, h: 300 };
+const STONE_TABLET_SIZE: Size = { w: 540, h: 320 };
 const STONE_BUTTON_SIZE: Size = { w: 210, h: 66 };
 const PAUSE_BUTTON_SIZE: Size = { w: 60, h: 60 };
 
@@ -1329,34 +1329,122 @@ function drawMoonIcon(g: Graphics): void {
 
 // ===== Каменные таблички =====
 
-// Каменная табличка: плита со скошенными углами, светлая кромка сверху,
-// тёмная снизу, пара трещин и снежная шапка по верхнему краю.
+// Плита таблички в своей картинке: отступ слева и справа (там свисает снег)
+// и сверху (там лежит снег).
+const TABLET_SLAB_SIDE = 18;
+const TABLET_SLAB_TOP = 34;
+// Снег на табличке: толщина ровного слоя над плитой.
+const TABLET_SNOW_THICKNESS = 20;
+// Наплывы снега по углам: на сколько ниже верха плиты середина круглого низа
+// наплыва и его радиус. Слева наплыв длиннее — так выглядит естественнее.
+const TABLET_DROOP_LEFT_Y = 46;
+const TABLET_DROOP_LEFT_RADIUS = 13;
+const TABLET_DROOP_RIGHT_Y = 34;
+const TABLET_DROOP_RIGHT_RADIUS = 11;
+
+// Каменная табличка: плита со скошенными углами, тёмная снизу, пара трещин
+// и снег по верху, который на углах свисает за край плиты.
 function drawStoneTablet(g: Graphics): void {
   const { w, h } = STONE_TABLET_SIZE;
-  // Нижний край чуть ниже, чтобы под плитой поместилась тень.
+  const left = TABLET_SLAB_SIDE;
+  const right = w - TABLET_SLAB_SIDE;
+  const top = TABLET_SLAB_TOP;
+  // Нижний край чуть выше края картинки, чтобы под плитой поместилась тень.
   const bottom = h - 10;
-  const slab = [18, 14, w - 26, 10, w - 6, 34, w - 10, bottom - 22, w - 30, bottom, 24, bottom - 4, 6, bottom - 28, 8, 40];
+  const slab = [
+    left + 12, top + 4, right - 20, top, right, top + 24, right - 4, bottom - 22,
+    right - 24, bottom, left + 18, bottom - 4, left, bottom - 28, left + 2, top + 30,
+  ];
 
   // Тень под плитой.
   g.fillStyle(COLORS.shadow, 0.35);
-  g.fillEllipse(w / 2, bottom + 2, w - 40, 22);
+  g.fillEllipse(w / 2, bottom + 2, right - left - 30, 22);
 
   fillPolygon(g, slab, COLORS.tablet);
   // Тёмная нижняя часть — плита выглядит толстой.
-  fillPolygon(g, [8, bottom - 50, w - 9, bottom - 46, w - 10, bottom - 22, w - 30, bottom, 24, bottom - 4, 6, bottom - 28], COLORS.tabletDark);
-  // Светлая кромка по верху.
-  fillPolygon(g, [18, 14, w - 26, 10, w - 14, 22, 26, 26], COLORS.tabletLight);
+  fillPolygon(
+    g,
+    [left + 2, bottom - 50, right - 3, bottom - 46, right - 4, bottom - 22, right - 24, bottom, left + 18, bottom - 4, left, bottom - 28],
+    COLORS.tabletDark,
+  );
   // Трещины.
   g.lineStyle(THIN_OUTLINE_WIDTH, COLORS.tabletDark, 1);
-  g.strokePoints(toPoints([40, 60, 58, 84, 52, 110]), false);
-  g.strokePoints(toPoints([w - 50, 70, w - 70, 96, w - 62, 128, w - 80, 150]), false);
+  g.strokePoints(toPoints([left + 22, top + 66, left + 40, top + 90, left + 34, top + 116]), false);
+  g.strokePoints(toPoints([right - 32, top + 76, right - 52, top + 102, right - 44, top + 134, right - 62, top + 156]), false);
   strokePolygon(g, slab);
 
-  // Снежная шапка по верхнему краю: несколько сугробиков.
-  outlinedBlobs(g, [70, 14, 18, 120, 10, 14, 170, 14, 16, w - 160, 10, 15, w - 110, 13, 19, w - 70, 10, 13], COLORS.snow);
+  drawTabletSnow(g, left, right, top);
+}
+
+// Снег на табличке — один многоугольник: ровный слой с лёгкими волнами по верху,
+// волнистая нижняя кромка, а на углах снег переваливается через край плиты
+// и свисает наплывами с круглым низом. Обход контура — по часовой стрелке.
+function drawTabletSnow(g: Graphics, left: number, right: number, top: number): void {
+  // Верх плиты чуть наклонён: у левого угла на 4 пикселя ниже, чем у правого.
+  const slabTopY = (x: number): number => top + 4 - (4 * (x - (left + 12))) / (right - 20 - (left + 12));
+  const leftDroopY = top + TABLET_DROOP_LEFT_Y;
+  const rightDroopY = top + TABLET_DROOP_RIGHT_Y;
+
+  // Нижняя кромка слоя справа налево: волны чуть ниже верха плиты.
+  const lowerEdge: number[] = [];
+  for (let x = right - 30; x > left + 30; x -= 10) {
+    lowerEdge.push(x, slabTopY(x) + 10 + 3 * Math.sin(x * 0.07));
+  }
+
+  // Верх слоя слева направо: ровно над плитой, с едва заметными волнами.
+  // envelope гасит волны у краёв, чтобы они плавно переходили в скруглённые углы.
+  const upperEdge: number[] = [];
+  const from = left + 14;
+  const to = right - 22;
+  for (let x = from + 10; x < to; x += 10) {
+    const envelope = Math.sin((Math.PI * (x - from)) / (to - from));
+    const wave = (2 * Math.sin(x * 0.045) + 1.2 * Math.sin(x * 0.11 + 1)) * envelope;
+    upperEdge.push(x, slabTopY(x) - TABLET_SNOW_THICKNESS + wave);
+  }
+
+  const outline = [
+    // Левый угол: снизу вверх по наружной стороне наплыва и через скруглённый угол.
+    ...arcPoints(from, top + 4, 22, Math.PI, Math.PI * 1.5),
+    ...upperEdge,
+    // Правый угол и правый наплыв: вниз снаружи плиты, круглый низ, вверх уже над плитой.
+    ...arcPoints(to, top + 2, 22, -Math.PI / 2, 0),
+    right + 1, top + 16,
+    ...arcPoints(right - 8, rightDroopY, TABLET_DROOP_RIGHT_RADIUS, 0, Math.PI),
+    right - 20, top + 18,
+    right - 26, top + 12,
+    ...lowerEdge,
+    // Левый наплыв: вниз над плитой, круглый низ, вверх снаружи плиты.
+    left + 24, top + 14,
+    left + 18, top + 22,
+    ...arcPoints(left + 5, leftDroopY, TABLET_DROOP_LEFT_RADIUS, 0, Math.PI),
+    left - 8, top + 20,
+  ];
+  fillPolygon(g, outline, COLORS.snow);
+
+  // Голубая тень вдоль нижней кромки — снег лежит толстым слоем.
+  const shadeTop: number[] = [];
+  for (let i = lowerEdge.length - 2; i >= 0; i -= 2) {
+    shadeTop.push(lowerEdge[i], lowerEdge[i + 1] - 6);
+  }
+  fillPolygon(g, [...lowerEdge, ...shadeTop], COLORS.snowShade);
+  // Тень и на круглых низах наплывов.
+  g.fillStyle(COLORS.snowShade, 1);
+  for (const [x, y, r] of [
+    [right - 8, rightDroopY, TABLET_DROOP_RIGHT_RADIUS],
+    [left + 5, leftDroopY, TABLET_DROOP_LEFT_RADIUS],
+  ]) {
+    g.beginPath();
+    g.arc(x, y, r, Math.PI * 0.11, Math.PI * 0.89);
+    g.closePath();
+    g.fillPath();
+  }
+
+  strokePolygon(g, outline);
+
+  // Блики на верху слоя.
   g.fillStyle(COLORS.snowLight, 1);
-  g.fillCircle(66, 9, 7);
-  g.fillCircle(w - 114, 8, 7);
+  g.fillRoundedRect(left + 50, top - 12, 120, 4, 2);
+  g.fillRoundedRect(right - 210, top - 15, 90, 4, 2);
 }
 
 // Каменная кнопка: скруглённая плита с тёмным «торцом» снизу — будто её можно нажать.
@@ -1479,6 +1567,18 @@ function softEllipse(
     const k = 1 - i / layers;
     g.fillEllipse(x, y, width * k, height * k);
   }
+}
+
+// Точки дуги окружности [x1, y1, x2, y2, …]: центр (cx, cy), радиус r,
+// от угла from до угла to (радианы, 0 — вправо, по часовой стрелке — вниз).
+function arcPoints(cx: number, cy: number, r: number, from: number, to: number): number[] {
+  const steps = 10;
+  const points: number[] = [];
+  for (let i = 0; i <= steps; i++) {
+    const angle = Phaser.Math.Linear(from, to, i / steps);
+    points.push(cx + r * Math.cos(angle), cy + r * Math.sin(angle));
+  }
+  return points;
 }
 
 // Превращает список чисел [x1, y1, x2, y2, …] в точки для Graphics.
