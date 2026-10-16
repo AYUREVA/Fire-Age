@@ -42,6 +42,8 @@ export const TEXTURES = {
   flame: 'flame', // язык пламени; точка опоры — низ
   glow: 'glow', // мягкий белый круг; его красят в цвет света
   spark: 'spark', // искра костра (белая, цвет задаёт частица)
+  heatBarBack: 'heat-bar-back', // подложка шкалы жара над костром
+  heatBarFill: 'heat-bar-fill', // заливка шкалы жара (белая, красится tint)
   hudPanel: 'hud-panel', // плашка интерфейса со скруглёнными углами
   moonIcon: 'moon-icon', // луна на плашке таймера: ночь, до рассвета
 } as const;
@@ -79,6 +81,8 @@ const FIRE_PIT_SIZE: Size = { w: 110, h: 64 };
 const FLAME_SIZE: Size = { w: 64, h: 96 };
 const GLOW_SIZE: Size = { w: 128, h: 128 };
 const SPARK_SIZE: Size = { w: 8, h: 8 };
+const HEAT_BAR_BACK_SIZE: Size = { w: 116, h: 24 };
+const HEAT_BAR_FILL_SIZE: Size = { w: 104, h: 12 };
 const HUD_PANEL_SIZE: Size = { w: 170, h: 66 };
 const MOON_ICON_SIZE: Size = { w: 40, h: 40 };
 
@@ -145,6 +149,8 @@ export function createTextures(scene: Phaser.Scene): void {
   bake(scene, TEXTURES.flame, FLAME_SIZE, drawFlame);
   bake(scene, TEXTURES.glow, GLOW_SIZE, drawGlow);
   bake(scene, TEXTURES.spark, SPARK_SIZE, drawSpark);
+  bake(scene, TEXTURES.heatBarBack, HEAT_BAR_BACK_SIZE, drawHeatBarBack);
+  bake(scene, TEXTURES.heatBarFill, HEAT_BAR_FILL_SIZE, drawHeatBarFill);
   bake(scene, TEXTURES.hudPanel, HUD_PANEL_SIZE, drawHudPanel);
   bake(scene, TEXTURES.moonIcon, MOON_ICON_SIZE, drawMoonIcon);
 }
@@ -1258,6 +1264,31 @@ function drawHudPanel(g: Graphics): void {
   g.fillRoundedRect(8, 6, w - 16, height / 3, radius / 2);
   g.lineStyle(3, COLORS.zoneBorder, 1);
   g.strokeRoundedRect(2, 2, w - 4, height - 2, radius);
+}
+
+// Подложка шкалы жара: тёмная скруглённая полоска со светлой рамкой и тёмной обводкой.
+function drawHeatBarBack(g: Graphics): void {
+  const { w, h } = HEAT_BAR_BACK_SIZE;
+  const radius = h / 2 - 2;
+
+  g.fillStyle(COLORS.outline, 1);
+  g.fillRoundedRect(0, 0, w, h, radius + 2);
+  g.fillStyle(COLORS.heatBarBack, 1);
+  g.fillRoundedRect(2, 2, w - 4, h - 4, radius);
+  g.lineStyle(2, COLORS.zoneBorder, 0.8);
+  g.strokeRoundedRect(3, 3, w - 6, h - 6, radius - 1);
+}
+
+// Заливка шкалы жара: белая полоска с тенью снизу. Цвет задаёт tint.
+function drawHeatBarFill(g: Graphics): void {
+  const { w, h } = HEAT_BAR_FILL_SIZE;
+  const radius = h / 2;
+
+  g.fillStyle(COLORS.white, 1);
+  g.fillRoundedRect(0, 0, w, h, radius);
+  // Тень по низу: после покраски она темнее — полоска выглядит выпуклой.
+  g.fillStyle(COLORS.outline, 0.25);
+  g.fillRoundedRect(2, h / 2, w - 4, h / 2 - 1, radius / 2);
 }
 
 // Луна: светлый круг с обводкой и тремя кратерами.

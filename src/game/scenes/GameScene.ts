@@ -18,6 +18,7 @@ import { DropZone } from '../objects/DropZone';
 import { Campfire } from '../objects/Campfire';
 import { Hud } from '../objects/Hud';
 import { updateDropping, updateGathering } from '../systems/Gathering';
+import { updateFire } from '../systems/Fire';
 
 // ===== Слои отрисовки (depth) =====
 // Порядок снизу вверх во всей игре:
@@ -162,6 +163,8 @@ export class GameScene extends Phaser.Scene {
 
     updateGathering(this.player, this.stack, this.bushes, delta);
     updateDropping(this.player, this.stack, this.dropZone, delta);
+    updateFire(this.campfire, this.dropZone, delta);
+    this.campfire.update(delta);
     this.updateNight(delta);
   }
 
