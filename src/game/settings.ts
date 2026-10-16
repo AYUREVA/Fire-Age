@@ -23,10 +23,10 @@ export const SUNSET_TIME = 8000;
 
 // Фазы суток. Ночью (фаза 2) меняются ровно два параметра:
 // fireBurnMultiplier — во сколько раз быстрее прогорает костёр,
-// playerSpeedMultiplier — во сколько раз меняется скорость вождя (0.5 — вдвое медленнее).
+// playerSpeedMultiplier — во сколько раз меняется скорость вождя (0.6 — на 40% медленнее).
 export const PHASES = {
   day: { fireBurnMultiplier: 1, playerSpeedMultiplier: 1 },
-  night: { fireBurnMultiplier: 2, playerSpeedMultiplier: 0.5 },
+  night: { fireBurnMultiplier: 2, playerSpeedMultiplier: 0.6 },
 };
 
 // ===== МИР =====
