@@ -51,6 +51,9 @@ export class DropZone {
   // Середина площадки.
   readonly x: number;
   readonly y: number;
+  // Сколько мс вождь уже стоит на поленнице. Набралось DROP_INTERVAL — сдаёт связку.
+  // Меняет его systems/Gathering.ts.
+  dropTimer = 0;
 
   private scene: Phaser.Scene;
   private platform: Phaser.GameObjects.Image;

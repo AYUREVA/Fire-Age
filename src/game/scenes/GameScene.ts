@@ -7,11 +7,8 @@ import {
   WORLD_EDGE,
   PLAYER_START,
   BUSH_POSITIONS,
-  GATHER_RADIUS,
-  HIT_INTERVAL,
   CAMPFIRE_POSITION,
   WOODPILE_POSITION,
-  DROP_INTERVAL,
 } from '../settings';
 import { TEXTURES, createTextures } from '../textures';
 import { Player } from '../objects/Player';
@@ -20,6 +17,7 @@ import { ResourceNode } from '../objects/ResourceNode';
 import { DropZone } from '../objects/DropZone';
 import { Campfire } from '../objects/Campfire';
 import { Hud } from '../objects/Hud';
+import { updateDropping, updateGathering } from '../systems/Gathering';
 
 // ===== Слои отрисовки (depth) =====
 // Порядок снизу вверх во всей игре:
@@ -115,10 +113,6 @@ export class GameScene extends Phaser.Scene {
   private campfire!: Campfire;
   // Интерфейс: сколько осталось до рассвета и подсказка.
   private hud!: Hud;
-  // Сколько мс вождь уже стоит у куста. Набралось HIT_INTERVAL — удар.
-  private hitTimer = 0;
-  // Сколько мс вождь уже стоит на поленнице. Набралось DROP_INTERVAL — сдаёт связку.
-  private dropTimer = 0;
   // Сколько мс осталось до рассвета.
   private nightTimeLeft = NIGHT_DURATION;
 
@@ -130,8 +124,6 @@ export class GameScene extends Phaser.Scene {
     // При перезапуске сцены create() вызывается снова, а поля класса
     // сохраняют старые значения, поэтому сбрасываем их здесь.
     this.bushes = [];
-    this.hitTimer = 0;
-    this.dropTimer = 0;
     this.nightTimeLeft = NIGHT_DURATION;
 
     createTextures(this);
@@ -157,8 +149,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   // Вызывается Phaser каждый кадр. delta — сколько мс прошло с прошлого кадра.
-  // Порядок: сначала двигаем вождя, потом стопку за ним, потом проверяем,
-  // что вождь делает рядом с кустами и с поленницей.
+  // Порядок: сначала двигаем вождя, потом стопку за ним, потом системы
+  // (systems/) проверяют, что вождь делает рядом с кустами и с поленницей.
   update(_time: number, delta: number): void {
     this.player.update(delta);
     // Стопке сообщаем, где спина вождя, как быстро он идёт и какая у него глубина.
@@ -168,8 +160,8 @@ export class GameScene extends Phaser.Scene {
       bush.update(delta);
     }
 
-    this.updateGathering(delta);
-    this.updateDropping(delta);
+    updateGathering(this.player, this.stack, this.bushes, delta);
+    updateDropping(this.player, this.stack, this.dropZone, delta);
     this.updateNight(delta);
   }
 
@@ -179,76 +171,6 @@ export class GameScene extends Phaser.Scene {
   private updateNight(delta: number): void {
     this.nightTimeLeft = Math.max(0, this.nightTimeLeft - delta);
     this.hud.setTimeLeft(this.nightTimeLeft);
-  }
-
-  // ===== Добыча хвороста =====
-
-  // Вождь рядом с кустом — бьёт его каждые HIT_INTERVAL мс,
-  // и связка хвороста летит из куста на стопку.
-  private updateGathering(delta: number): void {
-    const bush = this.findBushNearPlayer();
-
-    // Рядом нет куста с хворостом или стопка полная — удары не копятся.
-    if (!bush || this.stack.isFull()) {
-      this.hitTimer = 0;
-      return;
-    }
-
-    this.hitTimer += delta;
-    if (this.hitTimer < HIT_INTERVAL) return;
-    this.hitTimer -= HIT_INTERVAL;
-
-    // Удар засчитывается, когда дубина долетает до куста, а не в начале замаха.
-    // Весь взмах укладывается в HIT_INTERVAL — до следующего удара.
-    this.player.swing(bush.x, HIT_INTERVAL, () => {
-      bush.hit();
-      this.stack.add(bush.getLootPoint());
-    });
-  }
-
-  // Ближайший к вождю куст с хворостом не дальше GATHER_RADIUS. Если такого нет — undefined.
-  private findBushNearPlayer(): ResourceNode | undefined {
-    let nearest: ResourceNode | undefined;
-    let nearestDistance = GATHER_RADIUS;
-
-    for (const bush of this.bushes) {
-      if (!bush.hasStock()) continue;
-
-      const distance = Phaser.Math.Distance.Between(this.player.x, this.player.y, bush.x, bush.y);
-      if (distance <= nearestDistance) {
-        nearest = bush;
-        nearestDistance = distance;
-      }
-    }
-
-    return nearest;
-  }
-
-  // ===== Сдача хвороста =====
-
-  // Вождь в зоне поленницы — каждые DROP_INTERVAL мс верхняя связка
-  // улетает со стопки в кучу на поленнице, пока поленница не полная.
-  private updateDropping(delta: number): void {
-    const isInZone = this.dropZone.contains(this.player.x, this.player.y);
-    const canDrop = isInZone && !this.dropZone.isFull();
-    // Полная поленница не подсвечивается: сюда пока нельзя.
-    this.dropZone.setHighlighted(canDrop);
-
-    // Вождь не в зоне, поленница полная или нести нечего — таймер не копится.
-    if (!canDrop || this.stack.isEmpty()) {
-      this.dropTimer = 0;
-      return;
-    }
-
-    this.dropTimer += delta;
-    if (this.dropTimer < DROP_INTERVAL) return;
-    this.dropTimer -= DROP_INTERVAL;
-
-    // Верхняя связка может ещё лететь на стопку — тогда её пока не отдаём.
-    const item = this.stack.takeTop();
-    if (!item) return;
-
-    this.dropZone.receive(item);
   }
 
   // ===== Мир =====
