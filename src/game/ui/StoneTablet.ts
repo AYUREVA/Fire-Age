@@ -20,29 +20,17 @@ const BUTTON_STEP = 228;
 const TITLE_HIGHLIGHT_SHIFT = 2;
 const TITLE_SHADOW_SHIFT = 4;
 
-// ===== Появление =====
+// ===== Появление и закрытие =====
 
-// Табличка падает сверху и отскакивает от «земли».
-const DROP_TIME = 800;
-// Ease 'Bounce.easeOut' первый раз касается цели на 1/2.75 всего времени —
-// в этот миг из-под таблички вылетает облачко.
-const FIRST_BOUNCE_SHARE = 1 / 2.75;
-// Облачко снега и каменной пыли: сколько частиц с каждого угла.
-const DUST_COUNT = 10;
-// Насколько ниже середины таблички её нижний край, где вылетает облачко.
-const DUST_OFFSET_Y = 135;
-// Насколько левее и правее середины углы, откуда вылетает облачко.
-const DUST_OFFSET_X = 220;
-const DUST: Phaser.Types.GameObjects.Particles.ParticleEmitterConfig = {
-  speed: { min: 60, max: 180 },
-  angle: { min: 190, max: 350 }, // вверх и в стороны
-  lifespan: { min: 400, max: 750 },
-  scale: { start: 1.2, end: 0 },
-  alpha: { start: 0.9, end: 0 },
-  gravityY: 260,
-  tint: [COLORS.snowLight, COLORS.snowShade, COLORS.tabletLight],
-  emitting: false, // частицы вылетают только по команде explode
-};
+// Табличка появляется: вырастает из этого размера и прозрачности до полного.
+const SHOW_START_SCALE = 0.85;
+// За сколько мс. Ease 'Back.easeOut' чуть проскакивает полный размер (примерно 103%)
+// и возвращается — получается мягкий «поп» без долгих отскоков.
+const SHOW_TIME = 300;
+const SHOW_EASE = 'Back.easeOut';
+// Табличка закрывается: сжимается до этого размера и тает за столько мс.
+const CLOSE_SCALE = 0.9;
+const CLOSE_TIME = 150;
 
 // ===== Кнопки =====
 
@@ -68,8 +56,8 @@ export type TabletContent = {
 /**
  * Каменная табличка — общее окно игры (пауза, итоги).
  *
- * Затемняет экран и падает сверху с отскоком: в момент касания
- * из-под неё вылетает облачко снега. Заголовок «высечен» в камне:
+ * Затемняет экран и мягко «выпрыгивает» в середине: вырастает
+ * с маленьким перелётом. close() — сжимается и тает. Заголовок «высечен» в камне:
  * янтарный, со светлым бликом сверху и тёмной тенью снизу.
  * Кнопки — каменные плашки: светлеют при наведении, «вдавливаются» при нажатии.
  *
@@ -78,21 +66,27 @@ export type TabletContent = {
  */
 export class StoneTablet {
   private scene: Phaser.Scene;
+  // Затемнение экрана под табличкой.
+  private overlay: Phaser.GameObjects.Rectangle;
   // Всё, что лежит на табличке: камень, надписи, кнопки. Двигаются вместе.
   private container: Phaser.GameObjects.Container;
+  // Кнопки таблички — при закрытии их выключаем, чтобы не нажать дважды.
+  private buttons: Phaser.GameObjects.Image[] = [];
 
   constructor(scene: Phaser.Scene, content: TabletContent) {
     this.scene = scene;
     const { width, height } = scene.scale;
-    const centerX = width / 2;
-    const centerY = height / 2;
 
     // Затемнение под табличкой плавно проявляется.
-    const overlay = scene.add.rectangle(0, 0, width, height, COLORS.overlay).setOrigin(0, 0).setAlpha(0);
-    scene.tweens.add({ targets: overlay, alpha: OVERLAY_ALPHA, duration: OVERLAY_FADE_TIME });
+    this.overlay = scene.add.rectangle(0, 0, width, height, COLORS.overlay).setOrigin(0, 0).setAlpha(0);
+    scene.tweens.add({ targets: this.overlay, alpha: OVERLAY_ALPHA, duration: OVERLAY_FADE_TIME });
 
-    // Табличка начинает выше экрана.
-    this.container = scene.add.container(centerX, -height / 2);
+    // Табличка сразу в середине экрана, но пока маленькая и прозрачная.
+    // Контейнер масштабируется от своей точки — от середины таблички.
+    this.container = scene.add
+      .container(width / 2, height / 2)
+      .setScale(SHOW_START_SCALE)
+      .setAlpha(0);
     this.container.add(scene.add.image(0, 0, TEXTURES.stoneTablet));
     this.addTitle(content.title);
     if (content.subtitle) this.addSubtitle(content.subtitle);
@@ -102,7 +96,32 @@ export class StoneTablet {
       this.addButton(x, BUTTONS_Y, button);
     });
 
-    this.drop(centerX, centerY);
+    // Мягкий «поп»: табличка вырастает до полного размера и проявляется.
+    scene.tweens.add({
+      targets: this.container,
+      scale: 1,
+      alpha: 1,
+      duration: SHOW_TIME,
+      ease: SHOW_EASE,
+    });
+  }
+
+  // Закрыть табличку: она сжимается и тает вместе с затемнением,
+  // потом вызывается onClosed (например, игра продолжается).
+  close(onClosed: () => void): void {
+    for (const button of this.buttons) {
+      button.disableInteractive();
+    }
+
+    this.scene.tweens.add({ targets: this.overlay, alpha: 0, duration: CLOSE_TIME });
+    this.scene.tweens.add({
+      targets: this.container,
+      scale: CLOSE_SCALE,
+      alpha: 0,
+      duration: CLOSE_TIME,
+      ease: 'Sine.easeIn',
+      onComplete: onClosed,
+    });
   }
 
   // ===== Надписи =====
@@ -167,6 +186,7 @@ export class StoneTablet {
       })
       .setOrigin(0.5);
     this.container.add([image, label]);
+    this.buttons.push(image);
 
     // Нажата ли кнопка сейчас (палец или мышь опущены на ней).
     let isPressed = false;
@@ -190,24 +210,6 @@ export class StoneTablet {
       if (!isPressed) return;
       setPressed(false);
       button.onClick();
-    });
-  }
-
-  // ===== Появление =====
-
-  // Табличка падает в середину экрана с отскоком, при касании — облачко снега.
-  private drop(centerX: number, centerY: number): void {
-    this.scene.tweens.add({
-      targets: this.container,
-      y: centerY,
-      duration: DROP_TIME,
-      ease: 'Bounce.easeOut',
-    });
-
-    const dust = this.scene.add.particles(0, 0, TEXTURES.snowflake, DUST);
-    this.scene.time.delayedCall(DROP_TIME * FIRST_BOUNCE_SHARE, () => {
-      dust.explode(DUST_COUNT, centerX - DUST_OFFSET_X, centerY + DUST_OFFSET_Y);
-      dust.explode(DUST_COUNT, centerX + DUST_OFFSET_X, centerY + DUST_OFFSET_Y);
     });
   }
 }

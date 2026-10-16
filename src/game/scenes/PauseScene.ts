@@ -11,12 +11,20 @@ import { StoneTablet } from '../ui/StoneTablet';
  * Кнопка «В меню» появится в 0.7 вместе с меню.
  */
 export class PauseScene extends Phaser.Scene {
+  // Табличка «ПАУЗА».
+  private tablet!: StoneTablet;
+  // Табличка уже закрывается — повторные нажатия не считаем.
+  private isClosing = false;
+
   constructor() {
     super('PauseScene');
   }
 
   create(): void {
-    new StoneTablet(this, {
+    // При новом запуске сцены поля сохраняют старые значения — сбрасываем.
+    this.isClosing = false;
+
+    this.tablet = new StoneTablet(this, {
       title: 'ПАУЗА',
       buttons: [
         { label: 'Продолжить', onClick: () => this.resumeGame() },
@@ -28,10 +36,16 @@ export class PauseScene extends Phaser.Scene {
     this.input.keyboard?.on('keydown-ESC', () => this.resumeGame());
   }
 
-  // GameScene продолжает с того же места, а эта сцена закрывается.
+  // Табличка сжимается и тает, потом GameScene продолжает с того же места,
+  // а эта сцена закрывается.
   private resumeGame(): void {
-    this.scene.resume('GameScene');
-    this.scene.stop();
+    if (this.isClosing) return;
+    this.isClosing = true;
+
+    this.tablet.close(() => {
+      this.scene.resume('GameScene');
+      this.scene.stop();
+    });
   }
 
   // Новая игра: эта сцена закрывается, GameScene перезапускается с нуля.
