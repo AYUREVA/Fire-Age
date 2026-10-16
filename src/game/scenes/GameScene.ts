@@ -10,13 +10,13 @@ import {
   HIT_INTERVAL,
   WOODPILE_POSITION,
   DROP_INTERVAL,
-} from './settings';
-import { TEXTURES, createTextures } from './textures';
-import { Player } from './objects/Player';
-import { CarryStack } from './objects/CarryStack';
-import { ResourceNode } from './objects/ResourceNode';
-import { DropZone } from './objects/DropZone';
-import { Hud } from './objects/Hud';
+} from '../settings';
+import { TEXTURES, createTextures } from '../textures';
+import { Player } from '../objects/Player';
+import { CarryStack } from '../objects/CarryStack';
+import { ResourceNode } from '../objects/ResourceNode';
+import { DropZone } from '../objects/DropZone';
+import { Hud } from '../objects/Hud';
 
 // ===== Слои отрисовки (depth) =====
 // Порядок снизу вверх во всей игре:

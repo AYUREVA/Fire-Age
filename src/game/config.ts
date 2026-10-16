@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { GameScene } from './GameScene';
+import { GameScene } from './scenes/GameScene';
 
 export function createGame(parent: string): Phaser.Game {
   const config: Phaser.Types.Core.GameConfig = {
