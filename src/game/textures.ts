@@ -42,11 +42,30 @@ export const TEXTURES = {
   flame: 'flame', // язык пламени; точка опоры — низ
   glow: 'glow', // мягкий белый круг; его красят в цвет света
   spark: 'spark', // искра костра (белая, цвет задаёт частица)
-  hudPanel: 'hud-panel', // плашка счёта со скруглёнными углами
+  heatBarBack: 'heat-bar-back', // подложка шкалы жара над костром
+  heatBarFill: 'heat-bar-fill', // заливка шкалы жара (белая, красится tint)
+  hudPanel: 'hud-panel', // плашка интерфейса со скруглёнными углами
+  moonIcon: 'moon-icon', // луна на плашке таймера: ночь, до рассвета
+  stoneTablet: 'stone-tablet', // каменная табличка: пауза, итоги
+  stoneButton: 'stone-button', // каменная кнопка на табличке
+  pauseButton: 'pause-button', // круглая каменная кнопка паузы в углу экрана
 } as const;
 
 // Шрифт всех надписей. Это тоже «ассет»: свой шрифт подключается здесь.
 export const FONT_FAMILY = '"Trebuchet MS", "Segoe UI", system-ui, sans-serif';
+
+// Шрифт заголовков, кнопок табличек и таймера — Russo One:
+// лицензия SIL Open Font License (OFL), есть кириллица.
+// Файл лежит в проекте: public/fonts/, рядом — текст лицензии OFL.txt.
+const TITLE_FONT_NAME = 'Russo One';
+const TITLE_FONT_URL = 'fonts/RussoOne-Regular.ttf';
+// Если шрифт не загрузился, надписи нарисуются обычным шрифтом.
+export const TITLE_FONT = '"' + TITLE_FONT_NAME + '", ' + FONT_FAMILY;
+
+// Загружает шрифт заголовков. Вызывается в GameScene.preload().
+export function loadFonts(scene: Phaser.Scene): void {
+  scene.load.font(TITLE_FONT_NAME, TITLE_FONT_URL);
+}
 
 // ===== Размеры текстур в пикселях =====
 
@@ -78,7 +97,13 @@ const FIRE_PIT_SIZE: Size = { w: 110, h: 64 };
 const FLAME_SIZE: Size = { w: 64, h: 96 };
 const GLOW_SIZE: Size = { w: 128, h: 128 };
 const SPARK_SIZE: Size = { w: 8, h: 8 };
+const HEAT_BAR_BACK_SIZE: Size = { w: 116, h: 24 };
+const HEAT_BAR_FILL_SIZE: Size = { w: 104, h: 12 };
 const HUD_PANEL_SIZE: Size = { w: 170, h: 66 };
+const MOON_ICON_SIZE: Size = { w: 40, h: 40 };
+const STONE_TABLET_SIZE: Size = { w: 540, h: 320 };
+const STONE_BUTTON_SIZE: Size = { w: 210, h: 66 };
+const PAUSE_BUTTON_SIZE: Size = { w: 60, h: 60 };
 
 // ===== Параметры рисования =====
 
@@ -143,7 +168,13 @@ export function createTextures(scene: Phaser.Scene): void {
   bake(scene, TEXTURES.flame, FLAME_SIZE, drawFlame);
   bake(scene, TEXTURES.glow, GLOW_SIZE, drawGlow);
   bake(scene, TEXTURES.spark, SPARK_SIZE, drawSpark);
+  bake(scene, TEXTURES.heatBarBack, HEAT_BAR_BACK_SIZE, drawHeatBarBack);
+  bake(scene, TEXTURES.heatBarFill, HEAT_BAR_FILL_SIZE, drawHeatBarFill);
   bake(scene, TEXTURES.hudPanel, HUD_PANEL_SIZE, drawHudPanel);
+  bake(scene, TEXTURES.moonIcon, MOON_ICON_SIZE, drawMoonIcon);
+  bake(scene, TEXTURES.stoneTablet, STONE_TABLET_SIZE, drawStoneTablet);
+  bake(scene, TEXTURES.stoneButton, STONE_BUTTON_SIZE, drawStoneButton);
+  bake(scene, TEXTURES.pauseButton, PAUSE_BUTTON_SIZE, drawPauseButton);
 }
 
 // Рисует картинку на временном Graphics и сохраняет её как текстуру под ключом key.
@@ -1238,7 +1269,7 @@ function drawChip(g: Graphics): void {
 
 // ===== Интерфейс =====
 
-// Плашка счёта: тёмное дерево со светлой рамкой, скруглённые углы и мягкая тень снизу.
+// Плашка интерфейса: тёмное дерево со светлой рамкой, скруглённые углы и мягкая тень снизу.
 function drawHudPanel(g: Graphics): void {
   const { w, h } = HUD_PANEL_SIZE;
   const radius = 18;
@@ -1255,6 +1286,204 @@ function drawHudPanel(g: Graphics): void {
   g.fillRoundedRect(8, 6, w - 16, height / 3, radius / 2);
   g.lineStyle(3, COLORS.zoneBorder, 1);
   g.strokeRoundedRect(2, 2, w - 4, height - 2, radius);
+}
+
+// Подложка шкалы жара: тёмная скруглённая полоска со светлой рамкой и тёмной обводкой.
+function drawHeatBarBack(g: Graphics): void {
+  const { w, h } = HEAT_BAR_BACK_SIZE;
+  const radius = h / 2 - 2;
+
+  g.fillStyle(COLORS.outline, 1);
+  g.fillRoundedRect(0, 0, w, h, radius + 2);
+  g.fillStyle(COLORS.heatBarBack, 1);
+  g.fillRoundedRect(2, 2, w - 4, h - 4, radius);
+  g.lineStyle(2, COLORS.zoneBorder, 0.8);
+  g.strokeRoundedRect(3, 3, w - 6, h - 6, radius - 1);
+}
+
+// Заливка шкалы жара: белая полоска с тенью снизу. Цвет задаёт tint.
+function drawHeatBarFill(g: Graphics): void {
+  const { w, h } = HEAT_BAR_FILL_SIZE;
+  const radius = h / 2;
+
+  g.fillStyle(COLORS.white, 1);
+  g.fillRoundedRect(0, 0, w, h, radius);
+  // Тень по низу: после покраски она темнее — полоска выглядит выпуклой.
+  g.fillStyle(COLORS.outline, 0.25);
+  g.fillRoundedRect(2, h / 2, w - 4, h / 2 - 1, radius / 2);
+}
+
+// Луна: светлый круг с обводкой и тремя кратерами.
+function drawMoonIcon(g: Graphics): void {
+  const { w, h } = MOON_ICON_SIZE;
+  const cx = w / 2;
+  const cy = h / 2;
+
+  outlinedCircle(g, cx, cy, cx - OUTLINE_WIDTH, COLORS.moon);
+  // Кратеры — круги чуть темнее луны.
+  g.fillStyle(COLORS.moonShade, 1);
+  g.fillCircle(cx - 6, cy - 4, 5);
+  g.fillCircle(cx + 6, cy + 5, 4);
+  g.fillCircle(cx + 5, cy - 8, 2.5);
+}
+
+// ===== Каменные таблички =====
+
+// Плита таблички в своей картинке: отступ слева и справа (там свисает снег)
+// и сверху (там лежит снег).
+const TABLET_SLAB_SIDE = 18;
+const TABLET_SLAB_TOP = 34;
+// Снег на табличке: толщина ровного слоя над плитой.
+const TABLET_SNOW_THICKNESS = 20;
+// Наплывы снега по углам: на сколько ниже верха плиты середина круглого низа
+// наплыва и его радиус. Слева наплыв длиннее — так выглядит естественнее.
+const TABLET_DROOP_LEFT_Y = 46;
+const TABLET_DROOP_LEFT_RADIUS = 13;
+const TABLET_DROOP_RIGHT_Y = 34;
+const TABLET_DROOP_RIGHT_RADIUS = 11;
+
+// Каменная табличка: плита со скошенными углами, тёмная снизу, пара трещин
+// и снег по верху, который на углах свисает за край плиты.
+function drawStoneTablet(g: Graphics): void {
+  const { w, h } = STONE_TABLET_SIZE;
+  const left = TABLET_SLAB_SIDE;
+  const right = w - TABLET_SLAB_SIDE;
+  const top = TABLET_SLAB_TOP;
+  // Нижний край чуть выше края картинки, чтобы под плитой поместилась тень.
+  const bottom = h - 10;
+  const slab = [
+    left + 12, top + 4, right - 20, top, right, top + 24, right - 4, bottom - 22,
+    right - 24, bottom, left + 18, bottom - 4, left, bottom - 28, left + 2, top + 30,
+  ];
+
+  // Тень под плитой.
+  g.fillStyle(COLORS.shadow, 0.35);
+  g.fillEllipse(w / 2, bottom + 2, right - left - 30, 22);
+
+  fillPolygon(g, slab, COLORS.tablet);
+  // Тёмная нижняя часть — плита выглядит толстой.
+  fillPolygon(
+    g,
+    [left + 2, bottom - 50, right - 3, bottom - 46, right - 4, bottom - 22, right - 24, bottom, left + 18, bottom - 4, left, bottom - 28],
+    COLORS.tabletDark,
+  );
+  // Трещины.
+  g.lineStyle(THIN_OUTLINE_WIDTH, COLORS.tabletDark, 1);
+  g.strokePoints(toPoints([left + 22, top + 66, left + 40, top + 90, left + 34, top + 116]), false);
+  g.strokePoints(toPoints([right - 32, top + 76, right - 52, top + 102, right - 44, top + 134, right - 62, top + 156]), false);
+  strokePolygon(g, slab);
+
+  drawTabletSnow(g, left, right, top);
+}
+
+// Снег на табличке — один многоугольник: ровный слой с лёгкими волнами по верху,
+// волнистая нижняя кромка, а на углах снег переваливается через край плиты
+// и свисает наплывами с круглым низом. Обход контура — по часовой стрелке.
+function drawTabletSnow(g: Graphics, left: number, right: number, top: number): void {
+  // Верх плиты чуть наклонён: у левого угла на 4 пикселя ниже, чем у правого.
+  const slabTopY = (x: number): number => top + 4 - (4 * (x - (left + 12))) / (right - 20 - (left + 12));
+  const leftDroopY = top + TABLET_DROOP_LEFT_Y;
+  const rightDroopY = top + TABLET_DROOP_RIGHT_Y;
+
+  // Нижняя кромка слоя справа налево: волны чуть ниже верха плиты.
+  const lowerEdge: number[] = [];
+  for (let x = right - 30; x > left + 30; x -= 10) {
+    lowerEdge.push(x, slabTopY(x) + 10 + 3 * Math.sin(x * 0.07));
+  }
+
+  // Верх слоя слева направо: ровно над плитой, с едва заметными волнами.
+  // envelope гасит волны у краёв, чтобы они плавно переходили в скруглённые углы.
+  const upperEdge: number[] = [];
+  const from = left + 14;
+  const to = right - 22;
+  for (let x = from + 10; x < to; x += 10) {
+    const envelope = Math.sin((Math.PI * (x - from)) / (to - from));
+    const wave = (2 * Math.sin(x * 0.045) + 1.2 * Math.sin(x * 0.11 + 1)) * envelope;
+    upperEdge.push(x, slabTopY(x) - TABLET_SNOW_THICKNESS + wave);
+  }
+
+  const outline = [
+    // Левый угол: снизу вверх по наружной стороне наплыва и через скруглённый угол.
+    ...arcPoints(from, top + 4, 22, Math.PI, Math.PI * 1.5),
+    ...upperEdge,
+    // Правый угол и правый наплыв: вниз снаружи плиты, круглый низ, вверх уже над плитой.
+    ...arcPoints(to, top + 2, 22, -Math.PI / 2, 0),
+    right + 1, top + 16,
+    ...arcPoints(right - 8, rightDroopY, TABLET_DROOP_RIGHT_RADIUS, 0, Math.PI),
+    right - 20, top + 18,
+    right - 26, top + 12,
+    ...lowerEdge,
+    // Левый наплыв: вниз над плитой, круглый низ, вверх снаружи плиты.
+    left + 24, top + 14,
+    left + 18, top + 22,
+    ...arcPoints(left + 5, leftDroopY, TABLET_DROOP_LEFT_RADIUS, 0, Math.PI),
+    left - 8, top + 20,
+  ];
+  fillPolygon(g, outline, COLORS.snow);
+
+  // Голубая тень вдоль нижней кромки — снег лежит толстым слоем.
+  const shadeTop: number[] = [];
+  for (let i = lowerEdge.length - 2; i >= 0; i -= 2) {
+    shadeTop.push(lowerEdge[i], lowerEdge[i + 1] - 6);
+  }
+  fillPolygon(g, [...lowerEdge, ...shadeTop], COLORS.snowShade);
+  // Тень и на круглых низах наплывов.
+  g.fillStyle(COLORS.snowShade, 1);
+  for (const [x, y, r] of [
+    [right - 8, rightDroopY, TABLET_DROOP_RIGHT_RADIUS],
+    [left + 5, leftDroopY, TABLET_DROOP_LEFT_RADIUS],
+  ]) {
+    g.beginPath();
+    g.arc(x, y, r, Math.PI * 0.11, Math.PI * 0.89);
+    g.closePath();
+    g.fillPath();
+  }
+
+  strokePolygon(g, outline);
+
+  // Блики на верху слоя.
+  g.fillStyle(COLORS.snowLight, 1);
+  g.fillRoundedRect(left + 50, top - 12, 120, 4, 2);
+  g.fillRoundedRect(right - 210, top - 15, 90, 4, 2);
+}
+
+// Каменная кнопка: скруглённая плита с тёмным «торцом» снизу — будто её можно нажать.
+function drawStoneButton(g: Graphics): void {
+  const { w, h } = STONE_BUTTON_SIZE;
+  const radius = 16;
+  const lip = 8;
+
+  // Торец кнопки (видно снизу).
+  g.fillStyle(COLORS.tabletDark, 1);
+  g.fillRoundedRect(2, lip, w - 4, h - lip - 2, radius);
+  // Лицевая сторона.
+  g.fillStyle(COLORS.tablet, 1);
+  g.fillRoundedRect(2, 2, w - 4, h - lip - 4, radius);
+  // Светлая кромка по верху.
+  g.fillStyle(COLORS.tabletLight, 1);
+  g.fillRoundedRect(10, 5, w - 20, 8, 4);
+  g.lineStyle(OUTLINE_WIDTH, COLORS.outline, 1);
+  g.strokeRoundedRect(2, 2, w - 4, h - 4, radius);
+}
+
+// Кнопка паузы: круглый камень с тёмным «торцом» снизу и двумя светлыми полосками.
+function drawPauseButton(g: Graphics): void {
+  const { w } = PAUSE_BUTTON_SIZE;
+  const cx = w / 2;
+  const radius = cx - OUTLINE_WIDTH;
+  const lip = 4;
+
+  // Торец снизу и лицевая сторона.
+  outlinedCircle(g, cx, cx + lip / 2, radius - lip / 2, COLORS.tabletDark);
+  g.fillStyle(COLORS.tablet, 1);
+  g.fillCircle(cx, cx - lip / 2, radius - lip);
+  // Две полоски «пауза».
+  g.fillStyle(COLORS.outline, 1);
+  g.fillRoundedRect(cx - 12, cx - 15, 9, 24, 3);
+  g.fillRoundedRect(cx + 3, cx - 15, 9, 24, 3);
+  g.fillStyle(COLORS.hudText, 1);
+  g.fillRoundedRect(cx - 11, cx - 14, 7, 22, 2);
+  g.fillRoundedRect(cx + 4, cx - 14, 7, 22, 2);
 }
 
 // ===== Помощники рисования =====
@@ -1338,6 +1567,18 @@ function softEllipse(
     const k = 1 - i / layers;
     g.fillEllipse(x, y, width * k, height * k);
   }
+}
+
+// Точки дуги окружности [x1, y1, x2, y2, …]: центр (cx, cy), радиус r,
+// от угла from до угла to (радианы, 0 — вправо, по часовой стрелке — вниз).
+function arcPoints(cx: number, cy: number, r: number, from: number, to: number): number[] {
+  const steps = 10;
+  const points: number[] = [];
+  for (let i = 0; i <= steps; i++) {
+    const angle = Phaser.Math.Linear(from, to, i / steps);
+    points.push(cx + r * Math.cos(angle), cy + r * Math.sin(angle));
+  }
+  return points;
 }
 
 // Превращает список чисел [x1, y1, x2, y2, …] в точки для Graphics.
