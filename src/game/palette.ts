@@ -103,6 +103,8 @@ export const COLORS = {
   titleHighlight: 0xffe3a3, // светлый блик над заголовком
   moon: 0xfff1c9, // луна на плашке таймера
   moonShade: 0xe3cf98, // кратеры на луне
+  sun: 0xffd84a, // солнце на плашке таймера
+  sunRay: 0xffa83a, // лучи солнца
 };
 
 // Переводит цвет-число 0xRRGGBB в строку '#rrggbb'.

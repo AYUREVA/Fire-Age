@@ -46,6 +46,7 @@ export const TEXTURES = {
   heatBarFill: 'heat-bar-fill', // заливка шкалы жара (белая, красится tint)
   hudPanel: 'hud-panel', // плашка интерфейса со скруглёнными углами
   moonIcon: 'moon-icon', // луна на плашке таймера: ночь, до рассвета
+  sunIcon: 'sun-icon', // солнце на плашке таймера: день, до ночи
   stoneTablet: 'stone-tablet', // каменная табличка: пауза, итоги
   stoneButton: 'stone-button', // каменная кнопка на табличке
   pauseButton: 'pause-button', // круглая каменная кнопка паузы в углу экрана
@@ -101,6 +102,7 @@ const HEAT_BAR_BACK_SIZE: Size = { w: 116, h: 24 };
 const HEAT_BAR_FILL_SIZE: Size = { w: 104, h: 12 };
 const HUD_PANEL_SIZE: Size = { w: 170, h: 66 };
 const MOON_ICON_SIZE: Size = { w: 40, h: 40 };
+const SUN_ICON_SIZE: Size = { w: 44, h: 44 };
 const STONE_TABLET_SIZE: Size = { w: 540, h: 320 };
 const STONE_BUTTON_SIZE: Size = { w: 210, h: 66 };
 const PAUSE_BUTTON_SIZE: Size = { w: 60, h: 60 };
@@ -172,6 +174,7 @@ export function createTextures(scene: Phaser.Scene): void {
   bake(scene, TEXTURES.heatBarFill, HEAT_BAR_FILL_SIZE, drawHeatBarFill);
   bake(scene, TEXTURES.hudPanel, HUD_PANEL_SIZE, drawHudPanel);
   bake(scene, TEXTURES.moonIcon, MOON_ICON_SIZE, drawMoonIcon);
+  bake(scene, TEXTURES.sunIcon, SUN_ICON_SIZE, drawSunIcon);
   bake(scene, TEXTURES.stoneTablet, STONE_TABLET_SIZE, drawStoneTablet);
   bake(scene, TEXTURES.stoneButton, STONE_BUTTON_SIZE, drawStoneButton);
   bake(scene, TEXTURES.pauseButton, PAUSE_BUTTON_SIZE, drawPauseButton);
@@ -1311,6 +1314,24 @@ function drawHeatBarFill(g: Graphics): void {
   // Тень по низу: после покраски она темнее — полоска выглядит выпуклой.
   g.fillStyle(COLORS.outline, 0.25);
   g.fillRoundedRect(2, h / 2, w - 4, h / 2 - 1, radius / 2);
+}
+
+// Солнце: жёлтый круг с обводкой и восемь коротких лучей вокруг.
+function drawSunIcon(g: Graphics): void {
+  const { w } = SUN_ICON_SIZE;
+  const center = w / 2;
+  const rays = 8;
+
+  for (let i = 0; i < rays; i++) {
+    const angle = (i / rays) * Math.PI * 2;
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle);
+    limb(g, center + cos * 13, center + sin * 13, center + cos * 16, center + sin * 16, 4, COLORS.sunRay);
+  }
+  outlinedCircle(g, center, center, 11, COLORS.sun);
+  // Блик на солнце.
+  g.fillStyle(COLORS.white, 0.6);
+  g.fillCircle(center - 4, center - 4, 3);
 }
 
 // Луна: светлый круг с обводкой и тремя кратерами.

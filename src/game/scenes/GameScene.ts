@@ -1,7 +1,6 @@
 import Phaser from 'phaser';
 // Игровые параметры (мир, вождь, кусты и т. д.) — в settings.ts.
 import {
-  NIGHT_DURATION,
   WORLD_WIDTH,
   WORLD_HEIGHT,
   WORLD_EDGE,
@@ -17,6 +16,7 @@ import { ResourceNode } from '../objects/ResourceNode';
 import { DropZone } from '../objects/DropZone';
 import { Campfire } from '../objects/Campfire';
 import { Hud } from '../objects/Hud';
+import { CycleEvent, DayNightCycle } from '../objects/DayNightCycle';
 import { updateDropping, updateGathering } from '../systems/Gathering';
 import { updateFire } from '../systems/Fire';
 import { ResultData } from './ResultScene';
@@ -113,10 +113,10 @@ export class GameScene extends Phaser.Scene {
   private dropZone!: DropZone;
   // Костёр в лагере.
   private campfire!: Campfire;
-  // Интерфейс: сколько осталось до рассвета и подсказка.
+  // Интерфейс: сколько осталось до конца дня или ночи, кнопка паузы.
   private hud!: Hud;
-  // Сколько мс осталось до рассвета.
-  private nightTimeLeft = NIGHT_DURATION;
+  // Смена дня и ночи: фаза, номер суток, сколько осталось до конца фазы.
+  private cycle!: DayNightCycle;
   // Игра окончена (победа или поражение) — ждём рестарта.
   private isOver = false;
 
@@ -133,7 +133,6 @@ export class GameScene extends Phaser.Scene {
     // При перезапуске сцены create() вызывается снова, а поля класса
     // сохраняют старые значения, поэтому сбрасываем их здесь.
     this.bushes = [];
-    this.nightTimeLeft = NIGHT_DURATION;
     this.isOver = false;
 
     createTextures(this);
@@ -151,8 +150,9 @@ export class GameScene extends Phaser.Scene {
 
     this.player = new Player(this, PLAYER_START.x, PLAYER_START.y);
     this.stack = new CarryStack(this);
+    this.cycle = new DayNightCycle();
     this.hud = new Hud(this, () => this.pauseGame());
-    this.hud.setTimeLeft(this.nightTimeLeft);
+    this.hud.setTimeLeft(this.cycle.timeLeft);
 
     this.setupCamera();
     this.createSnowfall();
@@ -175,13 +175,34 @@ export class GameScene extends Phaser.Scene {
     updateDropping(this.player, this.stack, this.dropZone, delta);
     const isFireOut = updateFire(this.campfire, this.dropZone, delta);
     this.campfire.update(delta);
-    this.updateNight(delta);
 
-    // Костёр погас — поражение. Дожили до рассвета — победа.
+    const cycleEvent = this.cycle.update(delta);
+    this.hud.setTimeLeft(this.cycle.timeLeft);
+
+    // Костёр погас — поражение. Остальное решают события смены дня и ночи.
     if (isFireOut) {
       this.endGame(false);
-    } else if (this.nightTimeLeft <= 0) {
-      this.endGame(true);
+    } else if (cycleEvent) {
+      this.onCycleEvent(cycleEvent);
+    }
+  }
+
+  // ===== День и ночь =====
+
+  // Фаза сменилась: сцена включает ночь или утро. Рассвет после последней ночи — победа.
+  private onCycleEvent(event: CycleEvent): void {
+    switch (event) {
+      case 'sunset':
+        break;
+      case 'night':
+        this.hud.setPhase(true);
+        break;
+      case 'morning':
+        this.hud.setPhase(false);
+        break;
+      case 'lastDawn':
+        this.endGame(true);
+        break;
     }
   }
 
@@ -221,14 +242,6 @@ export class GameScene extends Phaser.Scene {
     this.scene.pause();
     const data: ResultData = { isWin };
     this.scene.launch('ResultScene', data);
-  }
-
-  // ===== Ночь =====
-
-  // Время до рассвета убывает, HUD показывает его.
-  private updateNight(delta: number): void {
-    this.nightTimeLeft = Math.max(0, this.nightTimeLeft - delta);
-    this.hud.setTimeLeft(this.nightTimeLeft);
   }
 
   // ===== Мир =====
