@@ -4,7 +4,7 @@ import { FONT_FAMILY, TEXTURES, TITLE_FONT } from '../textures';
 
 // HUD рисуется поверх всего мира (джойстик — на том же уровне, см. Player.ts).
 const HUD_DEPTH = 20000;
-// Отступ плашки от левого верхнего угла экрана.
+// Отступ плашки от левого верхнего угла экрана (и кнопки паузы — от правого).
 const PANEL_MARGIN = 16;
 // Иконка луны на плашке: середина иконки от левого края плашки.
 const ICON_X = 38;
@@ -12,17 +12,24 @@ const ICON_X = 38;
 const TIME_X = 68;
 // Подсказка по управлению — у нижнего края экрана.
 const HINT_MARGIN_BOTTOM = 12;
-const HINT_TEXT = 'WASD, стрелки или зажми и веди мышь / палец — идти\nВстань у куста — рубить, у поленницы — сдать хворост';
+const HINT_TEXT =
+  'WASD, стрелки или зажми и веди мышь / палец — идти. P / Esc — пауза\n' +
+  'Руби кусты и неси хворост в поленницу — костёр берёт его сам. Не дай огню погаснуть до рассвета!';
+// Кнопка паузы чуть темнее, при наведении — светлеет до настоящего цвета.
+const PAUSE_IDLE_TINT = 0xdddddd;
+const PAUSE_HOVER_TINT = 0xffffff;
 
 /**
- * Интерфейс поверх игры: плашка «сколько осталось до рассвета» и подсказка.
+ * Интерфейс поверх игры: плашка «сколько осталось до рассвета»,
+ * кнопка паузы в правом верхнем углу (для телефона) и подсказка.
  * Всё в координатах экрана (scrollFactor 0) — не двигается вместе с камерой.
  */
 export class Hud {
   // Время до рассвета на плашке, например «1:59».
   private timeText: Phaser.GameObjects.Text;
 
-  constructor(scene: Phaser.Scene) {
+  // onPause — что сделать, когда нажали кнопку паузы (сцена ставит игру на паузу).
+  constructor(scene: Phaser.Scene, onPause: () => void) {
     const panel = scene.add.image(PANEL_MARGIN, PANEL_MARGIN, TEXTURES.hudPanel).setOrigin(0, 0);
     const panelCenterY = PANEL_MARGIN + panel.height / 2;
 
@@ -53,8 +60,18 @@ export class Hud {
       })
       .setOrigin(0.5, 1);
 
+    const pauseButton = scene.add.image(0, 0, TEXTURES.pauseButton).setTint(PAUSE_IDLE_TINT);
+    pauseButton.setPosition(
+      scene.scale.width - PANEL_MARGIN - pauseButton.width / 2,
+      PANEL_MARGIN + pauseButton.height / 2,
+    );
+    pauseButton.setInteractive({ useHandCursor: true });
+    pauseButton.on('pointerover', () => pauseButton.setTint(PAUSE_HOVER_TINT));
+    pauseButton.on('pointerout', () => pauseButton.setTint(PAUSE_IDLE_TINT));
+    pauseButton.on('pointerdown', onPause);
+
     // Всё в координатах экрана и поверх мира.
-    for (const object of [panel, icon, this.timeText, hint]) {
+    for (const object of [panel, icon, this.timeText, hint, pauseButton]) {
       object.setScrollFactor(0).setDepth(HUD_DEPTH);
     }
   }

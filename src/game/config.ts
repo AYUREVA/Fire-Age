@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { GameScene } from './scenes/GameScene';
+import { PauseScene } from './scenes/PauseScene';
 import { ResultScene } from './scenes/ResultScene';
 
 export function createGame(parent: string): Phaser.Game {
@@ -9,8 +10,9 @@ export function createGame(parent: string): Phaser.Game {
     width: 960,
     height: 640,
     backgroundColor: '#0f172a',
-    // Первая сцена в списке запускается сама. ResultScene — поверх GameScene, когда ночь кончилась.
-    scene: [GameScene, ResultScene],
+    // Первая сцена в списке запускается сама. PauseScene и ResultScene
+    // рисуются поверх GameScene: пауза и итог ночи.
+    scene: [GameScene, PauseScene, ResultScene],
     // По умолчанию Phaser первые 120 кадров после старта считает каждый кадр
     // не длиннее 1/60 секунды. Если компьютер в начале не успевает выдать 60 FPS,
     // вождь и все анимации первые секунды идут медленнее. panicMax: 0 отключает

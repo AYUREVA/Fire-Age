@@ -151,11 +151,12 @@ export class GameScene extends Phaser.Scene {
 
     this.player = new Player(this, PLAYER_START.x, PLAYER_START.y);
     this.stack = new CarryStack(this);
-    this.hud = new Hud(this);
+    this.hud = new Hud(this, () => this.pauseGame());
     this.hud.setTimeLeft(this.nightTimeLeft);
 
     this.setupCamera();
     this.createSnowfall();
+    this.setupPause();
   }
 
   // Вызывается Phaser каждый кадр. delta — сколько мс прошло с прошлого кадра.
@@ -182,6 +183,31 @@ export class GameScene extends Phaser.Scene {
     } else if (this.nightTimeLeft <= 0) {
       this.endGame(true);
     }
+  }
+
+  // ===== Пауза =====
+
+  // Пауза: клавиши P и Esc, кнопка в HUD (её подключает Hud) и автопауза,
+  // когда вкладку свернули.
+  private setupPause(): void {
+    this.input.keyboard?.on('keydown-P', () => this.pauseGame());
+    this.input.keyboard?.on('keydown-ESC', () => this.pauseGame());
+
+    // Событие «вкладка скрыта» приходит от всей игры, а не от сцены. Поэтому
+    // при выключении сцены (рестарт) подписку снимаем, иначе их станет две.
+    this.game.events.on(Phaser.Core.Events.HIDDEN, this.pauseGame, this);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.game.events.off(Phaser.Core.Events.HIDDEN, this.pauseGame, this);
+    });
+  }
+
+  // Игра замирает целиком (update, твины, таймеры, частицы), поверх — табличка «ПАУЗА».
+  private pauseGame(): void {
+    // Игра уже окончена или уже на паузе — ничего не делаем.
+    if (this.isOver || this.scene.isPaused()) return;
+
+    this.scene.pause();
+    this.scene.launch('PauseScene');
   }
 
   // ===== Конец игры =====

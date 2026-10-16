@@ -48,6 +48,7 @@ export const TEXTURES = {
   moonIcon: 'moon-icon', // луна на плашке таймера: ночь, до рассвета
   stoneTablet: 'stone-tablet', // каменная табличка: пауза, итоги
   stoneButton: 'stone-button', // каменная кнопка на табличке
+  pauseButton: 'pause-button', // круглая каменная кнопка паузы в углу экрана
 } as const;
 
 // Шрифт всех надписей. Это тоже «ассет»: свой шрифт подключается здесь.
@@ -102,6 +103,7 @@ const HUD_PANEL_SIZE: Size = { w: 170, h: 66 };
 const MOON_ICON_SIZE: Size = { w: 40, h: 40 };
 const STONE_TABLET_SIZE: Size = { w: 520, h: 300 };
 const STONE_BUTTON_SIZE: Size = { w: 210, h: 66 };
+const PAUSE_BUTTON_SIZE: Size = { w: 60, h: 60 };
 
 // ===== Параметры рисования =====
 
@@ -172,6 +174,7 @@ export function createTextures(scene: Phaser.Scene): void {
   bake(scene, TEXTURES.moonIcon, MOON_ICON_SIZE, drawMoonIcon);
   bake(scene, TEXTURES.stoneTablet, STONE_TABLET_SIZE, drawStoneTablet);
   bake(scene, TEXTURES.stoneButton, STONE_BUTTON_SIZE, drawStoneButton);
+  bake(scene, TEXTURES.pauseButton, PAUSE_BUTTON_SIZE, drawPauseButton);
 }
 
 // Рисует картинку на временном Graphics и сохраняет её как текстуру под ключом key.
@@ -1373,6 +1376,26 @@ function drawStoneButton(g: Graphics): void {
   g.fillRoundedRect(10, 5, w - 20, 8, 4);
   g.lineStyle(OUTLINE_WIDTH, COLORS.outline, 1);
   g.strokeRoundedRect(2, 2, w - 4, h - 4, radius);
+}
+
+// Кнопка паузы: круглый камень с тёмным «торцом» снизу и двумя светлыми полосками.
+function drawPauseButton(g: Graphics): void {
+  const { w } = PAUSE_BUTTON_SIZE;
+  const cx = w / 2;
+  const radius = cx - OUTLINE_WIDTH;
+  const lip = 4;
+
+  // Торец снизу и лицевая сторона.
+  outlinedCircle(g, cx, cx + lip / 2, radius - lip / 2, COLORS.tabletDark);
+  g.fillStyle(COLORS.tablet, 1);
+  g.fillCircle(cx, cx - lip / 2, radius - lip);
+  // Две полоски «пауза».
+  g.fillStyle(COLORS.outline, 1);
+  g.fillRoundedRect(cx - 12, cx - 15, 9, 24, 3);
+  g.fillRoundedRect(cx + 3, cx - 15, 9, 24, 3);
+  g.fillStyle(COLORS.hudText, 1);
+  g.fillRoundedRect(cx - 11, cx - 14, 7, 22, 2);
+  g.fillRoundedRect(cx + 4, cx - 14, 7, 22, 2);
 }
 
 // ===== Помощники рисования =====
