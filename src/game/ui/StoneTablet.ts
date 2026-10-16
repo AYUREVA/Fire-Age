@@ -20,6 +20,8 @@ const BUTTON_STEP = 228;
 // Блик над заголовком и тень под ним сдвинуты на столько пикселей.
 const TITLE_HIGHLIGHT_SHIFT = 2;
 const TITLE_SHADOW_SHIFT = 4;
+// Размер заголовка на табличке паузы и итогов.
+const TITLE_FONT_SIZE = 52;
 
 // ===== Появление и закрытие =====
 
@@ -53,6 +55,41 @@ export type TabletContent = {
   subtitle?: string; // строка под заголовком (может не быть)
   buttons: TabletButton[]; // кнопки в ряд внизу
 };
+
+// «Высеченный» заголовок — один стиль для всех табличек (пауза, итоги, баннеры фаз):
+// снизу светлая копия чуть выше (блик на верхнем крае выбитых букв),
+// сверху янтарный текст с тёмной обводкой и тенью. (x, y) — середина надписи.
+// Возвращает обе надписи — их кладут в контейнер таблички.
+export function addCarvedTitle(
+  scene: Phaser.Scene,
+  x: number,
+  y: number,
+  text: string,
+  fontSize: number,
+): Phaser.GameObjects.Text[] {
+  const style: Phaser.Types.GameObjects.Text.TextStyle = {
+    fontFamily: TITLE_FONT,
+    fontSize: fontSize + 'px',
+    color: toCss(COLORS.titleHighlight),
+    resolution: 2,
+  };
+  const highlight = scene.add.text(x, y - TITLE_HIGHLIGHT_SHIFT, text, style).setOrigin(0.5);
+  const title = scene.add
+    .text(x, y, text, {
+      ...style,
+      color: toCss(COLORS.titleAmber),
+      stroke: toCss(COLORS.outline),
+      strokeThickness: 6,
+      shadow: {
+        offsetY: TITLE_SHADOW_SHIFT,
+        color: toCss(COLORS.outline),
+        fill: true,
+        stroke: true,
+      },
+    })
+    .setOrigin(0.5);
+  return [highlight, title];
+}
 
 /**
  * Каменная табличка — общее окно игры (пауза, итоги).
@@ -89,7 +126,7 @@ export class StoneTablet {
       .setScale(SHOW_START_SCALE)
       .setAlpha(0);
     this.container.add(scene.add.image(0, 0, TEXTURES.stoneTablet));
-    this.addTitle(content.title);
+    this.container.add(addCarvedTitle(scene, 0, TITLE_Y, content.title, TITLE_FONT_SIZE));
     if (content.subtitle) this.addSubtitle(content.subtitle);
     content.buttons.forEach((button, index) => {
       // Кнопки стоят в ряд по центру: для двух кнопок — по половине шага влево и вправо.
@@ -126,33 +163,6 @@ export class StoneTablet {
   }
 
   // ===== Надписи =====
-
-  // Заголовок «высечен» в камне: снизу блик, сверху янтарный текст с тёмной тенью.
-  private addTitle(text: string): void {
-    const style: Phaser.Types.GameObjects.Text.TextStyle = {
-      fontFamily: TITLE_FONT,
-      fontSize: '52px',
-      color: toCss(COLORS.titleHighlight),
-      resolution: 2,
-    };
-    // Блик: светлая копия чуть выше — как свет на верхнем крае выбитых букв.
-    const highlight = this.scene.add.text(0, TITLE_Y - TITLE_HIGHLIGHT_SHIFT, text, style).setOrigin(0.5);
-    const title = this.scene.add
-      .text(0, TITLE_Y, text, {
-        ...style,
-        color: toCss(COLORS.titleAmber),
-        stroke: toCss(COLORS.outline),
-        strokeThickness: 6,
-        shadow: {
-          offsetY: TITLE_SHADOW_SHIFT,
-          color: toCss(COLORS.outline),
-          fill: true,
-          stroke: true,
-        },
-      })
-      .setOrigin(0.5);
-    this.container.add([highlight, title]);
-  }
 
   // Строка под заголовком — обычным шрифтом, светлая.
   private addSubtitle(text: string): void {

@@ -42,11 +42,14 @@ export const TEXTURES = {
   flame: 'flame', // язык пламени; точка опоры — низ
   glow: 'glow', // мягкий белый круг; его красят в цвет света
   spark: 'spark', // искра костра (белая, цвет задаёт частица)
+  nightLight: 'night-light', // ночная тьма со светлым пятном посередине (белая, красится tint)
   heatBarBack: 'heat-bar-back', // подложка шкалы жара над костром
   heatBarFill: 'heat-bar-fill', // заливка шкалы жара (белая, красится tint)
   hudPanel: 'hud-panel', // плашка интерфейса со скруглёнными углами
   moonIcon: 'moon-icon', // луна на плашке таймера: ночь, до рассвета
+  sunIcon: 'sun-icon', // солнце на плашке таймера: день, до ночи
   stoneTablet: 'stone-tablet', // каменная табличка: пауза, итоги
+  stoneBanner: 'stone-banner', // широкая низкая табличка: уведомление о смене дня и ночи
   stoneButton: 'stone-button', // каменная кнопка на табличке
   pauseButton: 'pause-button', // круглая каменная кнопка паузы в углу экрана
 } as const;
@@ -97,11 +100,14 @@ const FIRE_PIT_SIZE: Size = { w: 110, h: 64 };
 const FLAME_SIZE: Size = { w: 64, h: 96 };
 const GLOW_SIZE: Size = { w: 128, h: 128 };
 const SPARK_SIZE: Size = { w: 8, h: 8 };
+const NIGHT_LIGHT_SIZE: Size = { w: 256, h: 256 };
 const HEAT_BAR_BACK_SIZE: Size = { w: 116, h: 24 };
 const HEAT_BAR_FILL_SIZE: Size = { w: 104, h: 12 };
 const HUD_PANEL_SIZE: Size = { w: 170, h: 66 };
 const MOON_ICON_SIZE: Size = { w: 40, h: 40 };
+const SUN_ICON_SIZE: Size = { w: 44, h: 44 };
 const STONE_TABLET_SIZE: Size = { w: 540, h: 320 };
+const STONE_BANNER_SIZE: Size = { w: 520, h: 170 };
 const STONE_BUTTON_SIZE: Size = { w: 210, h: 66 };
 const PAUSE_BUTTON_SIZE: Size = { w: 60, h: 60 };
 
@@ -168,11 +174,14 @@ export function createTextures(scene: Phaser.Scene): void {
   bake(scene, TEXTURES.flame, FLAME_SIZE, drawFlame);
   bake(scene, TEXTURES.glow, GLOW_SIZE, drawGlow);
   bake(scene, TEXTURES.spark, SPARK_SIZE, drawSpark);
+  bakeNightLight(scene);
   bake(scene, TEXTURES.heatBarBack, HEAT_BAR_BACK_SIZE, drawHeatBarBack);
   bake(scene, TEXTURES.heatBarFill, HEAT_BAR_FILL_SIZE, drawHeatBarFill);
   bake(scene, TEXTURES.hudPanel, HUD_PANEL_SIZE, drawHudPanel);
   bake(scene, TEXTURES.moonIcon, MOON_ICON_SIZE, drawMoonIcon);
-  bake(scene, TEXTURES.stoneTablet, STONE_TABLET_SIZE, drawStoneTablet);
+  bake(scene, TEXTURES.sunIcon, SUN_ICON_SIZE, drawSunIcon);
+  bake(scene, TEXTURES.stoneTablet, STONE_TABLET_SIZE, (g) => drawStoneSlab(g, STONE_TABLET_SIZE));
+  bake(scene, TEXTURES.stoneBanner, STONE_BANNER_SIZE, (g) => drawStoneSlab(g, STONE_BANNER_SIZE));
   bake(scene, TEXTURES.stoneButton, STONE_BUTTON_SIZE, drawStoneButton);
   bake(scene, TEXTURES.pauseButton, PAUSE_BUTTON_SIZE, drawPauseButton);
 }
@@ -184,6 +193,28 @@ function bake(scene: Phaser.Scene, key: string, size: Size, draw: (g: Graphics) 
   draw(g);
   g.generateTexture(key, size.w, size.h);
   g.destroy();
+}
+
+// Ночная тьма со светлым пятном: середина прозрачная, к краю — плотная.
+// Graphics не умеет плавный круговой переход прозрачности, поэтому эта картинка
+// рисуется на обычном canvas радиальным градиентом браузера.
+// За кругом градиента (в углах квадрата) цвет остаётся плотным — так картинка
+// без шва стыкуется с тёмными прямоугольниками вокруг (NightOverlay.ts).
+function bakeNightLight(scene: Phaser.Scene): void {
+  const { w, h } = NIGHT_LIGHT_SIZE;
+  const canvas = scene.textures.createCanvas(TEXTURES.nightLight, w, h);
+  if (!canvas) return;
+
+  const context = canvas.getContext();
+  const radius = w / 2;
+  const gradient = context.createRadialGradient(radius, radius, 0, radius, radius, radius);
+  // До 35% радиуса — совсем светло, дальше тьма плавно густеет до края круга.
+  gradient.addColorStop(0, 'rgba(255, 255, 255, 0)');
+  gradient.addColorStop(0.35, 'rgba(255, 255, 255, 0)');
+  gradient.addColorStop(1, 'rgba(255, 255, 255, 1)');
+  context.fillStyle = gradient;
+  context.fillRect(0, 0, w, h);
+  canvas.refresh();
 }
 
 // ===== Земля и мелкий декор =====
@@ -1313,6 +1344,24 @@ function drawHeatBarFill(g: Graphics): void {
   g.fillRoundedRect(2, h / 2, w - 4, h / 2 - 1, radius / 2);
 }
 
+// Солнце: жёлтый круг с обводкой и восемь коротких лучей вокруг.
+function drawSunIcon(g: Graphics): void {
+  const { w } = SUN_ICON_SIZE;
+  const center = w / 2;
+  const rays = 8;
+
+  for (let i = 0; i < rays; i++) {
+    const angle = (i / rays) * Math.PI * 2;
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle);
+    limb(g, center + cos * 13, center + sin * 13, center + cos * 16, center + sin * 16, 4, COLORS.sunRay);
+  }
+  outlinedCircle(g, center, center, 11, COLORS.sun);
+  // Блик на солнце.
+  g.fillStyle(COLORS.white, 0.6);
+  g.fillCircle(center - 4, center - 4, 3);
+}
+
 // Луна: светлый круг с обводкой и тремя кратерами.
 function drawMoonIcon(g: Graphics): void {
   const { w, h } = MOON_ICON_SIZE;
@@ -1342,15 +1391,19 @@ const TABLET_DROOP_LEFT_RADIUS = 13;
 const TABLET_DROOP_RIGHT_Y = 34;
 const TABLET_DROOP_RIGHT_RADIUS = 11;
 
-// Каменная табличка: плита со скошенными углами, тёмная снизу, пара трещин
-// и снег по верху, который на углах свисает за край плиты.
-function drawStoneTablet(g: Graphics): void {
-  const { w, h } = STONE_TABLET_SIZE;
+// Каменная табличка любого размера: плита со скошенными углами, тёмная снизу,
+// пара трещин и снег по верху, который на углах свисает за край плиты.
+// Из неё сделаны и окно паузы и итогов, и баннер смены дня и ночи.
+function drawStoneSlab(g: Graphics, size: Size): void {
+  const { w, h } = size;
   const left = TABLET_SLAB_SIDE;
   const right = w - TABLET_SLAB_SIDE;
   const top = TABLET_SLAB_TOP;
   // Нижний край чуть выше края картинки, чтобы под плитой поместилась тень.
   const bottom = h - 10;
+  // Высота плиты: от неё считаются тёмный низ и трещины, чтобы они подходили к любому размеру.
+  const slabHeight = bottom - top;
+  const darkTop = bottom - Math.round(slabHeight * 0.18);
   const slab = [
     left + 12, top + 4, right - 20, top, right, top + 24, right - 4, bottom - 22,
     right - 24, bottom, left + 18, bottom - 4, left, bottom - 28, left + 2, top + 30,
@@ -1364,13 +1417,17 @@ function drawStoneTablet(g: Graphics): void {
   // Тёмная нижняя часть — плита выглядит толстой.
   fillPolygon(
     g,
-    [left + 2, bottom - 50, right - 3, bottom - 46, right - 4, bottom - 22, right - 24, bottom, left + 18, bottom - 4, left, bottom - 28],
+    [left + 2, darkTop, right - 3, darkTop + 4, right - 4, bottom - 22, right - 24, bottom, left + 18, bottom - 4, left, bottom - 28],
     COLORS.tabletDark,
   );
   // Трещины.
   g.lineStyle(THIN_OUTLINE_WIDTH, COLORS.tabletDark, 1);
-  g.strokePoints(toPoints([left + 22, top + 66, left + 40, top + 90, left + 34, top + 116]), false);
-  g.strokePoints(toPoints([right - 32, top + 76, right - 52, top + 102, right - 44, top + 134, right - 62, top + 156]), false);
+  const crack = (share: number): number => top + slabHeight * share;
+  g.strokePoints(toPoints([left + 22, crack(0.24), left + 40, crack(0.33), left + 34, crack(0.42)]), false);
+  g.strokePoints(
+    toPoints([right - 32, crack(0.28), right - 52, crack(0.37), right - 44, crack(0.49), right - 62, crack(0.57)]),
+    false,
+  );
   strokePolygon(g, slab);
 
   drawTabletSnow(g, left, right, top);

@@ -200,11 +200,12 @@ export class Player {
   }
 
   // Вызывается сценой каждый кадр. delta — сколько мс прошло с прошлого кадра.
-  update(delta: number): void {
+  // speedMultiplier — во сколько раз меняется скорость (ночью вождь идёт медленнее).
+  update(delta: number, speedMultiplier: number): void {
     const direction = this.readInput();
     const isMoving = direction.length() > 0;
 
-    this.move(direction, delta);
+    this.move(direction, delta, speedMultiplier);
     this.animate(delta, isMoving);
     this.place();
   }
@@ -298,11 +299,12 @@ export class Player {
 
   // ===== Движение и анимация =====
 
-  // Двигает вождя: скорость = направление × PLAYER_SPEED.
-  private move(direction: Phaser.Math.Vector2, delta: number): void {
+  // Двигает вождя: скорость = направление × PLAYER_SPEED × множитель фазы суток.
+  private move(direction: Phaser.Math.Vector2, delta: number, speedMultiplier: number): void {
     const seconds = delta / 1000;
-    this.velocityX = direction.x * PLAYER_SPEED;
-    this.velocityY = direction.y * PLAYER_SPEED;
+    const speed = PLAYER_SPEED * speedMultiplier;
+    this.velocityX = direction.x * speed;
+    this.velocityY = direction.y * speed;
 
     // Вождь не уходит в лес по краям мира.
     this.x = Phaser.Math.Clamp(this.x + this.velocityX * seconds, WORLD_EDGE, WORLD_WIDTH - WORLD_EDGE);
