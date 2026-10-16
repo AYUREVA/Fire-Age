@@ -19,6 +19,7 @@ import { Campfire } from '../objects/Campfire';
 import { Hud } from '../objects/Hud';
 import { updateDropping, updateGathering } from '../systems/Gathering';
 import { updateFire } from '../systems/Fire';
+import { ResultData } from './ResultScene';
 
 // ===== Слои отрисовки (depth) =====
 // Порядок снизу вверх во всей игре:
@@ -116,6 +117,8 @@ export class GameScene extends Phaser.Scene {
   private hud!: Hud;
   // Сколько мс осталось до рассвета.
   private nightTimeLeft = NIGHT_DURATION;
+  // Игра окончена (победа или поражение) — ждём рестарта.
+  private isOver = false;
 
   constructor() {
     super('GameScene');
@@ -131,6 +134,7 @@ export class GameScene extends Phaser.Scene {
     // сохраняют старые значения, поэтому сбрасываем их здесь.
     this.bushes = [];
     this.nightTimeLeft = NIGHT_DURATION;
+    this.isOver = false;
 
     createTextures(this);
 
@@ -168,9 +172,29 @@ export class GameScene extends Phaser.Scene {
 
     updateGathering(this.player, this.stack, this.bushes, delta);
     updateDropping(this.player, this.stack, this.dropZone, delta);
-    updateFire(this.campfire, this.dropZone, delta);
+    const isFireOut = updateFire(this.campfire, this.dropZone, delta);
     this.campfire.update(delta);
     this.updateNight(delta);
+
+    // Костёр погас — поражение. Дожили до рассвета — победа.
+    if (isFireOut) {
+      this.endGame(false);
+    } else if (this.nightTimeLeft <= 0) {
+      this.endGame(true);
+    }
+  }
+
+  // ===== Конец игры =====
+
+  // Игра замирает (пауза сцены), поверх неё — табличка с итогом.
+  // Рестарт запускает ResultScene: GameScene создаётся заново с нуля.
+  private endGame(isWin: boolean): void {
+    if (this.isOver) return;
+    this.isOver = true;
+
+    this.scene.pause();
+    const data: ResultData = { isWin };
+    this.scene.launch('ResultScene', data);
   }
 
   // ===== Ночь =====
