@@ -8,6 +8,7 @@ import {
   BUSH_POSITIONS,
   GATHER_RADIUS,
   HIT_INTERVAL,
+  CAMPFIRE_POSITION,
   WOODPILE_POSITION,
   DROP_INTERVAL,
 } from '../settings';
@@ -16,6 +17,7 @@ import { Player } from '../objects/Player';
 import { CarryStack } from '../objects/CarryStack';
 import { ResourceNode } from '../objects/ResourceNode';
 import { DropZone } from '../objects/DropZone';
+import { Campfire } from '../objects/Campfire';
 import { Hud } from '../objects/Hud';
 
 // ===== Слои отрисовки (depth) =====
@@ -29,7 +31,7 @@ const GROUND_DEPTH = -300;
 const GROUND_DECOR_DEPTH = -200;
 // Тень лежит сразу под своим предметом.
 const SHADOW_DEPTH_SHIFT = -0.5;
-// Дальше (в других файлах): площадка поленницы и свет костра — -100 (DropZone.ts),
+// Дальше (в других файлах): площадка поленницы и свет костра — -100 (DropZone.ts, Campfire.ts),
 // летящие связки — 10000, «+1» — 11000 (fx.ts), «МАКС» — 10500 (CarryStack.ts),
 // падающий снег — 12000 (здесь), HUD и джойстик — 20000 (Hud.ts, Player.ts).
 const SNOWFALL_DEPTH = 12000;
@@ -108,6 +110,8 @@ export class GameScene extends Phaser.Scene {
   private bushes: ResourceNode[] = [];
   // Поленница у костра — сюда сдаётся хворост.
   private dropZone!: DropZone;
+  // Костёр в лагере.
+  private campfire!: Campfire;
   // Интерфейс: сколько хвороста сдано и подсказка.
   private hud!: Hud;
   // Сколько мс вождь уже стоит у куста. Набралось HIT_INTERVAL — удар.
@@ -138,6 +142,8 @@ export class GameScene extends Phaser.Scene {
     this.createGroundDecor(rng);
     this.createBorderForest(rng);
     this.createBushes();
+    // Сначала костёр: его свет лежит на земле под краем площадки поленницы.
+    this.campfire = new Campfire(this, CAMPFIRE_POSITION.x, CAMPFIRE_POSITION.y);
     this.dropZone = new DropZone(this, WOODPILE_POSITION.x, WOODPILE_POSITION.y);
 
     this.player = new Player(this, PLAYER_START.x, PLAYER_START.y);
