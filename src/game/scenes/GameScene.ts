@@ -1,22 +1,25 @@
 import Phaser from 'phaser';
 // Игровые параметры (мир, вождь, кусты и т. д.) — в settings.ts.
 import {
+  NIGHT_DURATION,
   WORLD_WIDTH,
   WORLD_HEIGHT,
   WORLD_EDGE,
   PLAYER_START,
   BUSH_POSITIONS,
-  GATHER_RADIUS,
-  HIT_INTERVAL,
+  CAMPFIRE_POSITION,
   WOODPILE_POSITION,
-  DROP_INTERVAL,
-} from './settings';
-import { TEXTURES, createTextures } from './textures';
-import { Player } from './objects/Player';
-import { CarryStack } from './objects/CarryStack';
-import { ResourceNode } from './objects/ResourceNode';
-import { DropZone } from './objects/DropZone';
-import { Hud } from './objects/Hud';
+} from '../settings';
+import { TEXTURES, createTextures, loadFonts } from '../textures';
+import { Player } from '../objects/Player';
+import { CarryStack } from '../objects/CarryStack';
+import { ResourceNode } from '../objects/ResourceNode';
+import { DropZone } from '../objects/DropZone';
+import { Campfire } from '../objects/Campfire';
+import { Hud } from '../objects/Hud';
+import { updateDropping, updateGathering } from '../systems/Gathering';
+import { updateFire } from '../systems/Fire';
+import { ResultData } from './ResultScene';
 
 // ===== Слои отрисовки (depth) =====
 // Порядок снизу вверх во всей игре:
@@ -29,7 +32,7 @@ const GROUND_DEPTH = -300;
 const GROUND_DECOR_DEPTH = -200;
 // Тень лежит сразу под своим предметом.
 const SHADOW_DEPTH_SHIFT = -0.5;
-// Дальше (в других файлах): площадка поленницы и свет костра — -100 (DropZone.ts),
+// Дальше (в других файлах): площадка поленницы и свет костра — -100 (DropZone.ts, Campfire.ts),
 // летящие связки — 10000, «+1» — 11000 (fx.ts), «МАКС» — 10500 (CarryStack.ts),
 // падающий снег — 12000 (здесь), HUD и джойстик — 20000 (Hud.ts, Player.ts).
 const SNOWFALL_DEPTH = 12000;
@@ -91,7 +94,7 @@ const CAMERA_LERP = 0.08;
 const CAMERA_OFFSET_Y = 60;
 
 /**
- * Игра «Племя у огня», версия 0.1.
+ * Игра «Fire Age», версия 0.2.
  *
  * Ледниковый период, вид сверху под углом. Вождь племени ходит по
  * заснеженному миру, рубит кусты хвороста и носит хворост к костру.
@@ -108,26 +111,30 @@ export class GameScene extends Phaser.Scene {
   private bushes: ResourceNode[] = [];
   // Поленница у костра — сюда сдаётся хворост.
   private dropZone!: DropZone;
-  // Интерфейс: сколько хвороста сдано и подсказка.
+  // Костёр в лагере.
+  private campfire!: Campfire;
+  // Интерфейс: сколько осталось до рассвета и подсказка.
   private hud!: Hud;
-  // Сколько мс вождь уже стоит у куста. Набралось HIT_INTERVAL — удар.
-  private hitTimer = 0;
-  // Сколько мс вождь уже стоит на поленнице. Набралось DROP_INTERVAL — сдаёт связку.
-  private dropTimer = 0;
-  // Сколько связок хвороста сдано за игру.
-  private woodDelivered = 0;
+  // Сколько мс осталось до рассвета.
+  private nightTimeLeft = NIGHT_DURATION;
+  // Игра окончена (победа или поражение) — ждём рестарта.
+  private isOver = false;
 
   constructor() {
     super('GameScene');
+  }
+
+  // Загрузка перед create(): шрифт заголовков (картинки рисуются кодом в create()).
+  preload(): void {
+    loadFonts(this);
   }
 
   create(): void {
     // При перезапуске сцены create() вызывается снова, а поля класса
     // сохраняют старые значения, поэтому сбрасываем их здесь.
     this.bushes = [];
-    this.hitTimer = 0;
-    this.dropTimer = 0;
-    this.woodDelivered = 0;
+    this.nightTimeLeft = NIGHT_DURATION;
+    this.isOver = false;
 
     createTextures(this);
 
@@ -138,19 +145,23 @@ export class GameScene extends Phaser.Scene {
     this.createGroundDecor(rng);
     this.createBorderForest(rng);
     this.createBushes();
+    // Сначала костёр: его свет лежит на земле под краем площадки поленницы.
+    this.campfire = new Campfire(this, CAMPFIRE_POSITION.x, CAMPFIRE_POSITION.y);
     this.dropZone = new DropZone(this, WOODPILE_POSITION.x, WOODPILE_POSITION.y);
 
     this.player = new Player(this, PLAYER_START.x, PLAYER_START.y);
     this.stack = new CarryStack(this);
-    this.hud = new Hud(this);
+    this.hud = new Hud(this, () => this.pauseGame());
+    this.hud.setTimeLeft(this.nightTimeLeft);
 
     this.setupCamera();
     this.createSnowfall();
+    this.setupPause();
   }
 
   // Вызывается Phaser каждый кадр. delta — сколько мс прошло с прошлого кадра.
-  // Порядок: сначала двигаем вождя, потом стопку за ним, потом проверяем,
-  // что вождь делает рядом с кустами и с поленницей.
+  // Порядок: сначала двигаем вождя, потом стопку за ним, потом системы
+  // (systems/) проверяют, что вождь делает рядом с кустами и с поленницей.
   update(_time: number, delta: number): void {
     this.player.update(delta);
     // Стопке сообщаем, где спина вождя, как быстро он идёт и какая у него глубина.
@@ -160,82 +171,64 @@ export class GameScene extends Phaser.Scene {
       bush.update(delta);
     }
 
-    this.updateGathering(delta);
-    this.updateDropping(delta);
+    updateGathering(this.player, this.stack, this.bushes, delta);
+    updateDropping(this.player, this.stack, this.dropZone, delta);
+    const isFireOut = updateFire(this.campfire, this.dropZone, delta);
+    this.campfire.update(delta);
+    this.updateNight(delta);
+
+    // Костёр погас — поражение. Дожили до рассвета — победа.
+    if (isFireOut) {
+      this.endGame(false);
+    } else if (this.nightTimeLeft <= 0) {
+      this.endGame(true);
+    }
   }
 
-  // ===== Добыча хвороста =====
+  // ===== Пауза =====
 
-  // Вождь рядом с кустом — бьёт его каждые HIT_INTERVAL мс,
-  // и связка хвороста летит из куста на стопку.
-  private updateGathering(delta: number): void {
-    const bush = this.findBushNearPlayer();
+  // Пауза: клавиши P и Esc, кнопка в HUD (её подключает Hud) и автопауза,
+  // когда вкладку свернули.
+  private setupPause(): void {
+    this.input.keyboard?.on('keydown-P', () => this.pauseGame());
+    this.input.keyboard?.on('keydown-ESC', () => this.pauseGame());
 
-    // Рядом нет куста с хворостом или стопка полная — удары не копятся.
-    if (!bush || this.stack.isFull()) {
-      this.hitTimer = 0;
-      return;
-    }
-
-    this.hitTimer += delta;
-    if (this.hitTimer < HIT_INTERVAL) return;
-    this.hitTimer -= HIT_INTERVAL;
-
-    // Удар засчитывается, когда дубина долетает до куста, а не в начале замаха.
-    // Весь взмах укладывается в HIT_INTERVAL — до следующего удара.
-    this.player.swing(bush.x, HIT_INTERVAL, () => {
-      bush.hit();
-      this.stack.add(bush.getLootPoint());
+    // Событие «вкладка скрыта» приходит от всей игры, а не от сцены. Поэтому
+    // при выключении сцены (рестарт) подписку снимаем, иначе их станет две.
+    this.game.events.on(Phaser.Core.Events.HIDDEN, this.pauseGame, this);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.game.events.off(Phaser.Core.Events.HIDDEN, this.pauseGame, this);
     });
   }
 
-  // Ближайший к вождю куст с хворостом не дальше GATHER_RADIUS. Если такого нет — undefined.
-  private findBushNearPlayer(): ResourceNode | undefined {
-    let nearest: ResourceNode | undefined;
-    let nearestDistance = GATHER_RADIUS;
+  // Игра замирает целиком (update, твины, таймеры, частицы), поверх — табличка «ПАУЗА».
+  private pauseGame(): void {
+    // Игра уже окончена или уже на паузе — ничего не делаем.
+    if (this.isOver || this.scene.isPaused()) return;
 
-    for (const bush of this.bushes) {
-      if (!bush.hasStock()) continue;
-
-      const distance = Phaser.Math.Distance.Between(this.player.x, this.player.y, bush.x, bush.y);
-      if (distance <= nearestDistance) {
-        nearest = bush;
-        nearestDistance = distance;
-      }
-    }
-
-    return nearest;
+    this.scene.pause();
+    this.scene.launch('PauseScene');
   }
 
-  // ===== Сдача хвороста =====
+  // ===== Конец игры =====
 
-  // Вождь в зоне поленницы — каждые DROP_INTERVAL мс верхняя связка
-  // улетает со стопки в кучу на поленнице.
-  private updateDropping(delta: number): void {
-    const isInZone = this.dropZone.contains(this.player.x, this.player.y);
-    this.dropZone.setHighlighted(isInZone);
+  // Игра замирает (пауза сцены), поверх неё — табличка с итогом.
+  // Рестарт запускает ResultScene: GameScene создаётся заново с нуля.
+  private endGame(isWin: boolean): void {
+    if (this.isOver) return;
+    this.isOver = true;
 
-    // Вождь не в зоне или нести нечего — таймер не копится.
-    if (!isInZone || this.stack.isEmpty()) {
-      this.dropTimer = 0;
-      return;
-    }
-
-    this.dropTimer += delta;
-    if (this.dropTimer < DROP_INTERVAL) return;
-    this.dropTimer -= DROP_INTERVAL;
-
-    // Верхняя связка может ещё лететь на стопку — тогда её пока не отдаём.
-    const item = this.stack.takeTop();
-    if (!item) return;
-
-    this.dropZone.receive(item, () => this.onWoodStored());
+    this.scene.pause();
+    const data: ResultData = { isWin };
+    this.scene.launch('ResultScene', data);
   }
 
-  // Связка легла на поленницу: +1 к сданному хворосту.
-  private onWoodStored(): void {
-    this.woodDelivered += 1;
-    this.hud.setWood(this.woodDelivered);
+  // ===== Ночь =====
+
+  // Время до рассвета убывает, HUD показывает его.
+  private updateNight(delta: number): void {
+    this.nightTimeLeft = Math.max(0, this.nightTimeLeft - delta);
+    this.hud.setTimeLeft(this.nightTimeLeft);
   }
 
   // ===== Мир =====

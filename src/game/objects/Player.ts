@@ -111,6 +111,9 @@ export class Player {
   // Текущая скорость, пикселей в секунду. Сцена передаёт её стопке, чтобы та отставала.
   velocityX = 0;
   velocityY = 0;
+  // Сколько мс вождь уже стоит у куста. Набралось HIT_INTERVAL — удар.
+  // Меняет его systems/Gathering.ts.
+  hitTimer = 0;
 
   private scene: Phaser.Scene;
   // Куда смотрит вождь: 1 — вправо, -1 — влево.
