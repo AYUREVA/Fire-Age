@@ -49,6 +49,7 @@ export const TEXTURES = {
   moonIcon: 'moon-icon', // луна на плашке таймера: ночь, до рассвета
   sunIcon: 'sun-icon', // солнце на плашке таймера: день, до ночи
   stoneTablet: 'stone-tablet', // каменная табличка: пауза, итоги
+  stoneBanner: 'stone-banner', // широкая низкая табличка: уведомление о смене дня и ночи
   stoneButton: 'stone-button', // каменная кнопка на табличке
   pauseButton: 'pause-button', // круглая каменная кнопка паузы в углу экрана
 } as const;
@@ -106,6 +107,7 @@ const HUD_PANEL_SIZE: Size = { w: 170, h: 66 };
 const MOON_ICON_SIZE: Size = { w: 40, h: 40 };
 const SUN_ICON_SIZE: Size = { w: 44, h: 44 };
 const STONE_TABLET_SIZE: Size = { w: 540, h: 320 };
+const STONE_BANNER_SIZE: Size = { w: 520, h: 170 };
 const STONE_BUTTON_SIZE: Size = { w: 210, h: 66 };
 const PAUSE_BUTTON_SIZE: Size = { w: 60, h: 60 };
 
@@ -178,7 +180,8 @@ export function createTextures(scene: Phaser.Scene): void {
   bake(scene, TEXTURES.hudPanel, HUD_PANEL_SIZE, drawHudPanel);
   bake(scene, TEXTURES.moonIcon, MOON_ICON_SIZE, drawMoonIcon);
   bake(scene, TEXTURES.sunIcon, SUN_ICON_SIZE, drawSunIcon);
-  bake(scene, TEXTURES.stoneTablet, STONE_TABLET_SIZE, drawStoneTablet);
+  bake(scene, TEXTURES.stoneTablet, STONE_TABLET_SIZE, (g) => drawStoneSlab(g, STONE_TABLET_SIZE));
+  bake(scene, TEXTURES.stoneBanner, STONE_BANNER_SIZE, (g) => drawStoneSlab(g, STONE_BANNER_SIZE));
   bake(scene, TEXTURES.stoneButton, STONE_BUTTON_SIZE, drawStoneButton);
   bake(scene, TEXTURES.pauseButton, PAUSE_BUTTON_SIZE, drawPauseButton);
 }
@@ -1388,15 +1391,19 @@ const TABLET_DROOP_LEFT_RADIUS = 13;
 const TABLET_DROOP_RIGHT_Y = 34;
 const TABLET_DROOP_RIGHT_RADIUS = 11;
 
-// Каменная табличка: плита со скошенными углами, тёмная снизу, пара трещин
-// и снег по верху, который на углах свисает за край плиты.
-function drawStoneTablet(g: Graphics): void {
-  const { w, h } = STONE_TABLET_SIZE;
+// Каменная табличка любого размера: плита со скошенными углами, тёмная снизу,
+// пара трещин и снег по верху, который на углах свисает за край плиты.
+// Из неё сделаны и окно паузы и итогов, и баннер смены дня и ночи.
+function drawStoneSlab(g: Graphics, size: Size): void {
+  const { w, h } = size;
   const left = TABLET_SLAB_SIDE;
   const right = w - TABLET_SLAB_SIDE;
   const top = TABLET_SLAB_TOP;
   // Нижний край чуть выше края картинки, чтобы под плитой поместилась тень.
   const bottom = h - 10;
+  // Высота плиты: от неё считаются тёмный низ и трещины, чтобы они подходили к любому размеру.
+  const slabHeight = bottom - top;
+  const darkTop = bottom - Math.round(slabHeight * 0.18);
   const slab = [
     left + 12, top + 4, right - 20, top, right, top + 24, right - 4, bottom - 22,
     right - 24, bottom, left + 18, bottom - 4, left, bottom - 28, left + 2, top + 30,
@@ -1410,13 +1417,17 @@ function drawStoneTablet(g: Graphics): void {
   // Тёмная нижняя часть — плита выглядит толстой.
   fillPolygon(
     g,
-    [left + 2, bottom - 50, right - 3, bottom - 46, right - 4, bottom - 22, right - 24, bottom, left + 18, bottom - 4, left, bottom - 28],
+    [left + 2, darkTop, right - 3, darkTop + 4, right - 4, bottom - 22, right - 24, bottom, left + 18, bottom - 4, left, bottom - 28],
     COLORS.tabletDark,
   );
   // Трещины.
   g.lineStyle(THIN_OUTLINE_WIDTH, COLORS.tabletDark, 1);
-  g.strokePoints(toPoints([left + 22, top + 66, left + 40, top + 90, left + 34, top + 116]), false);
-  g.strokePoints(toPoints([right - 32, top + 76, right - 52, top + 102, right - 44, top + 134, right - 62, top + 156]), false);
+  const crack = (share: number): number => top + slabHeight * share;
+  g.strokePoints(toPoints([left + 22, crack(0.24), left + 40, crack(0.33), left + 34, crack(0.42)]), false);
+  g.strokePoints(
+    toPoints([right - 32, crack(0.28), right - 52, crack(0.37), right - 44, crack(0.49), right - 62, crack(0.57)]),
+    false,
+  );
   strokePolygon(g, slab);
 
   drawTabletSnow(g, left, right, top);

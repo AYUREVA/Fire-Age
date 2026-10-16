@@ -20,6 +20,7 @@ import { Campfire } from '../objects/Campfire';
 import { Hud } from '../objects/Hud';
 import { CycleEvent, DayNightCycle } from '../objects/DayNightCycle';
 import { NightOverlay } from '../objects/NightOverlay';
+import { PhaseBanner } from '../ui/PhaseBanner';
 import { updateDropping, updateGathering } from '../systems/Gathering';
 import { updateFire } from '../systems/Fire';
 import { ResultData } from './ResultScene';
@@ -123,6 +124,8 @@ export class GameScene extends Phaser.Scene {
   private cycle!: DayNightCycle;
   // Вид ночи: закат, тьма со светлым пятном у костра, метель.
   private nightOverlay!: NightOverlay;
+  // Уведомление о смене дня и ночи: табличка сверху экрана.
+  private phaseBanner!: PhaseBanner;
   // Игра окончена (победа или поражение) — ждём рестарта.
   private isOver = false;
 
@@ -163,6 +166,7 @@ export class GameScene extends Phaser.Scene {
     this.setupCamera();
     this.createSnowfall();
     this.nightOverlay = new NightOverlay(this);
+    this.phaseBanner = new PhaseBanner(this);
     this.setupPause();
   }
 
@@ -201,7 +205,8 @@ export class GameScene extends Phaser.Scene {
 
   // ===== День и ночь =====
 
-  // Фаза сменилась: сцена включает ночь или утро. Рассвет после последней ночи — победа.
+  // Фаза сменилась: сцена включает ночь или утро и показывает уведомление.
+  // Рассвет после последней ночи — победа.
   private onCycleEvent(event: CycleEvent): void {
     switch (event) {
       case 'sunset':
@@ -210,10 +215,14 @@ export class GameScene extends Phaser.Scene {
       case 'night':
         this.nightOverlay.startNight();
         this.hud.setPhase(true);
+        // Когда табличка уедет, ночные модификаторы остаются в HUD до утра.
+        this.phaseBanner.showNight(this.cycle.dayNumber, () => this.hud.setModifiers(true));
         break;
       case 'morning':
         this.nightOverlay.startDay();
         this.hud.setPhase(false);
+        this.hud.setModifiers(false);
+        this.phaseBanner.showMorning(this.cycle.dayNumber);
         break;
       case 'lastDawn':
         this.endGame(true);
