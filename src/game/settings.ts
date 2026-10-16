@@ -23,10 +23,10 @@ export const SUNSET_TIME = 8000;
 
 // Фазы суток. Ночью (фаза 2) меняются ровно два параметра:
 // fireBurnMultiplier — во сколько раз быстрее прогорает костёр,
-// playerSpeedMultiplier — во сколько раз меняется скорость вождя (0.75 — на четверть медленнее).
+// playerSpeedMultiplier — во сколько раз меняется скорость вождя (0.5 — вдвое медленнее).
 export const PHASES = {
   day: { fireBurnMultiplier: 1, playerSpeedMultiplier: 1 },
-  night: { fireBurnMultiplier: 1.6, playerSpeedMultiplier: 0.75 },
+  night: { fireBurnMultiplier: 2, playerSpeedMultiplier: 0.5 },
 };
 
 // ===== МИР =====
@@ -101,7 +101,7 @@ export const FIRE_START_HEAT = 100;
 
 // За сколько мс полный костёр прогорает до нуля, если в него ничего не подкидывать.
 // Меньше — огонь прожорливее, бегать за хворостом надо чаще.
-export const FIRE_BURN_TIME = 20000;
+export const FIRE_BURN_TIME = 10000;
 
 // Сколько жара (%) даёт одна связка хвороста.
 export const HEAT_PER_BUNDLE = 25;
