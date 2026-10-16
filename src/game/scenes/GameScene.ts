@@ -227,13 +227,15 @@ export class GameScene extends Phaser.Scene {
   // ===== Сдача хвороста =====
 
   // Вождь в зоне поленницы — каждые DROP_INTERVAL мс верхняя связка
-  // улетает со стопки в кучу на поленнице.
+  // улетает со стопки в кучу на поленнице, пока поленница не полная.
   private updateDropping(delta: number): void {
     const isInZone = this.dropZone.contains(this.player.x, this.player.y);
-    this.dropZone.setHighlighted(isInZone);
+    const canDrop = isInZone && !this.dropZone.isFull();
+    // Полная поленница не подсвечивается: сюда пока нельзя.
+    this.dropZone.setHighlighted(canDrop);
 
-    // Вождь не в зоне или нести нечего — таймер не копится.
-    if (!isInZone || this.stack.isEmpty()) {
+    // Вождь не в зоне, поленница полная или нести нечего — таймер не копится.
+    if (!canDrop || this.stack.isEmpty()) {
       this.dropTimer = 0;
       return;
     }

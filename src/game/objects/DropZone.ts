@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { DROP_RADIUS } from '../settings';
+import { DROP_RADIUS, WOODPILE_CAPACITY } from '../settings';
 import { COLORS } from '../palette';
 import { TEXTURES } from '../textures';
 import { floatText, flyArc, pop, Point } from '../fx';
@@ -18,10 +18,8 @@ const PLATFORM_TWEEN_TIME = 160;
 
 // ===== Куча хвороста =====
 
-// Сколько связок в одном ряду кучи и сколько рядов видно.
-// Когда куча заполнена, она больше не растёт, но счёт идёт дальше.
+// Сколько связок в одном ряду кучи. Сколько всего — WOODPILE_CAPACITY в settings.ts.
 const PILE_COLUMNS = 3;
-const PILE_ROWS = 6;
 // Расстояние между связками в ряду и высота ряда.
 const PILE_COLUMN_STEP = 50;
 const PILE_ROW_STEP = 18;
@@ -45,7 +43,8 @@ const PLUS_ONE_OFFSET_Y = 30;
  *
  * Площадка со светлой рамкой: вождь встаёт в её зону, и сцена передаёт
  * сюда связки со стопки по одной. Каждая связка по дуге летит в аккуратную
- * кучу, куча растёт. Слева от поленницы горит костёр (Campfire.ts).
+ * кучу, куча растёт до WOODPILE_CAPACITY. Слева от поленницы горит костёр
+ * (Campfire.ts) — он забирает связки с верха кучи через takeTop().
  * Про вождя, стопку и костёр поленница ничего не знает.
  */
 export class DropZone {
@@ -58,7 +57,10 @@ export class DropZone {
   // Подсвечена ли площадка сейчас (вождь в зоне).
   private isHighlighted = false;
   // Связки, лежащие в куче (и те, что уже летят туда, — место для них занято).
+  // [0] — нижняя, последняя — верхняя.
   private pile: Phaser.GameObjects.Image[] = [];
+  // Связки, которые ещё летят в кучу. Их пока нельзя забрать.
+  private flyingItems = new Set<Phaser.GameObjects.Image>();
 
   constructor(scene: Phaser.Scene, x: number, y: number) {
     this.scene = scene;
@@ -74,6 +76,11 @@ export class DropZone {
   // Стоит ли точка (x, y) в зоне сдачи.
   contains(x: number, y: number): boolean {
     return Phaser.Math.Distance.Between(x, y, this.x, this.y) <= DROP_RADIUS;
+  }
+
+  // Поленница полная: больше связок не принять.
+  isFull(): boolean {
+    return this.pile.length >= WOODPILE_CAPACITY;
   }
 
   // Подсветка площадки, пока вождь в зоне. Сцена вызывает это каждый кадр.
@@ -92,16 +99,15 @@ export class DropZone {
   }
 
   // Принять связку со стопки: она летит по дуге в кучу.
+  // Сцена зовёт это, только когда поленница не полная.
   receive(item: Phaser.GameObjects.Image): void {
     // В стопке связка могла быть наклонена — выпрямляем.
     item.setAngle(0);
 
-    // Если в куче есть место, связка останется в ней. Если нет — долетит до верха кучи и исчезнет.
-    const keepInPile = this.pile.length < PILE_COLUMNS * PILE_ROWS;
-    const slotIndex = keepInPile ? this.pile.length : this.pile.length - 1;
-    if (keepInPile) {
-      this.pile.push(item);
-    }
+    // Место в куче занимаем сразу, пока связка ещё летит, — как в стопке за спиной.
+    const slotIndex = this.pile.length;
+    this.pile.push(item);
+    this.flyingItems.add(item);
     const slot = this.getPileSlot(slotIndex);
 
     flyArc(this.scene, item, {
@@ -109,23 +115,28 @@ export class DropZone {
       target: () => slot,
       duration: FLY_TIME,
       height: FLY_ARC_HEIGHT,
-      onLand: () => this.store(item, slotIndex, keepInPile),
+      onLand: () => this.store(item, slotIndex),
     });
+  }
+
+  // Забрать верхнюю связку (её заберёт костёр). Дальше её двигает тот, кто забрал.
+  // Вернёт undefined, если куча пуста или верхняя связка ещё летит.
+  takeTop(): Phaser.GameObjects.Image | undefined {
+    const top = this.pile[this.pile.length - 1];
+    if (!top || this.flyingItems.has(top)) return undefined;
+
+    this.pile.pop();
+    return top;
   }
 
   // ===== Куча =====
 
-  // Связка легла в кучу: «пружинка» и «+1». Лишняя связка исчезает, а верх кучи подпрыгивает.
-  private store(item: Phaser.GameObjects.Image, slotIndex: number, keepInPile: boolean): void {
+  // Связка легла в кучу: «пружинка» и «+1».
+  private store(item: Phaser.GameObjects.Image, slotIndex: number): void {
+    this.flyingItems.delete(item);
     floatText(this.scene, item.x, item.y - PLUS_ONE_OFFSET_Y, '+1', COLORS.plusOne);
-
-    if (keepInPile) {
-      item.setDepth(this.getPileDepth(slotIndex));
-      pop(this.scene, item);
-    } else {
-      item.destroy();
-      pop(this.scene, this.pile[slotIndex]);
-    }
+    item.setDepth(this.getPileDepth(slotIndex));
+    pop(this.scene, item);
   }
 
   // Где лежит связка номер index в куче (точка низа связки).
