@@ -15,10 +15,12 @@ const BANNER_IN_TIME = 450;
 const BANNER_HOLD_TIME = 2200;
 const BANNER_OUT_TIME = 350;
 // Плита в картинке ниже её середины (сверху лежит снег) — надпись тоже ниже.
+// Надпись сдвинута вправо, чтобы не наезжать на иконку слева.
+const TITLE_X = 28;
 const TITLE_Y = 14;
-const TITLE_FONT_SIZE = 40;
+const TITLE_FONT_SIZE = 36;
 // Иконка луны или солнца слева на табличке.
-const ICON_X = -196;
+const ICON_X = -206;
 const ICON_Y = 14;
 const ICON_SCALE = 1.3;
 
@@ -117,7 +119,7 @@ export class PhaseBanner {
     const banner = this.scene.add.container(this.scene.scale.width / 2, BANNER_HIDDEN_Y, [
       this.scene.add.image(0, 0, TEXTURES.stoneBanner),
       this.scene.add.image(ICON_X, ICON_Y, icon).setScale(ICON_SCALE),
-      ...addCarvedTitle(this.scene, 0, TITLE_Y, title, TITLE_FONT_SIZE),
+      ...addCarvedTitle(this.scene, TITLE_X, TITLE_Y, title, TITLE_FONT_SIZE),
     ]);
     banner.setDepth(BANNER_DEPTH);
     this.banner = banner;
