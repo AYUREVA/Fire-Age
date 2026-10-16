@@ -42,6 +42,7 @@ export const TEXTURES = {
   flame: 'flame', // язык пламени; точка опоры — низ
   glow: 'glow', // мягкий белый круг; его красят в цвет света
   spark: 'spark', // искра костра (белая, цвет задаёт частица)
+  nightLight: 'night-light', // ночная тьма со светлым пятном посередине (белая, красится tint)
   heatBarBack: 'heat-bar-back', // подложка шкалы жара над костром
   heatBarFill: 'heat-bar-fill', // заливка шкалы жара (белая, красится tint)
   hudPanel: 'hud-panel', // плашка интерфейса со скруглёнными углами
@@ -98,6 +99,7 @@ const FIRE_PIT_SIZE: Size = { w: 110, h: 64 };
 const FLAME_SIZE: Size = { w: 64, h: 96 };
 const GLOW_SIZE: Size = { w: 128, h: 128 };
 const SPARK_SIZE: Size = { w: 8, h: 8 };
+const NIGHT_LIGHT_SIZE: Size = { w: 256, h: 256 };
 const HEAT_BAR_BACK_SIZE: Size = { w: 116, h: 24 };
 const HEAT_BAR_FILL_SIZE: Size = { w: 104, h: 12 };
 const HUD_PANEL_SIZE: Size = { w: 170, h: 66 };
@@ -170,6 +172,7 @@ export function createTextures(scene: Phaser.Scene): void {
   bake(scene, TEXTURES.flame, FLAME_SIZE, drawFlame);
   bake(scene, TEXTURES.glow, GLOW_SIZE, drawGlow);
   bake(scene, TEXTURES.spark, SPARK_SIZE, drawSpark);
+  bakeNightLight(scene);
   bake(scene, TEXTURES.heatBarBack, HEAT_BAR_BACK_SIZE, drawHeatBarBack);
   bake(scene, TEXTURES.heatBarFill, HEAT_BAR_FILL_SIZE, drawHeatBarFill);
   bake(scene, TEXTURES.hudPanel, HUD_PANEL_SIZE, drawHudPanel);
@@ -187,6 +190,28 @@ function bake(scene: Phaser.Scene, key: string, size: Size, draw: (g: Graphics) 
   draw(g);
   g.generateTexture(key, size.w, size.h);
   g.destroy();
+}
+
+// Ночная тьма со светлым пятном: середина прозрачная, к краю — плотная.
+// Graphics не умеет плавный круговой переход прозрачности, поэтому эта картинка
+// рисуется на обычном canvas радиальным градиентом браузера.
+// За кругом градиента (в углах квадрата) цвет остаётся плотным — так картинка
+// без шва стыкуется с тёмными прямоугольниками вокруг (NightOverlay.ts).
+function bakeNightLight(scene: Phaser.Scene): void {
+  const { w, h } = NIGHT_LIGHT_SIZE;
+  const canvas = scene.textures.createCanvas(TEXTURES.nightLight, w, h);
+  if (!canvas) return;
+
+  const context = canvas.getContext();
+  const radius = w / 2;
+  const gradient = context.createRadialGradient(radius, radius, 0, radius, radius, radius);
+  // До 35% радиуса — совсем светло, дальше тьма плавно густеет до края круга.
+  gradient.addColorStop(0, 'rgba(255, 255, 255, 0)');
+  gradient.addColorStop(0.35, 'rgba(255, 255, 255, 0)');
+  gradient.addColorStop(1, 'rgba(255, 255, 255, 1)');
+  context.fillStyle = gradient;
+  context.fillRect(0, 0, w, h);
+  canvas.refresh();
 }
 
 // ===== Земля и мелкий декор =====
