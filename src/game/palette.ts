@@ -91,6 +91,8 @@ export const COLORS = {
   maxText: 0xff5a3c, // надпись «МАКС» над полной стопкой
   hudPanel: 0x3b2a22, // плашка счёта: тёмное тёплое дерево
   hudText: 0xfff6e0, // текст интерфейса
+  moon: 0xfff1c9, // луна на плашке таймера
+  moonShade: 0xe3cf98, // кратеры на луне
 };
 
 // Переводит цвет-число 0xRRGGBB в строку '#rrggbb'.

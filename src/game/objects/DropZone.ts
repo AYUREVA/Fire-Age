@@ -92,8 +92,7 @@ export class DropZone {
   }
 
   // Принять связку со стопки: она летит по дуге в кучу.
-  // onStored вызывается, когда связка легла, — сцена прибавит счёт.
-  receive(item: Phaser.GameObjects.Image, onStored: () => void): void {
+  receive(item: Phaser.GameObjects.Image): void {
     // В стопке связка могла быть наклонена — выпрямляем.
     item.setAngle(0);
 
@@ -110,10 +109,7 @@ export class DropZone {
       target: () => slot,
       duration: FLY_TIME,
       height: FLY_ARC_HEIGHT,
-      onLand: () => {
-        this.store(item, slotIndex, keepInPile);
-        onStored();
-      },
+      onLand: () => this.store(item, slotIndex, keepInPile),
     });
   }
 

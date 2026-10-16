@@ -42,7 +42,8 @@ export const TEXTURES = {
   flame: 'flame', // язык пламени; точка опоры — низ
   glow: 'glow', // мягкий белый круг; его красят в цвет света
   spark: 'spark', // искра костра (белая, цвет задаёт частица)
-  hudPanel: 'hud-panel', // плашка счёта со скруглёнными углами
+  hudPanel: 'hud-panel', // плашка интерфейса со скруглёнными углами
+  moonIcon: 'moon-icon', // луна на плашке таймера: ночь, до рассвета
 } as const;
 
 // Шрифт всех надписей. Это тоже «ассет»: свой шрифт подключается здесь.
@@ -79,6 +80,7 @@ const FLAME_SIZE: Size = { w: 64, h: 96 };
 const GLOW_SIZE: Size = { w: 128, h: 128 };
 const SPARK_SIZE: Size = { w: 8, h: 8 };
 const HUD_PANEL_SIZE: Size = { w: 170, h: 66 };
+const MOON_ICON_SIZE: Size = { w: 40, h: 40 };
 
 // ===== Параметры рисования =====
 
@@ -144,6 +146,7 @@ export function createTextures(scene: Phaser.Scene): void {
   bake(scene, TEXTURES.glow, GLOW_SIZE, drawGlow);
   bake(scene, TEXTURES.spark, SPARK_SIZE, drawSpark);
   bake(scene, TEXTURES.hudPanel, HUD_PANEL_SIZE, drawHudPanel);
+  bake(scene, TEXTURES.moonIcon, MOON_ICON_SIZE, drawMoonIcon);
 }
 
 // Рисует картинку на временном Graphics и сохраняет её как текстуру под ключом key.
@@ -1238,7 +1241,7 @@ function drawChip(g: Graphics): void {
 
 // ===== Интерфейс =====
 
-// Плашка счёта: тёмное дерево со светлой рамкой, скруглённые углы и мягкая тень снизу.
+// Плашка интерфейса: тёмное дерево со светлой рамкой, скруглённые углы и мягкая тень снизу.
 function drawHudPanel(g: Graphics): void {
   const { w, h } = HUD_PANEL_SIZE;
   const radius = 18;
@@ -1255,6 +1258,20 @@ function drawHudPanel(g: Graphics): void {
   g.fillRoundedRect(8, 6, w - 16, height / 3, radius / 2);
   g.lineStyle(3, COLORS.zoneBorder, 1);
   g.strokeRoundedRect(2, 2, w - 4, height - 2, radius);
+}
+
+// Луна: светлый круг с обводкой и тремя кратерами.
+function drawMoonIcon(g: Graphics): void {
+  const { w, h } = MOON_ICON_SIZE;
+  const cx = w / 2;
+  const cy = h / 2;
+
+  outlinedCircle(g, cx, cy, cx - OUTLINE_WIDTH, COLORS.moon);
+  // Кратеры — круги чуть темнее луны.
+  g.fillStyle(COLORS.moonShade, 1);
+  g.fillCircle(cx - 6, cy - 4, 5);
+  g.fillCircle(cx + 6, cy + 5, 4);
+  g.fillCircle(cx + 5, cy - 8, 2.5);
 }
 
 // ===== Помощники рисования =====

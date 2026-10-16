@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 // Игровые параметры (мир, вождь, кусты и т. д.) — в settings.ts.
 import {
+  NIGHT_DURATION,
   WORLD_WIDTH,
   WORLD_HEIGHT,
   WORLD_EDGE,
@@ -112,14 +113,14 @@ export class GameScene extends Phaser.Scene {
   private dropZone!: DropZone;
   // Костёр в лагере.
   private campfire!: Campfire;
-  // Интерфейс: сколько хвороста сдано и подсказка.
+  // Интерфейс: сколько осталось до рассвета и подсказка.
   private hud!: Hud;
   // Сколько мс вождь уже стоит у куста. Набралось HIT_INTERVAL — удар.
   private hitTimer = 0;
   // Сколько мс вождь уже стоит на поленнице. Набралось DROP_INTERVAL — сдаёт связку.
   private dropTimer = 0;
-  // Сколько связок хвороста сдано за игру.
-  private woodDelivered = 0;
+  // Сколько мс осталось до рассвета.
+  private nightTimeLeft = NIGHT_DURATION;
 
   constructor() {
     super('GameScene');
@@ -131,7 +132,7 @@ export class GameScene extends Phaser.Scene {
     this.bushes = [];
     this.hitTimer = 0;
     this.dropTimer = 0;
-    this.woodDelivered = 0;
+    this.nightTimeLeft = NIGHT_DURATION;
 
     createTextures(this);
 
@@ -149,6 +150,7 @@ export class GameScene extends Phaser.Scene {
     this.player = new Player(this, PLAYER_START.x, PLAYER_START.y);
     this.stack = new CarryStack(this);
     this.hud = new Hud(this);
+    this.hud.setTimeLeft(this.nightTimeLeft);
 
     this.setupCamera();
     this.createSnowfall();
@@ -168,6 +170,15 @@ export class GameScene extends Phaser.Scene {
 
     this.updateGathering(delta);
     this.updateDropping(delta);
+    this.updateNight(delta);
+  }
+
+  // ===== Ночь =====
+
+  // Время до рассвета убывает, HUD показывает его.
+  private updateNight(delta: number): void {
+    this.nightTimeLeft = Math.max(0, this.nightTimeLeft - delta);
+    this.hud.setTimeLeft(this.nightTimeLeft);
   }
 
   // ===== Добыча хвороста =====
@@ -235,13 +246,7 @@ export class GameScene extends Phaser.Scene {
     const item = this.stack.takeTop();
     if (!item) return;
 
-    this.dropZone.receive(item, () => this.onWoodStored());
-  }
-
-  // Связка легла на поленницу: +1 к сданному хворосту.
-  private onWoodStored(): void {
-    this.woodDelivered += 1;
-    this.hud.setWood(this.woodDelivered);
+    this.dropZone.receive(item);
   }
 
   // ===== Мир =====
