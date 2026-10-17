@@ -64,6 +64,12 @@ export const COLORS = {
   leafLight: 0x67b356, // листва на свету
   leafHighlight: 0x9fd873, // самые светлые листики
 
+  // ===== Заяц =====
+  hare: 0xf6f3ec, // белый мех
+  hareShade: 0xd9d3c7, // мех в тени
+  hareEar: 0xf3a9b3, // розовое внутри уха
+  hareNose: 0xe77f8f, // нос
+
   // ===== Мясо =====
   rawMeat: 0xf08b8b, // сырое мясо
   rawMeatShade: 0xd2646f, // сырое мясо в тени

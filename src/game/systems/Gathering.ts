@@ -1,12 +1,13 @@
 import Phaser from 'phaser';
-import { DROP_INTERVAL, GATHER_RADIUS, HIT_INTERVAL } from '../settings';
+import { CATCH_RADIUS, DROP_INTERVAL, GATHER_RADIUS, HIT_INTERVAL } from '../settings';
 import { Player } from '../objects/Player';
 import { Backpack } from '../objects/Backpack';
 import { ResourceNode } from '../objects/ResourceNode';
 import { ItemPile } from '../objects/ItemPile';
+import { Rabbit } from '../objects/Rabbit';
 
 // =====================================================================
-//  Добыча и сдача хвороста.
+//  Добыча (кусты, кролики) и сдача в кучи у костра.
 //
 //  Это функции, а не класс: нужные объекты приходят аргументами,
 //  своего состояния здесь нет. Таймеры хранят сами объекты:
@@ -55,6 +56,27 @@ function findBushNear(player: Player, bushes: ResourceNode[]): ResourceNode | un
   }
 
   return nearest;
+}
+
+// ===== Охота =====
+
+// Вождь догнал кролика — замах дубиной, кролик исчезает с «пуф»,
+// кусок сырого мяса летит на спину.
+export function updateHunting(player: Player, backpack: Backpack, rabbits: Rabbit[]): void {
+  // Спина полная или вождь уже машет дубиной (например, по кусту) — не ловим.
+  if (backpack.isFull() || player.isSwinging()) return;
+
+  const rabbit = rabbits.find(
+    (each) => each.isCatchable() && Phaser.Math.Distance.Between(player.x, player.y, each.x, each.y) <= CATCH_RADIUS,
+  );
+  if (!rabbit) return;
+
+  // Кролик замирает, вождь замахивается. В момент удара — «пуф» и мясо на спину.
+  rabbit.catch();
+  player.swing(rabbit.x, HIT_INTERVAL, () => {
+    rabbit.poof();
+    backpack.add('rawMeat', rabbit.getLootPoint());
+  });
 }
 
 // ===== Сдача в кучи у костра =====

@@ -31,6 +31,7 @@ export const TEXTURES = {
   ring: 'ring', // светлое кольцо под ногами вождя
   joystickBase: 'joystick-base', // круг джойстика
   joystickKnob: 'joystick-knob', // ручка джойстика
+  rabbit: 'rabbit', // белый заяц, смотрит вправо; точка опоры — лапы
   bush: 'bush', // зелёный куст, точка опоры — низ ствола
   bushSnow: 'bush-snow', // снег на кроне куста (тот же размер, ложится поверх)
   stump: 'stump', // пенёк — куст без хвороста
@@ -93,6 +94,7 @@ const RING_SIZE: Size = { w: 90, h: 44 };
 const JOYSTICK_BASE_SIZE: Size = { w: 128, h: 128 };
 const JOYSTICK_KNOB_SIZE: Size = { w: 60, h: 60 };
 const BUSH_SIZE: Size = { w: 124, h: 104 };
+const RABBIT_SIZE: Size = { w: 60, h: 56 };
 const STUMP_SIZE: Size = { w: 80, h: 60 };
 const BUNDLE_SIZE: Size = { w: 56, h: 28 };
 const MEAT_SIZE: Size = { w: 48, h: 32 };
@@ -166,6 +168,7 @@ export function createTextures(scene: Phaser.Scene): void {
   bake(scene, TEXTURES.ring, RING_SIZE, drawRing);
   bake(scene, TEXTURES.joystickBase, JOYSTICK_BASE_SIZE, drawJoystickBase);
   bake(scene, TEXTURES.joystickKnob, JOYSTICK_KNOB_SIZE, drawJoystickKnob);
+  bake(scene, TEXTURES.rabbit, RABBIT_SIZE, drawRabbit);
   bake(scene, TEXTURES.bush, BUSH_SIZE, drawBush);
   bake(scene, TEXTURES.bushSnow, BUSH_SIZE, drawBushSnow);
   bake(scene, TEXTURES.stump, STUMP_SIZE, drawStump);
@@ -1115,6 +1118,41 @@ function drawBundle(g: Graphics): void {
 
   drawRopeBand(g, 17);
   drawRopeBand(g, 38);
+}
+
+// Белый заяц, смотрит вправо: круглое тело, голова, два длинных уха
+// с розовым внутри, хвостик-помпон, глаз и розовый нос. Лапы внизу картинки.
+function drawRabbit(g: Graphics): void {
+  // Уши: вытянутые овалы, наклонены назад. Рисуются первыми — голова их перекрывает.
+  drawRabbitEar(g, 36, 16, -0.35);
+  drawRabbitEar(g, 43, 15, -0.1);
+  // Хвостик и тело.
+  outlinedCircle(g, 12, 38, 6, COLORS.hare);
+  outlinedEllipse(g, 27, 40, 34, 26, COLORS.hare);
+  g.fillStyle(COLORS.hareShade, 1);
+  g.fillEllipse(27, 47, 26, 8);
+  // Лапки.
+  outlinedEllipse(g, 20, 52, 12, 6, COLORS.hare);
+  outlinedEllipse(g, 37, 52, 12, 6, COLORS.hare);
+  // Голова, глаз, нос.
+  outlinedCircle(g, 42, 30, 11, COLORS.hare);
+  g.fillStyle(COLORS.outline, 1);
+  g.fillCircle(45, 28, 2.5);
+  g.fillStyle(COLORS.white, 1);
+  g.fillCircle(46, 27, 1);
+  g.fillStyle(COLORS.hareNose, 1);
+  g.fillCircle(52, 32, 2.5);
+}
+
+// Ухо зайца: наружный белый овал и розовая серединка, повёрнутые на angle (радианы).
+function drawRabbitEar(g: Graphics, x: number, y: number, angle: number): void {
+  g.save();
+  g.translateCanvas(x, y);
+  g.rotateCanvas(angle);
+  outlinedEllipse(g, 0, 0, 9, 24, COLORS.hare);
+  g.fillStyle(COLORS.hareEar, 1);
+  g.fillEllipse(0, 1, 4, 16);
+  g.restore();
 }
 
 // Мультяшная мясная ножка: косточка слева, круглый кусок мяса справа,

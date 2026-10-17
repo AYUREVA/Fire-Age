@@ -9,6 +9,7 @@ import {
   CAMPFIRE_POSITION,
   WOODPILE_POSITION,
   WOODPILE_CAPACITY,
+  RABBIT_COUNT,
   PHASES,
   FIRE_MAX_HEAT,
 } from '../settings';
@@ -17,12 +18,13 @@ import { Player } from '../objects/Player';
 import { Backpack } from '../objects/Backpack';
 import { ResourceNode } from '../objects/ResourceNode';
 import { ItemPile } from '../objects/ItemPile';
+import { Rabbit } from '../objects/Rabbit';
 import { Campfire } from '../objects/Campfire';
 import { Hud } from '../objects/Hud';
 import { CycleEvent, DayNightCycle } from '../objects/DayNightCycle';
 import { NightOverlay } from '../objects/NightOverlay';
 import { PhaseBanner } from '../ui/PhaseBanner';
-import { updateDropping, updateGathering } from '../systems/Gathering';
+import { updateDropping, updateGathering, updateHunting } from '../systems/Gathering';
 import { updateFire } from '../systems/Fire';
 import { ResultData } from './ResultScene';
 
@@ -115,6 +117,8 @@ export class GameScene extends Phaser.Scene {
   private backpack!: Backpack;
   // Кусты хвороста.
   private bushes: ResourceNode[] = [];
+  // Кролики на поле.
+  private rabbits: Rabbit[] = [];
   // Поленница у костра — сюда сдаётся хворост, из неё кормится огонь.
   private woodpile!: ItemPile;
   // Костёр в лагере.
@@ -143,6 +147,7 @@ export class GameScene extends Phaser.Scene {
     // При перезапуске сцены create() вызывается снова, а поля класса
     // сохраняют старые значения, поэтому сбрасываем их здесь.
     this.bushes = [];
+    this.rabbits = [];
     this.isOver = false;
 
     createTextures(this);
@@ -154,6 +159,9 @@ export class GameScene extends Phaser.Scene {
     this.createGroundDecor(rng);
     this.createBorderForest(rng);
     this.createBushes();
+    for (let i = 0; i < RABBIT_COUNT; i++) {
+      this.rabbits.push(new Rabbit(this));
+    }
     // Сначала костёр: его свет лежит на земле под краем площадки поленницы.
     this.campfire = new Campfire(this, CAMPFIRE_POSITION.x, CAMPFIRE_POSITION.y);
     this.woodpile = new ItemPile(this, WOODPILE_POSITION.x, WOODPILE_POSITION.y, 'wood', WOODPILE_CAPACITY);
@@ -193,7 +201,12 @@ export class GameScene extends Phaser.Scene {
       bush.update(delta);
     }
 
+    for (const rabbit of this.rabbits) {
+      rabbit.update(delta, this.player.x, this.player.y);
+    }
+
     updateGathering(this.player, this.backpack, this.bushes, delta);
+    updateHunting(this.player, this.backpack, this.rabbits);
     updateDropping(this.player, this.backpack, [this.woodpile], delta);
     const isFireOut = updateFire(this.campfire, this.woodpile, delta, phase.fireBurnMultiplier);
     this.campfire.update(delta);
