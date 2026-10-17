@@ -14,6 +14,7 @@ import {
   RAW_MEAT_PILE_CAPACITY,
   COOKED_MEAT_PILE_POSITION,
   TABLE_POSITION,
+  QUEUE_SIZE,
   COOKED_MEAT_PILE_CAPACITY,
   PHASES,
   FIRE_MAX_HEAT,
@@ -26,6 +27,7 @@ import { ItemPile } from '../objects/ItemPile';
 import { Rabbit } from '../objects/Rabbit';
 import { Spit } from '../objects/Spit';
 import { StoneTable } from '../objects/StoneTable';
+import { Traveler } from '../objects/Traveler';
 import { Campfire } from '../objects/Campfire';
 import { Hud } from '../objects/Hud';
 import { CycleEvent, DayNightCycle } from '../objects/DayNightCycle';
@@ -33,7 +35,7 @@ import { NightOverlay } from '../objects/NightOverlay';
 import { PhaseBanner } from '../ui/PhaseBanner';
 import { updateDropping, updateGathering, updateHunting, updatePickup } from '../systems/Gathering';
 import { updateCooking } from '../systems/Cooking';
-import { updateTable, updateTusks } from '../systems/Serving';
+import { updateTable, updateTravelers, updateTusks } from '../systems/Serving';
 import { updateFire } from '../systems/Fire';
 import { ResultData } from './ResultScene';
 
@@ -138,6 +140,8 @@ export class GameScene extends Phaser.Scene {
   private cookedMeatPile!: ItemPile;
   // Каменный стол: сюда вождь кладёт жареное мясо, у него очередь путников и кучка клыков.
   private table!: StoneTable;
+  // Путники: созданы заранее (сколько мест в очереди), приходят из леса по очереди.
+  private travelers: Traveler[] = [];
   // Интерфейс: сколько осталось до конца дня или ночи, кнопка паузы.
   private hud!: Hud;
   // Смена дня и ночи: фаза, номер суток, сколько осталось до конца фазы.
@@ -163,6 +167,7 @@ export class GameScene extends Phaser.Scene {
     // сохраняют старые значения, поэтому сбрасываем их здесь.
     this.bushes = [];
     this.rabbits = [];
+    this.travelers = [];
     this.isOver = false;
 
     createTextures(this);
@@ -196,6 +201,9 @@ export class GameScene extends Phaser.Scene {
       COOKED_MEAT_PILE_CAPACITY,
     );
     this.table = new StoneTable(this, TABLE_POSITION.x, TABLE_POSITION.y);
+    for (let i = 0; i < QUEUE_SIZE; i++) {
+      this.travelers.push(new Traveler(this));
+    }
 
     this.player = new Player(this, PLAYER_START.x, PLAYER_START.y);
     this.backpack = new Backpack(this);
@@ -241,6 +249,10 @@ export class GameScene extends Phaser.Scene {
     updateDropping(this.player, this.backpack, [this.woodpile, this.rawMeatPile], delta);
     updatePickup(this.player, this.backpack, this.cookedMeatPile, delta);
     updateTable(this.player, this.backpack, this.table, delta);
+    for (const traveler of this.travelers) {
+      traveler.update(delta);
+    }
+    updateTravelers(this.table, this.travelers, delta);
     updateTusks(this.player, this.table, this.hud, this.cameras.main);
     const isFireOut = updateFire(this.campfire, this.woodpile, delta, phase.fireBurnMultiplier);
     this.campfire.update(delta);

@@ -32,6 +32,8 @@ export const TEXTURES = {
   joystickBase: 'joystick-base', // круг джойстика
   joystickKnob: 'joystick-knob', // ручка джойстика
   rabbit: 'rabbit', // белый заяц, смотрит вправо; точка опоры — лапы
+  traveler: 'traveler', // путник в меховом плаще с капюшоном, смотрит влево; точка опоры — ноги
+  bubble: 'bubble', // пузырь над головой путника: что он хочет
   bush: 'bush', // зелёный куст, точка опоры — низ ствола
   bushSnow: 'bush-snow', // снег на кроне куста (тот же размер, ложится поверх)
   stump: 'stump', // пенёк — куст без хвороста
@@ -98,6 +100,8 @@ const JOYSTICK_BASE_SIZE: Size = { w: 128, h: 128 };
 const JOYSTICK_KNOB_SIZE: Size = { w: 60, h: 60 };
 const BUSH_SIZE: Size = { w: 124, h: 104 };
 const RABBIT_SIZE: Size = { w: 60, h: 56 };
+const TRAVELER_SIZE: Size = { w: 72, h: 100 };
+const BUBBLE_SIZE: Size = { w: 84, h: 50 };
 const STUMP_SIZE: Size = { w: 80, h: 60 };
 const BUNDLE_SIZE: Size = { w: 56, h: 28 };
 const MEAT_SIZE: Size = { w: 48, h: 32 };
@@ -175,6 +179,8 @@ export function createTextures(scene: Phaser.Scene): void {
   bake(scene, TEXTURES.joystickBase, JOYSTICK_BASE_SIZE, drawJoystickBase);
   bake(scene, TEXTURES.joystickKnob, JOYSTICK_KNOB_SIZE, drawJoystickKnob);
   bake(scene, TEXTURES.rabbit, RABBIT_SIZE, drawRabbit);
+  bake(scene, TEXTURES.traveler, TRAVELER_SIZE, drawTraveler);
+  bake(scene, TEXTURES.bubble, BUBBLE_SIZE, drawBubble);
   bake(scene, TEXTURES.bush, BUSH_SIZE, drawBush);
   bake(scene, TEXTURES.bushSnow, BUSH_SIZE, drawBushSnow);
   bake(scene, TEXTURES.stump, STUMP_SIZE, drawStump);
@@ -1127,6 +1133,52 @@ function drawBundle(g: Graphics): void {
 
   drawRopeBand(g, 17);
   drawRopeBand(g, 38);
+}
+
+// Путник, смотрит влево: сапоги, меховой плащ колоколом со светлой каймой,
+// капюшон вокруг лица, глаз, нос и румянец. Ноги — внизу картинки.
+function drawTraveler(g: Graphics): void {
+  const { w, h } = TRAVELER_SIZE;
+  const cx = w / 2;
+
+  // Сапоги.
+  outlinedEllipse(g, cx - 10, h - 6, 16, 10, COLORS.furDark);
+  outlinedEllipse(g, cx + 10, h - 6, 16, 10, COLORS.furDark);
+  // Плащ колоколом: узкий у шеи, широкий внизу.
+  const cloak = [cx - 12, 38, cx + 12, 38, cx + 26, h - 14, cx - 26, h - 14];
+  fillPolygon(g, cloak, COLORS.travelerCloak);
+  fillPolygon(g, [cx + 4, 40, cx + 12, 38, cx + 26, h - 14, cx + 10, h - 14], COLORS.travelerCloakDark);
+  strokePolygon(g, cloak);
+  // Светлая кайма плаща.
+  g.fillStyle(COLORS.furLight, 1);
+  g.fillRoundedRect(cx - 27, h - 18, 54, 8, 4);
+  g.lineStyle(THIN_OUTLINE_WIDTH, COLORS.outline, 1);
+  g.strokeRoundedRect(cx - 27, h - 18, 54, 8, 4);
+  // Капюшон и лицо.
+  outlinedCircle(g, cx + 3, 26, 20, COLORS.travelerCloakDark);
+  outlinedCircle(g, cx - 2, 28, 14, COLORS.skin);
+  g.fillStyle(COLORS.cheek, 0.7);
+  g.fillCircle(cx - 4, 34, 3.5);
+  g.fillStyle(COLORS.outline, 1);
+  g.fillCircle(cx - 8, 25, 2.5);
+  outlinedCircle(g, cx - 14, 30, 4, COLORS.nose);
+}
+
+// Пузырь над головой путника: белый овал с хвостиком вниз и тёмной обводкой.
+function drawBubble(g: Graphics): void {
+  const { w, h } = BUBBLE_SIZE;
+  const body = h - 12;
+
+  g.fillStyle(COLORS.bubble, 1);
+  g.fillRoundedRect(2, 2, w - 4, body, 16);
+  fillPolygon(g, [w / 2 - 8, body, w / 2 + 8, body, w / 2, h - 2], COLORS.bubble);
+  g.lineStyle(OUTLINE_WIDTH, COLORS.outline, 1);
+  g.strokeRoundedRect(2, 2, w - 4, body, 16);
+  g.lineBetween(w / 2 - 8, body + 1, w / 2, h - 2);
+  g.lineBetween(w / 2 + 8, body + 1, w / 2, h - 2);
+  // Закрашиваем обводку там, где хвостик соединяется с пузырём.
+  g.fillStyle(COLORS.bubble, 1);
+  g.fillRect(w / 2 - 6, body - 3, 12, 4);
 }
 
 // Белый заяц, смотрит вправо: круглое тело, голова, два длинных уха

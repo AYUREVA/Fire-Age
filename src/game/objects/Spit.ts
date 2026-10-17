@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { COOK_TIME } from '../settings';
-import { COLORS } from '../palette';
+import { COLORS, mixColors } from '../palette';
 import { TEXTURES } from '../textures';
 import { ITEMS } from '../items';
 import { flyArc, Point } from '../fx';
@@ -21,16 +21,6 @@ const FLY_TIME = 380;
 const FLY_ARC_HEIGHT = 60;
 // Мясо поворачивается на палке: скорость поворота (радиан за мс).
 const TURN_SPEED = 0.006;
-
-// Смешать два цвета 0xRRGGBB: share = 0 — первый цвет, 1 — второй.
-function mixColors(from: number, to: number, share: number): number {
-  const channel = (shift: number): number => {
-    const a = (from >> shift) & 0xff;
-    const b = (to >> shift) & 0xff;
-    return Math.round(a + (b - a) * share) << shift;
-  };
-  return channel(16) | channel(8) | channel(0);
-}
 
 /**
  * Вертел над костром: две рогатины и палка. На палке жарится один кусок мяса.

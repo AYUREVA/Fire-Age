@@ -1,9 +1,21 @@
 import Phaser from 'phaser';
-import { TABLE_DROP_INTERVAL } from '../settings';
+import {
+  TABLE_DROP_INTERVAL,
+  TRAVELER_EAT_TIME,
+  TRAVELER_FIRST_DELAY,
+  TRAVELER_ORDER_MAX,
+  TRAVELER_ORDER_MIN,
+  TRAVELER_SPAWN_INTERVAL,
+  TRAVELER_TAKE_DELAY,
+  TUSKS_PER_FOOD,
+  WORLD_EDGE,
+  WORLD_WIDTH,
+} from '../settings';
 import { Player } from '../objects/Player';
 import { Backpack } from '../objects/Backpack';
 import { StoneTable } from '../objects/StoneTable';
 import { Hud } from '../objects/Hud';
+import { Traveler } from '../objects/Traveler';
 
 // =====================================================================
 //  Стол и путники: вождь выкладывает еду на стол, путники едят
@@ -38,6 +50,82 @@ export function updateTable(player: Player, backpack: Backpack, table: StoneTabl
   if (!item) return;
 
   table.receive(item, 'cookedMeat');
+}
+
+// ===== Путники =====
+
+// Путники выходят из леса и уходят в лес у правого края поля, чуть дальше границы.
+const FOREST_X = WORLD_WIDTH - WORLD_EDGE + 60;
+// Выходят на высоте стола плюс-минус столько пикселей.
+const SPAWN_SPREAD_Y = 140;
+
+// Путники: приход из леса, очередь у стола, первый в очереди берёт еду,
+// ест, оставляет клыки и уходит. Нет нужной еды — убывает его терпение.
+export function updateTravelers(table: StoneTable, travelers: Traveler[], delta: number): void {
+  callTraveler(table, travelers, delta);
+
+  // Очередь — путники по порядку талонов: кто пришёл раньше, тот ближе к столу.
+  const queue = travelers.filter((traveler) => traveler.isInQueue()).sort((a, b) => a.ticket - b.ticket);
+  queue.forEach((traveler, index) => traveler.setSlot(table.getQueueSlot(index)));
+
+  if (queue.length > 0) serveFirst(table, queue[0], delta);
+}
+
+// Раз в TRAVELER_SPAWN_INTERVAL (первый — через TRAVELER_FIRST_DELAY) из леса выходит
+// новый путник, если в очереди есть место. Путники созданы заранее — зовём свободного.
+function callTraveler(table: StoneTable, travelers: Traveler[], delta: number): void {
+  const interval = table.nextTicket === 1 ? TRAVELER_FIRST_DELAY : TRAVELER_SPAWN_INTERVAL;
+  // Очередь полная — таймер не копится дальше: путник придёт сразу, как освободится место.
+  table.spawnTimer = Math.min(table.spawnTimer + delta, interval);
+  if (table.spawnTimer < interval) return;
+
+  const free = travelers.find((traveler) => traveler.isGone());
+  if (!free) return;
+
+  table.spawnTimer = 0;
+  const order = Phaser.Math.Between(TRAVELER_ORDER_MIN, TRAVELER_ORDER_MAX);
+  const from = { x: FOREST_X, y: table.y + Phaser.Math.Between(-SPAWN_SPREAD_Y, SPAWN_SPREAD_Y) };
+  free.arrive(table.nextTicket, order, from);
+  table.nextTicket += 1;
+}
+
+// Первый в очереди у стола: берёт нужную еду по куску, ест, платит и уходит.
+// Нужной еды на столе нет — ждёт, и его терпение убывает; кончилось — уходит голодным.
+function serveFirst(table: StoneTable, first: Traveler, delta: number): void {
+  // Ест: доел — клыки летят на край стола, путник уходит.
+  if (first.isEating()) {
+    first.eatTime += delta;
+    if (first.eatTime < TRAVELER_EAT_TIME) return;
+    table.addTusks(first.order * TUSKS_PER_FOOD, first.getMouthPoint());
+    first.leave(true, FOREST_X);
+    return;
+  }
+
+  // Ещё идёт к столу — ждём.
+  if (!first.isWaiting()) return;
+
+  const want = first.wants();
+  // Взял всё, что хотел, — ест.
+  if (want.count === 0) {
+    first.startEating();
+    return;
+  }
+
+  // Нужной еды на столе нет — терпение убывает.
+  if (!table.has(want.type)) {
+    first.takeTimer = 0;
+    first.patience -= delta;
+    if (first.patience <= 0) first.leave(false, FOREST_X);
+    return;
+  }
+
+  // Еда есть — берёт по куску раз в TRAVELER_TAKE_DELAY.
+  first.takeTimer += delta;
+  if (first.takeTimer < TRAVELER_TAKE_DELAY) return;
+  first.takeTimer -= TRAVELER_TAKE_DELAY;
+
+  const item = table.takeFood(want.type);
+  if (item) first.takeOne(item);
 }
 
 // ===== Клыки в счётчик =====

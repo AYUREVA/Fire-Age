@@ -64,6 +64,12 @@ export const COLORS = {
   leafLight: 0x67b356, // листва на свету
   leafHighlight: 0x9fd873, // самые светлые листики
 
+  // ===== Путники =====
+  travelerCloak: 0xb98a5a, // меховой плащ путника (оттенок меняет tint)
+  travelerCloakDark: 0x8a6240, // плащ в тени и капюшон
+  // Оттенки (tint) для разных путников, чтобы они не были одинаковыми.
+  travelerTints: [0xffffff, 0xffe0c2, 0xdde8ff, 0xe4f5d6, 0xf3dcf0],
+
   // ===== Заяц =====
   hare: 0xf6f3ec, // белый мех
   hareShade: 0xd9d3c7, // мех в тени
@@ -112,6 +118,9 @@ export const COLORS = {
   hudText: 0xfff6e0, // текст интерфейса
   heatBarBack: 0x3b2a22, // подложка шкалы жара над костром
   heatBar: 0xff8a1f, // заливка шкалы жара
+  patienceFull: 0x7cc84a, // шкала терпения путника: терпения много
+  patienceLow: 0xe8452c, // шкала терпения путника: вот-вот уйдёт
+  bubble: 0xffffff, // пузырь над головой путника
   overlay: 0x0b1220, // затемнение экрана под каменной табличкой
   nightShade: 0x0c1834, // ночная тьма над миром: глубокий синий
   sunsetGlow: 0xff7f8e, // розовый закат
@@ -132,4 +141,15 @@ export const COLORS = {
 // Надписи (Text) в Phaser принимают цвет только строкой.
 export function toCss(color: number): string {
   return '#' + color.toString(16).padStart(6, '0');
+}
+
+// Смешать два цвета 0xRRGGBB: share = 0 — первый цвет, 1 — второй, 0.5 — ровно посередине.
+// Каждый канал (красный, зелёный, синий) смешивается отдельно.
+export function mixColors(from: number, to: number, share: number): number {
+  const channel = (shift: number): number => {
+    const a = (from >> shift) & 0xff;
+    const b = (to >> shift) & 0xff;
+    return Math.round(a + (b - a) * share) << shift;
+  };
+  return channel(16) | channel(8) | channel(0);
 }
