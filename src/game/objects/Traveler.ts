@@ -44,6 +44,14 @@ const PATIENCE_FILL_LEFT = 52 * PATIENCE_SCALE;
 // Голодный путник уходит с красным «!» над головой.
 const ANGRY_Y = 108;
 
+// Виды путников: картинка со спины (идёт к столу, стоит в очереди) и спереди (уходит).
+// Кто придёт — охотник, старец или девушка — выбирается случайно.
+const LOOKS = [
+  { back: TEXTURES.hunterBack, front: TEXTURES.hunterFront },
+  { back: TEXTURES.elderBack, front: TEXTURES.elderFront },
+  { back: TEXTURES.girlBack, front: TEXTURES.girlFront },
+];
+
 // Что сейчас делает путник.
 // 'gone' — его нет на поле (ждёт, когда позовут), 'walking' — идёт к месту в очереди,
 // 'waiting' — стоит на месте в очереди, 'eating' — ест, 'leaving' — уходит в лес.
@@ -85,6 +93,8 @@ export class Traveler {
   private animTime = 0;
   // Какую еду хочет (пока только жареное мясо; рыба — в версии 0.8).
   private wantedType: ItemType = 'cookedMeat';
+  // Как выглядит этот путник (один из LOOKS).
+  private look = LOOKS[0];
 
   // Картинка, тень, пузырь с иконкой и числом, шкала терпения, «!».
   private image: Phaser.GameObjects.Image;
@@ -101,7 +111,7 @@ export class Traveler {
 
     this.shadow = scene.add.image(0, 0, TEXTURES.shadow);
     this.shadow.setScale(SHADOW_WIDTH / this.shadow.width);
-    this.image = scene.add.image(0, 0, TEXTURES.travelerBack).setOrigin(0.5, 1);
+    this.image = scene.add.image(0, 0, this.look.back).setOrigin(0.5, 1);
 
     this.bubble = scene.add.image(0, 0, TEXTURES.bubble).setDepth(OVERHEAD_DEPTH);
     this.bubbleIcon = scene.add.image(0, 0, ITEMS.cookedMeat.texture).setScale(BUBBLE_ICON_SCALE);
@@ -184,8 +194,8 @@ export class Traveler {
     // Пузырь и шкала появятся, когда путник станет первым в очереди (setFront).
     this.showOverhead(false);
     this.angryMark.setVisible(false);
-    // У каждого путника свой оттенок плаща, а посох — то в правой, то в левой руке.
-    this.image.setTint(Phaser.Utils.Array.GetRandom(COLORS.travelerTints));
+    // Кто пришёл — охотник, старец или девушка; иногда отражён — палка в другой руке.
+    this.look = Phaser.Utils.Array.GetRandom(LOOKS);
     this.image.setFlipX(Math.random() < 0.5);
     this.updateBubble();
   }
@@ -280,7 +290,7 @@ export class Traveler {
     const bob = isMoving ? Math.abs(Math.sin(this.animTime * WALK_BOB_SPEED)) * WALK_BOB_HEIGHT : 0;
     const chew = this.state === 'eating' ? Math.sin(this.animTime * CHEW_SPEED) * CHEW_SQUASH : 0;
     // К столу путник идёт и стоит спиной к нам, уходит — лицом к нам.
-    const texture = this.state === 'leaving' ? TEXTURES.travelerFront : TEXTURES.travelerBack;
+    const texture = this.state === 'leaving' ? this.look.front : this.look.back;
     if (this.image.texture.key !== texture) this.image.setTexture(texture);
     this.image.setPosition(this.x, this.y - bob).setScale(1 + chew, 1 - chew).setDepth(this.y);
     this.shadow.setPosition(this.x, this.y).setDepth(this.y + SHADOW_DEPTH_SHIFT);
