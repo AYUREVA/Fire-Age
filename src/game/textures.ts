@@ -31,18 +31,29 @@ export const TEXTURES = {
   ring: 'ring', // светлое кольцо под ногами вождя
   joystickBase: 'joystick-base', // круг джойстика
   joystickKnob: 'joystick-knob', // ручка джойстика
-  rabbit: 'rabbit', // белый заяц, смотрит вправо; точка опоры — лапы
+  rabbit: 'rabbit', // пушистый серо-бурый кролик, смотрит вправо; точка опоры — лапы
+  // Три вида путников. Со спины — идёт к столу и стоит в очереди, спереди — уходит.
+  // Точка опоры — ноги.
+  hunterBack: 'hunter-back', // охотник: рыжие лохмы, котомка, копьё
+  hunterFront: 'hunter-front',
+  elderBack: 'elder-back', // старец: серый капюшон, седые волосы, посох с перьями
+  elderFront: 'elder-front',
+  girlBack: 'girl-back', // девушка: две косы с бусинами, корзина за спиной
+  girlFront: 'girl-front',
+  bubble: 'bubble', // пузырь над головой путника: что он хочет
   bush: 'bush', // зелёный куст, точка опоры — низ ствола
   bushSnow: 'bush-snow', // снег на кроне куста (тот же размер, ложится поверх)
   stump: 'stump', // пенёк — куст без хвороста
   bundle: 'bundle', // связка хвороста, перевязанная верёвкой
   rawMeat: 'raw-meat', // сырое мясо: розовая ножка с косточкой
+  tusk: 'tusk', // клык — валюта каменного века
   cookedMeat: 'cooked-meat', // жареное мясо: румяная ножка с косточкой
   snowflake: 'snowflake', // снежинка: падающий снег и снег из куста
   chip: 'chip', // щепка, летит из куста при ударе
   dropZone: 'drop-zone', // площадка кучи у костра: светлая рамка (иконку ставит ItemPile)
   firePit: 'fire-pit', // кострище: камни и поленья
   spit: 'spit', // вертел над костром: две рогатины и палка; точка опоры — низ
+  stoneTable: 'stone-table', // каменный стол со шкурой: сюда кладут еду для путников
   flame: 'flame', // язык пламени; точка опоры — низ
   glow: 'glow', // мягкий белый круг; его красят в цвет света
   spark: 'spark', // искра костра (белая, цвет задаёт частица)
@@ -95,15 +106,21 @@ const RING_SIZE: Size = { w: 90, h: 44 };
 const JOYSTICK_BASE_SIZE: Size = { w: 128, h: 128 };
 const JOYSTICK_KNOB_SIZE: Size = { w: 60, h: 60 };
 const BUSH_SIZE: Size = { w: 124, h: 104 };
-const RABBIT_SIZE: Size = { w: 60, h: 56 };
+const RABBIT_SIZE: Size = { w: 64, h: 60 };
+const TRAVELER_SIZE: Size = { w: 84, h: 112 };
+const BUBBLE_SIZE: Size = { w: 84, h: 50 };
 const STUMP_SIZE: Size = { w: 80, h: 60 };
 const BUNDLE_SIZE: Size = { w: 56, h: 28 };
 const MEAT_SIZE: Size = { w: 48, h: 32 };
+const TUSK_SIZE: Size = { w: 36, h: 44 };
+// Высота корня клыка (тёмная верхняя часть).
+const TUSK_ROOT_HEIGHT = 12;
 const SNOWFLAKE_SIZE: Size = { w: 12, h: 12 };
 const CHIP_SIZE: Size = { w: 12, h: 9 };
 const DROP_ZONE_SIZE: Size = { w: 220, h: 132 };
 const FIRE_PIT_SIZE: Size = { w: 110, h: 64 };
 const SPIT_SIZE: Size = { w: 170, h: 96 };
+const STONE_TABLE_SIZE: Size = { w: 240, h: 150 };
 const FLAME_SIZE: Size = { w: 64, h: 96 };
 const GLOW_SIZE: Size = { w: 128, h: 128 };
 const SPARK_SIZE: Size = { w: 8, h: 8 };
@@ -171,10 +188,18 @@ export function createTextures(scene: Phaser.Scene): void {
   bake(scene, TEXTURES.joystickBase, JOYSTICK_BASE_SIZE, drawJoystickBase);
   bake(scene, TEXTURES.joystickKnob, JOYSTICK_KNOB_SIZE, drawJoystickKnob);
   bake(scene, TEXTURES.rabbit, RABBIT_SIZE, drawRabbit);
+  bake(scene, TEXTURES.hunterBack, TRAVELER_SIZE, (g) => drawHunter(g, false));
+  bake(scene, TEXTURES.hunterFront, TRAVELER_SIZE, (g) => drawHunter(g, true));
+  bake(scene, TEXTURES.elderBack, TRAVELER_SIZE, (g) => drawElder(g, false));
+  bake(scene, TEXTURES.elderFront, TRAVELER_SIZE, (g) => drawElder(g, true));
+  bake(scene, TEXTURES.girlBack, TRAVELER_SIZE, (g) => drawGirl(g, false));
+  bake(scene, TEXTURES.girlFront, TRAVELER_SIZE, (g) => drawGirl(g, true));
+  bake(scene, TEXTURES.bubble, BUBBLE_SIZE, drawBubble);
   bake(scene, TEXTURES.bush, BUSH_SIZE, drawBush);
   bake(scene, TEXTURES.bushSnow, BUSH_SIZE, drawBushSnow);
   bake(scene, TEXTURES.stump, STUMP_SIZE, drawStump);
   bake(scene, TEXTURES.bundle, BUNDLE_SIZE, drawBundle);
+  bake(scene, TEXTURES.tusk, TUSK_SIZE, drawTusk);
   bake(scene, TEXTURES.rawMeat, MEAT_SIZE, (g) => drawMeat(g, COLORS.rawMeat, COLORS.rawMeatShade, COLORS.rawMeatLight));
   bake(scene, TEXTURES.cookedMeat, MEAT_SIZE, (g) =>
     drawMeat(g, COLORS.cookedMeat, COLORS.cookedMeatShade, COLORS.cookedMeatLight),
@@ -184,6 +209,7 @@ export function createTextures(scene: Phaser.Scene): void {
   bake(scene, TEXTURES.dropZone, DROP_ZONE_SIZE, drawDropZone);
   bake(scene, TEXTURES.firePit, FIRE_PIT_SIZE, drawFirePit);
   bake(scene, TEXTURES.spit, SPIT_SIZE, drawSpit);
+  bake(scene, TEXTURES.stoneTable, STONE_TABLE_SIZE, drawStoneTable);
   bake(scene, TEXTURES.flame, FLAME_SIZE, drawFlame);
   bake(scene, TEXTURES.glow, GLOW_SIZE, drawGlow);
   bake(scene, TEXTURES.spark, SPARK_SIZE, drawSpark);
@@ -1123,39 +1149,336 @@ function drawBundle(g: Graphics): void {
   drawRopeBand(g, 38);
 }
 
-// Белый заяц, смотрит вправо: круглое тело, голова, два длинных уха
-// с розовым внутри, хвостик-помпон, глаз и розовый нос. Лапы внизу картинки.
-function drawRabbit(g: Graphics): void {
-  // Уши: вытянутые овалы, наклонены назад. Рисуются первыми — голова их перекрывает.
-  drawRabbitEar(g, 36, 16, -0.35);
-  drawRabbitEar(g, 43, 15, -0.1);
-  // Хвостик и тело.
-  outlinedCircle(g, 12, 38, 6, COLORS.hare);
-  outlinedEllipse(g, 27, 40, 34, 26, COLORS.hare);
-  g.fillStyle(COLORS.hareShade, 1);
-  g.fillEllipse(27, 47, 26, 8);
-  // Лапки.
-  outlinedEllipse(g, 20, 52, 12, 6, COLORS.hare);
-  outlinedEllipse(g, 37, 52, 12, 6, COLORS.hare);
-  // Голова, глаз, нос.
-  outlinedCircle(g, 42, 30, 11, COLORS.hare);
-  g.fillStyle(COLORS.outline, 1);
-  g.fillCircle(45, 28, 2.5);
-  g.fillStyle(COLORS.white, 1);
-  g.fillCircle(46, 27, 1);
-  g.fillStyle(COLORS.hareNose, 1);
-  g.fillCircle(52, 32, 2.5);
+// ===== Путники =====
+// Три вида путников в стиле вождя: крупная голова, круглые глаза с белками,
+// нос картошкой. У каждого две картинки: со спины (isFront = false) и спереди.
+// Общие части — сапоги, одежда колоколом и лицо — рисуют функции ниже.
+
+// Середина картинки путника по горизонтали и середина головы.
+const TRAVELER_CX = TRAVELER_SIZE.w / 2;
+const TRAVELER_HEAD_Y = 33;
+// Палка (копьё или посох) стоит на столько пикселей правее или левее середины.
+const TRAVELER_STICK_X = 30;
+
+// Сапоги и одежда колоколом: узкая у шеи, широкая внизу, правая сторона в тени,
+// внизу светлая кайма.
+function drawTravelerRobe(g: Graphics, color: number, shade: number): void {
+  const { h } = TRAVELER_SIZE;
+  const cx = TRAVELER_CX;
+
+  outlinedEllipse(g, cx - 11, h - 7, 17, 11, COLORS.furDark);
+  outlinedEllipse(g, cx + 11, h - 7, 17, 11, COLORS.furDark);
+  const robe = [cx - 14, 46, cx + 14, 46, cx + 27, h - 16, cx - 27, h - 16];
+  fillPolygon(g, robe, color);
+  fillPolygon(g, [cx + 5, 47, cx + 14, 46, cx + 27, h - 16, cx + 11, h - 16], shade);
+  strokePolygon(g, robe);
+  g.fillStyle(COLORS.furLight, 1);
+  g.fillRoundedRect(cx - 28, h - 21, 56, 9, 4);
+  g.lineStyle(THIN_OUTLINE_WIDTH, COLORS.outline, 1);
+  g.strokeRoundedRect(cx - 28, h - 21, 56, 9, 4);
 }
 
-// Ухо зайца: наружный белый овал и розовая серединка, повёрнутые на angle (радианы).
-function drawRabbitEar(g: Graphics, x: number, y: number, angle: number): void {
+// Палка от земли выше головы: копьё (с каменным наконечником) или посох.
+function drawTravelerStick(g: Graphics, x: number, isSpear: boolean): void {
+  const { h } = TRAVELER_SIZE;
+  limb(g, x, h - 4, x, 14, 4, COLORS.wood);
+  if (isSpear) {
+    const tip = [x - 6, 16, x, 1, x + 6, 16, x, 21];
+    fillPolygon(g, tip, COLORS.stone);
+    fillPolygon(g, [x, 1, x + 6, 16, x, 21], COLORS.stoneDark);
+    strokePolygon(g, tip);
+    limb(g, x - 4, 22, x + 4, 22, 3, COLORS.leather);
+  } else {
+    outlinedCircle(g, x, 12, 5, COLORS.woodDark);
+  }
+}
+
+// Лицо спереди: круглые глаза с белками, нос картошкой, румянец, улыбка.
+function drawTravelerFace(g: Graphics): void {
+  const cx = TRAVELER_CX;
+  const y = TRAVELER_HEAD_Y;
+  outlinedCircle(g, cx, y, 14, COLORS.skin);
+  g.fillStyle(COLORS.cheek, 0.7);
+  g.fillCircle(cx - 8, y + 5, 3.5);
+  g.fillCircle(cx + 8, y + 5, 3.5);
+  drawRoundEye(g, cx - 6, y - 2, 8, 9);
+  drawRoundEye(g, cx + 6, y - 2, 8, 9);
+  outlinedCircle(g, cx, y + 3, 3.5, COLORS.nose);
+  g.lineStyle(2, COLORS.outline, 1);
+  g.beginPath();
+  g.arc(cx, y + 6, 4, Math.PI * 0.15, Math.PI * 0.85);
+  g.strokePath();
+}
+
+// Охотник: пятнистая шкура, рыжие лохмы и борода, копьё. Со спины — котомка.
+function drawHunter(g: Graphics, isFront: boolean): void {
+  const cx = TRAVELER_CX;
+  const y = TRAVELER_HEAD_Y;
+
+  drawTravelerStick(g, cx + TRAVELER_STICK_X, true);
+  drawTravelerRobe(g, COLORS.fur, COLORS.furShade);
+  g.fillStyle(COLORS.furSpot, 1);
+  for (const [x, sy, r] of [[cx - 8, 60, 3], [cx + 6, 70, 3.5], [cx - 12, 80, 3], [cx + 14, 86, 2.5], [cx - 2, 90, 3]]) {
+    g.fillCircle(x, sy, r);
+  }
+  if (isFront) {
+    // Лохматые рыжие волосы — круги с общей обводкой вокруг головы.
+    outlinedBlobs(g, [cx - 12, y - 6, 9, cx, y - 11, 10, cx + 12, y - 6, 9, cx - 15, y + 4, 7, cx + 15, y + 4, 7], COLORS.hair);
+    // Лямки котомки и рука в рукавице на копье.
+    limb(g, cx - 12, 48, cx - 6, 84, 4, COLORS.rope);
+    limb(g, cx + 12, 48, cx + 6, 84, 4, COLORS.rope);
+    outlinedCircle(g, cx + TRAVELER_STICK_X - 2, 64, 6, COLORS.furDark);
+    drawTravelerFace(g);
+    // Рыжая борода и брови.
+    outlinedBlobs(g, [cx - 9, y + 11, 6, cx, y + 14, 7, cx + 9, y + 11, 6], COLORS.hair);
+    g.fillStyle(COLORS.skin, 1);
+    g.fillEllipse(cx, y + 6, 12, 5);
+    g.lineStyle(2, COLORS.outline, 1);
+    g.beginPath();
+    g.arc(cx, y + 5, 4, Math.PI * 0.15, Math.PI * 0.85);
+    g.strokePath();
+    g.lineStyle(3, COLORS.hair, 1);
+    g.lineBetween(cx - 10, y - 9, cx - 3, y - 8);
+    g.lineBetween(cx + 3, y - 8, cx + 10, y - 9);
+  } else {
+    // Затылок — лохматая копна волос с парой светлых прядей. Котомка: мешок с верёвкой и заплаткой.
+    outlinedBlobs(
+      g,
+      [cx - 8, y - 6, 10, cx + 8, y - 6, 10, cx - 10, y + 5, 9, cx + 10, y + 5, 9, cx, y + 9, 9, cx, y - 10, 9],
+      COLORS.hair,
+    );
+    g.lineStyle(2.5, COLORS.hairLight, 1);
+    g.lineBetween(cx - 6, y - 12, cx - 3, y - 2);
+    g.lineBetween(cx + 4, y - 10, cx + 7, y + 1);
+    g.lineBetween(cx - 1, y + 2, cx + 1, y + 12);
+    outlinedEllipse(g, cx, 70, 38, 34, COLORS.sack);
+    g.fillStyle(COLORS.sackDark, 1);
+    g.fillEllipse(cx + 5, 77, 26, 14);
+    g.fillStyle(COLORS.sack, 1);
+    g.fillEllipse(cx - 2, 68, 28, 22);
+    g.fillStyle(COLORS.sackDark, 1);
+    g.fillRect(cx + 3, 68, 9, 8);
+    g.lineStyle(THIN_OUTLINE_WIDTH, COLORS.outline, 1);
+    g.strokeRect(cx + 3, 68, 9, 8);
+    outlinedEllipse(g, cx, 54, 16, 8, COLORS.sack);
+    limb(g, cx - 9, 57, cx + 9, 57, 3, COLORS.rope);
+  }
+}
+
+// Старец: серый плащ с капюшоном, длинная седая борода, посох с перьями.
+function drawElder(g: Graphics, isFront: boolean): void {
+  const cx = TRAVELER_CX;
+  const y = TRAVELER_HEAD_Y;
+  // Посох — в левой руке.
+  const stickX = cx - TRAVELER_STICK_X;
+
+  drawTravelerStick(g, stickX, false);
+  // Перья на посохе — свисают из-под кожаной обмотки в стороны.
+  for (const [dx, dy, angle, color] of [[-6, 28, 0.35, COLORS.feather], [6, 29, -0.35, COLORS.featherAlt], [0, 33, 0, COLORS.feather]]) {
+    g.save();
+    g.translateCanvas(stickX + dx, dy);
+    g.rotateCanvas(angle);
+    outlinedEllipse(g, 0, 0, 7, 20, color);
+    g.lineStyle(1.5, COLORS.outline, 0.6);
+    g.lineBetween(0, -9, 0, 9);
+    g.restore();
+  }
+  limb(g, stickX - 3, 18, stickX + 3, 18, 3, COLORS.leather);
+  drawTravelerRobe(g, COLORS.elderCloak, COLORS.elderCloakDark);
+  // Капюшон.
+  outlinedCircle(g, cx, y - 1, 20, COLORS.elderCloakDark);
+
+  if (isFront) {
+    outlinedCircle(g, stickX + 3, 62, 6, COLORS.furDark);
+    drawTravelerFace(g);
+    // Длинная седая борода до пояса и пушистые седые брови.
+    outlinedBlobs(
+      g,
+      [cx - 9, y + 11, 7, cx + 9, y + 11, 7, cx, y + 16, 9, cx - 4, y + 26, 7, cx + 4, y + 26, 7, cx, y + 35, 6, cx, y + 42, 4],
+      COLORS.elderHair,
+    );
+    g.fillStyle(COLORS.skin, 1);
+    g.fillEllipse(cx, y + 6, 10, 4);
+    outlinedBlobs(g, [cx - 5, y + 9, 4, cx + 5, y + 9, 4], COLORS.elderHair);
+    g.lineStyle(4, COLORS.elderHair, 1);
+    g.lineBetween(cx - 11, y - 9, cx - 3, y - 7);
+    g.lineBetween(cx + 3, y - 7, cx + 11, y - 9);
+  } else {
+    // Из-под капюшона на спину — седые пряди. Острый кончик капюшона.
+    outlinedBlobs(g, [cx - 8, y + 16, 6, cx + 8, y + 16, 6, cx, y + 19, 6], COLORS.elderHair);
+    const tip = [cx - 6, y - 18, cx, y - 26, cx + 6, y - 18];
+    fillPolygon(g, tip, COLORS.elderCloakDark);
+    strokePolygon(g, tip);
+    g.lineStyle(THIN_OUTLINE_WIDTH, COLORS.outline, 0.6);
+    g.lineBetween(cx, y - 18, cx, y + 12);
+  }
+}
+
+// Девушка: светлая шубка, тёмные волосы с двумя косами и бусинами,
+// ожерелье из клыков. Со спины — плетёная корзина.
+function drawGirl(g: Graphics, isFront: boolean): void {
+  const cx = TRAVELER_CX;
+  const y = TRAVELER_HEAD_Y;
+
+  drawTravelerRobe(g, COLORS.furLight, COLORS.fur);
+
+  if (isFront) {
+    // Волосы вокруг головы, косы по бокам лица до груди (на концах бусины).
+    outlinedBlobs(g, [cx - 12, y - 5, 9, cx, y - 10, 10, cx + 12, y - 5, 9], COLORS.girlHair);
+    drawBraid(g, cx - 14, y + 4, cx - 16, y + 30);
+    drawBraid(g, cx + 14, y + 4, cx + 16, y + 30);
+    drawTravelerFace(g);
+    // Чёлка — выше глаз.
+    outlinedBlobs(g, [cx - 7, y - 13, 6, cx + 7, y - 13, 6, cx, y - 15, 6], COLORS.girlHair);
+    // Ожерелье из маленьких клыков.
+    for (const dx of [-8, -3, 3, 8]) {
+      const tooth = [cx + dx - 2, 50, cx + dx + 2, 50, cx + dx, 56];
+      fillPolygon(g, tooth, COLORS.tusk);
+      strokePolygon(g, tooth);
+    }
+  } else {
+    // Плетёная корзина за спиной: обод и прутья.
+    const basket = [cx - 20, 52, cx + 20, 52, cx + 16, 92, cx - 16, 92];
+    fillPolygon(g, basket, COLORS.basket);
+    g.lineStyle(2, COLORS.basketDark, 1);
+    for (let by = 59; by <= 87; by += 7) g.lineBetween(cx - 18, by, cx + 18, by);
+    for (let bx = -12; bx <= 12; bx += 8) g.lineBetween(cx + bx, 54, cx + bx * 0.82, 91);
+    strokePolygon(g, basket);
+    outlinedEllipse(g, cx, 52, 44, 10, COLORS.basketDark);
+    // Затылок и две косы, лежащие на плечах по бокам корзины.
+    outlinedBlobs(g, [cx - 8, y - 2, 10, cx + 8, y - 2, 10, cx, y - 9, 10, cx, y + 5, 9], COLORS.girlHair);
+    drawBraid(g, cx - 12, y + 10, cx - 22, y + 36);
+    drawBraid(g, cx + 12, y + 10, cx + 22, y + 36);
+  }
+}
+
+// Коса от (x1, y1) до (x2, y2): цепочка кружков-«звеньев», на конце бусина.
+function drawBraid(g: Graphics, x1: number, y1: number, x2: number, y2: number): void {
+  const links = 5;
+  const blobs: number[] = [];
+  for (let i = 0; i <= links; i++) {
+    const t = i / links;
+    blobs.push(Phaser.Math.Linear(x1, x2, t), Phaser.Math.Linear(y1, y2, t), 4.5 - t * 1.2);
+  }
+  outlinedBlobs(g, blobs, COLORS.girlHair);
+  outlinedCircle(g, x2, y2 + 6, 3.5, COLORS.bead);
+}
+
+// Пузырь над головой путника: белый овал с хвостиком вниз и тёмной обводкой.
+function drawBubble(g: Graphics): void {
+  const { w, h } = BUBBLE_SIZE;
+  const body = h - 12;
+
+  g.fillStyle(COLORS.bubble, 1);
+  g.fillRoundedRect(2, 2, w - 4, body, 16);
+  fillPolygon(g, [w / 2 - 8, body, w / 2 + 8, body, w / 2, h - 2], COLORS.bubble);
+  g.lineStyle(OUTLINE_WIDTH, COLORS.outline, 1);
+  g.strokeRoundedRect(2, 2, w - 4, body, 16);
+  g.lineBetween(w / 2 - 8, body + 1, w / 2, h - 2);
+  g.lineBetween(w / 2 + 8, body + 1, w / 2, h - 2);
+  // Закрашиваем обводку там, где хвостик соединяется с пузырём.
+  g.fillStyle(COLORS.bubble, 1);
+  g.fillRect(w / 2 - 6, body - 3, 12, 4);
+}
+
+// Пушистый серо-бурый кролик, смотрит вправо. Тело — из нескольких кругов,
+// поэтому по краю видны вихры меха. Светлое брюхо и щёки, большие уши
+// с розовым внутри (дальнее темнее), крупный блестящий глаз, хвостик-помпон.
+// Лапы — внизу картинки.
+function drawRabbit(g: Graphics): void {
+  // Дальнее ухо (темнее) и ближнее — рисуются первыми, голова их перекрывает.
+  drawRabbitEar(g, 40, 18, -0.45, COLORS.rabbitShade, COLORS.rabbitEarShade);
+  drawRabbitEar(g, 47, 16, -0.12, COLORS.rabbitFur, COLORS.rabbitEar);
+  // Хвостик-помпон.
+  outlinedBlobs(g, [11, 38, 6, 14, 33, 5, 9, 34, 4], COLORS.rabbitBelly);
+  // Пушистое тело: круги с общей обводкой, тень снизу, светлая спинка.
+  outlinedBlobs(g, [22, 40, 14, 33, 38, 13, 15, 45, 10, 28, 47, 12, 37, 45, 10], COLORS.rabbitFur);
+  g.fillStyle(COLORS.rabbitShade, 1);
+  g.fillEllipse(24, 51, 26, 7);
+  g.fillStyle(COLORS.rabbitLight, 1);
+  g.fillEllipse(25, 33, 16, 6);
+  // Светлое брюхо спереди.
+  g.fillStyle(COLORS.rabbitBelly, 1);
+  g.fillEllipse(38, 46, 12, 14);
+  // Длинная задняя лапа и маленькая передняя.
+  outlinedEllipse(g, 20, 55, 18, 6, COLORS.rabbitBelly);
+  outlinedEllipse(g, 42, 55, 9, 5, COLORS.rabbitBelly);
+  // Голова: светлая макушка и светлая мордочка спереди.
+  outlinedCircle(g, 46, 30, 13, COLORS.rabbitFur);
+  g.fillStyle(COLORS.rabbitLight, 1);
+  g.fillEllipse(42, 22, 12, 5);
+  g.fillStyle(COLORS.rabbitBelly, 1);
+  g.fillEllipse(53, 36, 12, 9);
+  // Большой блестящий глаз: тёмный, с двумя бликами.
+  g.fillStyle(COLORS.rabbitEye, 1);
+  g.fillEllipse(49, 27, 8, 9);
+  g.fillStyle(COLORS.white, 1);
+  g.fillCircle(50.8, 24.8, 2);
+  g.fillCircle(47.8, 29.5, 1);
+  // Нос и усы.
+  g.fillStyle(COLORS.rabbitNose, 1);
+  g.fillEllipse(58, 33, 5, 4);
+  g.lineStyle(1, COLORS.outline, 0.45);
+  g.lineBetween(56, 36, 63, 35);
+  g.lineBetween(56, 37, 62, 40);
+}
+
+// Ухо кролика: овал цвета fur с розовой серединкой inner, повёрнутый на angle (радианы).
+function drawRabbitEar(g: Graphics, x: number, y: number, angle: number, fur: number, inner: number): void {
   g.save();
   g.translateCanvas(x, y);
   g.rotateCanvas(angle);
-  outlinedEllipse(g, 0, 0, 9, 24, COLORS.hare);
-  g.fillStyle(COLORS.hareEar, 1);
-  g.fillEllipse(0, 1, 4, 16);
+  outlinedEllipse(g, 0, 0, 10, 27, fur);
+  g.fillStyle(inner, 1);
+  g.fillEllipse(0, 2, 4.5, 18);
   g.restore();
+}
+
+// Клык саблезуба. Сверху — корень с неровным краем, ниже — изогнутый клинок
+// эмали, который сужается к острию и чуть загибается влево. Объём — три слоя
+// по одной кривой: основа, тень вдоль вогнутого края и блик вдоль выпуклого.
+function drawTusk(g: Graphics): void {
+  const { w } = TUSK_SIZE;
+  const top = TUSK_ROOT_HEIGHT;
+  const length = TUSK_SIZE.h - top - 2;
+  // Середина клинка на доле длины t (0 — у корня, 1 — остриё): к острию уходит влево.
+  const centerX = (t: number): number => w / 2 + 4 - 13 * Math.pow(t, 1.5);
+  // Половина толщины клинка: у корня широкий, долго держит толщину и резко сходится в остриё.
+  const halfWidth = (t: number): number => 10 * Math.pow(1 - t, 0.55);
+  const y = (t: number): number => top + length * t;
+
+  // Точки края клинка: right — выпуклый край (справа), left — вогнутый (слева).
+  // shift — насколько точка сдвинута внутрь от края (доля толщины).
+  const edge = (side: number, shift: number, from: number, to: number): number[] => {
+    const points: number[] = [];
+    const steps = 12;
+    for (let i = 0; i <= steps; i++) {
+      const t = Phaser.Math.Linear(from, to, i / steps);
+      points.push(centerX(t) + side * halfWidth(t) * (1 - shift), y(t));
+    }
+    return points;
+  };
+  const reversed = (points: number[]): number[] => {
+    const result: number[] = [];
+    for (let i = points.length - 2; i >= 0; i -= 2) result.push(points[i], points[i + 1]);
+    return result;
+  };
+
+  const blade = [...edge(1, 0, 0, 1), ...reversed(edge(-1, 0, 0, 1))];
+  fillPolygon(g, blade, COLORS.tusk);
+  // Тень вдоль вогнутого края.
+  fillPolygon(g, [...edge(-1, 0, 0, 1), ...reversed(edge(-1, 0.55, 0, 0.95))], COLORS.tuskShade);
+  // Блик вдоль выпуклого края — узкая белая полоска.
+  fillPolygon(g, [...edge(1, 0.25, 0.08, 0.7), ...reversed(edge(1, 0.6, 0.08, 0.7))], COLORS.tuskShine);
+  strokePolygon(g, blade);
+
+  // Корень — шириной с основание клинка: неровный верх, правая сторона в тени.
+  const left = centerX(0) - halfWidth(0);
+  const right = centerX(0) + halfWidth(0);
+  const root = [left, top + 1, left - 1, 6, left + 4, 3, left + 8, 5, left + 12, 2, right, 5, right, top + 1];
+  fillPolygon(g, root, COLORS.tuskRoot);
+  fillPolygon(g, [left + 10, top + 1, left + 11, 4, left + 12, 2, right, 5, right, top + 1], COLORS.tuskRootShade);
+  strokePolygon(g, root);
 }
 
 // Мультяшная мясная ножка: косточка слева, круглый кусок мяса справа,
@@ -1296,6 +1619,92 @@ function drawSpit(g: Graphics): void {
   }
   // Палка вертела поверх рогатин.
   limb(g, 4, skewerY, w - 4, skewerY, 5, COLORS.woodLight);
+}
+
+// Каменный стол: толстая плита на двух валунах в сугробах. Сверху — шкура
+// саблезуба: светлое брюхо, тёмные полосы, лапы по углам свисают с плиты.
+// Для уюта — деревянная миска и косточка.
+function drawStoneTable(g: Graphics): void {
+  const { w, h } = STONE_TABLE_SIZE;
+  const cx = w / 2;
+
+  // Мягкая тень под столом — он стоит на снегу, а не висит в воздухе.
+  softEllipse(g, cx, h - 10, w - 30, 26, COLORS.shadow, 0.05, 8);
+
+  // Валуны-ножки, наполовину в сугробах.
+  for (const x of [62, w - 62]) {
+    outlinedBlobs(g, [x - 12, h - 22, 17, x + 12, h - 20, 16, x, h - 32, 18], COLORS.stoneDark);
+    g.fillStyle(COLORS.stone, 1);
+    g.fillCircle(x - 4, h - 30, 13);
+    g.fillStyle(COLORS.stoneLight, 1);
+    g.fillEllipse(x - 9, h - 36, 11, 6);
+    g.fillStyle(COLORS.snow, 1);
+    g.fillEllipse(x, h - 8, 66, 16);
+    g.fillStyle(COLORS.snowShade, 1);
+    g.fillEllipse(x + 4, h - 4, 50, 6);
+    g.lineStyle(THIN_OUTLINE_WIDTH, COLORS.outline, 1);
+    g.beginPath();
+    g.arc(x, h - 8, 33, Math.PI * 1.08, Math.PI * 1.92);
+    g.strokePath();
+  }
+
+  // Плита: толстый тёмный торец спереди, сверху светлая столешница,
+  // по торцу трещины и крапинки.
+  // Края неровные, со сколами — это обтёсанный камень, а не ровная доска.
+  const front = [9, 72, 22, 82, 70, 80, w - 64, 82, w - 18, 80, w - 8, 72, w - 7, 100, w - 22, 112, w / 2, 110, 24, 113, 8, 102];
+  fillPolygon(g, front, COLORS.stoneDark);
+  strokePolygon(g, front);
+  const topFace = [15, 40, 28, 28, 80, 30, w - 76, 27, w - 30, 28, w - 12, 38, w - 8, 72, w - 18, 80, w - 64, 82, 70, 80, 22, 82, 9, 72];
+  fillPolygon(g, topFace, COLORS.stone);
+  fillPolygon(g, [28, 28, 80, 30, w - 76, 27, w - 30, 28, w - 24, 34, 30, 36], COLORS.stoneLight);
+  // Светлое ребро там, где столешница переходит в торец.
+  limbChain(g, [22, 82, 70, 80, w - 64, 82, w - 18, 80], 2, COLORS.stoneLight);
+  strokePolygon(g, topFace);
+  g.lineStyle(THIN_OUTLINE_WIDTH, COLORS.outline, 0.6);
+  g.strokePoints(toPoints([34, 92, 40, 100, 36, 108]), false);
+  g.strokePoints(toPoints([w - 44, 94, w - 50, 104]), false);
+  g.fillStyle(COLORS.stoneLight, 0.8);
+  for (const [x, y] of [[56, 100], [104, 104], [150, 98], [190, 106]]) g.fillCircle(x, y, 2);
+
+  // Шкура: тело с лапами по углам и хвостом справа. Передние лапы свисают с плиты.
+  const pelt = [
+    cx, 38, cx + 30, 37, cx + 56, 39, cx + 78, 32, cx + 86, 29, cx + 88, 39, cx + 80, 46, cx + 90, 54,
+    cx + 106, 56, cx + 108, 63, cx + 90, 64, cx + 92, 74, cx + 98, 92, cx + 86, 95, cx + 76, 80,
+    cx + 50, 84, cx + 26, 86, cx, 87, cx - 26, 86, cx - 50, 84, cx - 76, 80, cx - 86, 95, cx - 98, 92,
+    cx - 92, 74, cx - 88, 64, cx - 100, 58, cx - 90, 52, cx - 88, 42, cx - 92, 31, cx - 82, 29, cx - 76, 38,
+    cx - 56, 37, cx - 30, 37,
+  ];
+  fillPolygon(g, pelt, COLORS.fur);
+  // Светлое брюхо посередине.
+  g.fillStyle(COLORS.furLight, 1);
+  g.fillEllipse(cx, 61, 120, 26);
+  // Тёмные полосы: от краёв шкуры к брюху, сверху и снизу вразнобой.
+  for (const x of [cx - 62, cx - 31, cx, cx + 31, cx + 62]) {
+    limb(g, x - 3, 39, x + 2, 50, 5, COLORS.furSpot);
+  }
+  for (const x of [cx - 46, cx - 15, cx + 15, cx + 46]) {
+    limb(g, x + 3, 85, x - 1, 74, 5, COLORS.furSpot);
+  }
+  limbChain(g, [cx + 96, 57, cx + 100, 62], 3, COLORS.furSpot);
+  strokePolygon(g, pelt);
+  // Мех по краю: короткие светлые штрихи.
+  g.lineStyle(2, COLORS.furShade, 1);
+  for (let x = cx - 70; x <= cx + 70; x += 14) {
+    g.lineBetween(x, 83, x + 3, 79);
+    g.lineBetween(x + 6, 41, x + 9, 45);
+  }
+
+  // Деревянная миска справа сзади и косточка слева спереди.
+  outlinedEllipse(g, cx + 86, 47, 28, 13, COLORS.wood);
+  g.fillStyle(COLORS.woodDark, 1);
+  g.fillEllipse(cx + 86, 45, 20, 6);
+  g.fillStyle(COLORS.woodLight, 1);
+  g.fillEllipse(cx + 79, 50, 7, 3);
+  limb(g, cx - 82, 78, cx - 64, 74, 4, COLORS.bone);
+  outlinedCircle(g, cx - 84, 76, 3.5, COLORS.bone);
+  outlinedCircle(g, cx - 83, 81, 3.5, COLORS.bone);
+  outlinedCircle(g, cx - 62, 71, 3.5, COLORS.bone);
+  outlinedCircle(g, cx - 62, 76, 3.5, COLORS.bone);
 }
 
 // Язык пламени: несколько «капель» одна в другой — от красного края до почти белой середины.

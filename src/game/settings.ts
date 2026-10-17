@@ -21,12 +21,13 @@ export const NIGHT_DURATION = 120000;
 // За сколько мс до ночи начинается закат: небо розовеет.
 export const SUNSET_TIME = 8000;
 
-// Фазы суток. Ночью (фаза 2) меняются ровно два параметра:
+// Фазы суток. Ночью (фаза 2) меняются три параметра:
 // fireBurnMultiplier — во сколько раз быстрее прогорает костёр,
-// playerSpeedMultiplier — во сколько раз меняется скорость вождя (0.6 — на 40% медленнее).
+// playerSpeedMultiplier — во сколько раз меняется скорость вождя (0.6 — на 40% медленнее),
+// rabbitSpeedMultiplier — во сколько раз меняется скорость кроликов.
 export const PHASES = {
-  day: { fireBurnMultiplier: 1, playerSpeedMultiplier: 1 },
-  night: { fireBurnMultiplier: 2, playerSpeedMultiplier: 0.6 },
+  day: { fireBurnMultiplier: 1, playerSpeedMultiplier: 1, rabbitSpeedMultiplier: 1 },
+  night: { fireBurnMultiplier: 2, playerSpeedMultiplier: 0.6, rabbitSpeedMultiplier: 0.6 },
 };
 
 // ===== МИР =====
@@ -34,8 +35,8 @@ export const PHASES = {
 // Ширина всего мира. Экран — 960, значит мир примерно в 2,5 экрана.
 export const WORLD_WIDTH = 2400;
 
-// Высота всего мира. Экран — 640.
-export const WORLD_HEIGHT = 1600;
+// Высота всего мира. Короткая сторона экрана — 640. Внизу, под лагерем, — стол и очередь путников.
+export const WORLD_HEIGHT = 2000;
 
 // Ширина полосы леса по краям мира. Вождь в лес не заходит.
 export const WORLD_EDGE = 170;
@@ -54,9 +55,10 @@ export const JOYSTICK_RADIUS = 60;
 
 // ===== ЗА СПИНОЙ =====
 
-// Сколько всего предметов вождь уносит за раз — на все колонки за спиной вместе
-// (хворост, сырое мясо, жареное мясо). Полная спина — «МАКС».
-export const BACKPACK_CAPACITY = 10;
+// Сколько предметов помещается в одну колонку за спиной. У каждой колонки
+// (хворост, сырое мясо, жареное мясо) этот лимит свой и одинаковый.
+// Полная колонка — над ней «МАКС», а другие колонки ещё берут.
+export const STACK_CAPACITY = 10;
 
 // ===== КУСТЫ ХВОРОСТА =====
 
@@ -120,7 +122,7 @@ export const EMBER_TIME = 10000;
 // ===== КРОЛИКИ =====
 
 // Сколько кроликов бегает по полю одновременно.
-export const RABBIT_COUNT = 4;
+export const RABBIT_COUNT = 8;
 
 // Скорость кролика, когда он спокойно бродит (пиксели в секунду).
 export const RABBIT_WANDER_SPEED = 60;
@@ -132,7 +134,7 @@ export const RABBIT_FLEE_SPEED = 150;
 export const RABBIT_FLEE_RADIUS = 200;
 
 // Вождь ближе этого расстояния — кролик пойман: удар дубиной, мясо на спину.
-export const CATCH_RADIUS = 55;
+export const CATCH_RADIUS = 90;
 
 // Через сколько мс после поимки из леса прибегает новый кролик.
 export const RABBIT_RESPAWN_TIME = 10000;
@@ -153,6 +155,46 @@ export const COOKED_MEAT_PILE_CAPACITY = 6;
 
 // Сколько мс жарится один кусок мяса на вертеле (только пока огонь горит).
 export const COOK_TIME = 4000;
+
+// ===== СТОЛ И ПУТНИКИ =====
+
+// Где стоит каменный стол: прямо под костром. Вождь подходит к нему сверху
+// и выкладывает жареное мясо, путники стоят в очереди снизу.
+export const TABLE_POSITION = { x: 1120, y: 1365 };
+
+// Сколько еды помещается на стол.
+export const TABLE_CAPACITY = 8;
+
+// Как быстро еда со спины перелетает на стол (мс между кусками) — почти разом.
+export const TABLE_DROP_INTERVAL = 60;
+
+// Сколько путников может стоять в очереди у стола одновременно.
+export const QUEUE_SIZE = 4;
+
+// Через сколько мс после начала игры приходит первый путник.
+export const TRAVELER_FIRST_DELAY = 10000;
+
+// Как часто приходят следующие путники (мс), если в очереди есть место.
+export const TRAVELER_SPAWN_INTERVAL = 15000;
+
+// Скорость путника (пиксели в секунду).
+export const TRAVELER_SPEED = 90;
+
+// Сколько кусков жареного мяса хочет путник: случайно от и до.
+export const TRAVELER_ORDER_MIN = 1;
+export const TRAVELER_ORDER_MAX = 3;
+
+// Первый в очереди берёт со стола по куску раз в столько мс.
+export const TRAVELER_TAKE_DELAY = 700;
+
+// Сколько мс путник ждёт, пока на столе нет нужной еды. Потом уходит голодным, без оплаты.
+export const TRAVELER_PATIENCE = 30000;
+
+// Сколько мс путник ест, прежде чем оставить клыки и уйти.
+export const TRAVELER_EAT_TIME = 1200;
+
+// Сколько клыков путник оставляет за каждый съеденный кусок.
+export const TUSKS_PER_FOOD = 2;
 
 // ===== ПОЛЕННИЦА У КОСТРА =====
 

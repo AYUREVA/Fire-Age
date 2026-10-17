@@ -13,6 +13,8 @@ import {
   RAW_MEAT_PILE_POSITION,
   RAW_MEAT_PILE_CAPACITY,
   COOKED_MEAT_PILE_POSITION,
+  TABLE_POSITION,
+  QUEUE_SIZE,
   COOKED_MEAT_PILE_CAPACITY,
   PHASES,
   FIRE_MAX_HEAT,
@@ -24,6 +26,8 @@ import { ResourceNode } from '../objects/ResourceNode';
 import { ItemPile } from '../objects/ItemPile';
 import { Rabbit } from '../objects/Rabbit';
 import { Spit } from '../objects/Spit';
+import { StoneTable } from '../objects/StoneTable';
+import { Traveler } from '../objects/Traveler';
 import { Campfire } from '../objects/Campfire';
 import { Hud } from '../objects/Hud';
 import { CycleEvent, DayNightCycle } from '../objects/DayNightCycle';
@@ -31,6 +35,7 @@ import { NightOverlay } from '../objects/NightOverlay';
 import { PhaseBanner } from '../ui/PhaseBanner';
 import { updateDropping, updateGathering, updateHunting, updatePickup } from '../systems/Gathering';
 import { updateCooking } from '../systems/Cooking';
+import { updateTable, updateTravelers, updateTusks } from '../systems/Serving';
 import { updateFire } from '../systems/Fire';
 import { ResultData } from './ResultScene';
 
@@ -82,9 +87,13 @@ const FOREST_SCALE_MAX = 1.15;
 // Ширина тени относительно ширины предмета.
 const SHADOW_WIDTH_RATIO = 0.85;
 // Мелкий декор не кладём ближе этого расстояния к кусту — чтобы не торчал из куста —
-// и к костру — чтобы весь лагерь (костёр, вертел, кучи) стоял на чистом снегу.
+// к костру — чтобы лагерь (костёр, вертел, кучи) стоял на чистом снегу —
+// и к столу — чтобы на чистом снегу стояли стол и очередь путников под ним.
 const BUSH_CLEAR_RADIUS = 80;
 const CAMP_CLEAR_RADIUS = 360;
+const TABLE_CLEAR_RADIUS = 320;
+// Середина чистого места у стола — ниже стола, там стоит очередь.
+const TABLE_CLEAR_SHIFT_Y = 120;
 
 // ===== Падающий снег =====
 
@@ -133,6 +142,10 @@ export class GameScene extends Phaser.Scene {
   private rawMeatPile!: ItemPile;
   private spit!: Spit;
   private cookedMeatPile!: ItemPile;
+  // Каменный стол: сюда вождь кладёт жареное мясо, у него очередь путников и кучка клыков.
+  private table!: StoneTable;
+  // Путники: созданы заранее (сколько мест в очереди), приходят из леса по очереди.
+  private travelers: Traveler[] = [];
   // Интерфейс: сколько осталось до конца дня или ночи, кнопка паузы.
   private hud!: Hud;
   // Смена дня и ночи: фаза, номер суток, сколько осталось до конца фазы.
@@ -158,6 +171,7 @@ export class GameScene extends Phaser.Scene {
     // сохраняют старые значения, поэтому сбрасываем их здесь.
     this.bushes = [];
     this.rabbits = [];
+    this.travelers = [];
     this.isOver = false;
 
     createTextures(this);
@@ -190,6 +204,10 @@ export class GameScene extends Phaser.Scene {
       'cookedMeat',
       COOKED_MEAT_PILE_CAPACITY,
     );
+    this.table = new StoneTable(this, TABLE_POSITION.x, TABLE_POSITION.y);
+    for (let i = 0; i < QUEUE_SIZE; i++) {
+      this.travelers.push(new Traveler(this));
+    }
 
     this.player = new Player(this, PLAYER_START.x, PLAYER_START.y);
     this.backpack = new Backpack(this);
@@ -208,8 +226,8 @@ export class GameScene extends Phaser.Scene {
   // Порядок: сначала двигаем вождя, потом стопку за ним, потом системы
   // (systems/) проверяют, что вождь делает рядом с кустами и с поленницей.
   update(_time: number, delta: number): void {
-    // Параметры текущей фазы суток. Ночью меняются ровно два: скорость вождя
-    // и скорость горения костра (таблица PHASES в settings.ts).
+    // Параметры текущей фазы суток. Ночью меняются три: скорость вождя,
+    // скорость горения костра и скорость кроликов (таблица PHASES в settings.ts).
     const phase = PHASES[this.cycle.phase];
 
     this.player.update(delta, phase.playerSpeedMultiplier);
@@ -227,7 +245,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     for (const rabbit of this.rabbits) {
-      rabbit.update(delta, this.player.x, this.player.y);
+      rabbit.update(delta, this.player.x, this.player.y, phase.rabbitSpeedMultiplier);
     }
 
     updateGathering(this.player, this.backpack, this.bushes, delta);
@@ -239,6 +257,13 @@ export class GameScene extends Phaser.Scene {
     updateCooking(this.campfire, this.rawMeatPile, this.spit, this.cookedMeatPile, delta);
     this.spit.update(delta);
     this.nightOverlay.update(this.campfire.x, this.campfire.y, this.campfire.heat / FIRE_MAX_HEAT);
+
+    updateTable(this.player, this.backpack, this.table, delta);
+    for (const traveler of this.travelers) {
+      traveler.update(delta);
+    }
+    updateTravelers(this.table, this.travelers, delta);
+    updateTusks(this.player, this.table, this.hud, this.cameras.main);
 
     const cycleEvent = this.cycle.update(delta);
     this.hud.setTimeLeft(this.cycle.timeLeft);
@@ -342,10 +367,11 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  // Рядом ли точка (x, y) с кустом или с лагерем — там декор не кладём.
+  // Рядом ли точка (x, y) с кустом, лагерем или столом — там декор не кладём.
   private isNearImportantPlace(x: number, y: number): boolean {
     const nearCamp =
-      Phaser.Math.Distance.Between(x, y, CAMPFIRE_POSITION.x, CAMPFIRE_POSITION.y) < CAMP_CLEAR_RADIUS;
+      Phaser.Math.Distance.Between(x, y, CAMPFIRE_POSITION.x, CAMPFIRE_POSITION.y) < CAMP_CLEAR_RADIUS ||
+      Phaser.Math.Distance.Between(x, y, TABLE_POSITION.x, TABLE_POSITION.y + TABLE_CLEAR_SHIFT_Y) < TABLE_CLEAR_RADIUS;
     const nearBush = BUSH_POSITIONS.some(
       (bush) => Phaser.Math.Distance.Between(x, y, bush.x, bush.y) < BUSH_CLEAR_RADIUS,
     );

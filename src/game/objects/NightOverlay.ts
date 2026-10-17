@@ -25,13 +25,14 @@ const DAY_FADE_TIME = 2500;
 // ===== Светлое пятно у костра =====
 
 // Ширина пятна при полном жаре (вся картинка, светлая середина — примерно треть).
-const LIGHT_WIDTH = 900;
+const LIGHT_WIDTH = 1100;
 // Пятно сплюснуто, как круг света на снегу: мы смотрим сверху под углом.
-const LIGHT_FLATTEN = 0.65;
+const LIGHT_FLATTEN = 0.75;
 // При слабом жаре пятно сжимается до этой доли.
 const LIGHT_MIN_SIZE = 0.45;
-// Середина пятна чуть выше земли под костром — на уровне пламени.
-const LIGHT_LIFT = 30;
+// Середина пятна ниже костра на столько пикселей: свет накрывает
+// и кучи у костра, и стол с первыми путниками под ним.
+const LIGHT_SHIFT_DOWN = 180;
 
 // ===== Метель =====
 
@@ -141,7 +142,7 @@ export class NightOverlay {
     const lightWidth = Math.round(LIGHT_WIDTH * Phaser.Math.Linear(LIGHT_MIN_SIZE, 1, heatShare) / 2) * 2;
     const lightHeight = Math.round(lightWidth * LIGHT_FLATTEN / 2) * 2;
     const lightX = Math.round(x);
-    const centerY = Math.round(y - LIGHT_LIFT);
+    const centerY = Math.round(y + LIGHT_SHIFT_DOWN);
     this.light.setPosition(lightX, centerY).setDisplaySize(lightWidth, lightHeight);
 
     // Края пятна. Прямоугольники закрывают всё, что вокруг, до краёв мира.
