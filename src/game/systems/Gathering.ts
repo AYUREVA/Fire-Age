@@ -22,8 +22,8 @@ import { Rabbit } from '../objects/Rabbit';
 export function updateGathering(player: Player, backpack: Backpack, bushes: ResourceNode[], delta: number): void {
   const bush = findBushNear(player, bushes);
 
-  // Рядом нет куста с хворостом или спина полная — удары не копятся.
-  if (!bush || backpack.isFull()) {
+  // Рядом нет куста с хворостом или колонка хвороста полная — удары не копятся.
+  if (!bush || backpack.isFull('wood')) {
     player.hitTimer = 0;
     return;
   }
@@ -63,8 +63,8 @@ function findBushNear(player: Player, bushes: ResourceNode[]): ResourceNode | un
 // Вождь догнал кролика — замах дубиной, кролик исчезает с «пуф»,
 // кусок сырого мяса летит на спину.
 export function updateHunting(player: Player, backpack: Backpack, rabbits: Rabbit[]): void {
-  // Спина полная или вождь уже машет дубиной (например, по кусту) — не ловим.
-  if (backpack.isFull() || player.isSwinging()) return;
+  // Колонка сырого мяса полная или вождь уже машет дубиной (например, по кусту) — не ловим.
+  if (backpack.isFull('rawMeat') || player.isSwinging()) return;
 
   const rabbit = rabbits.find(
     (each) => each.isCatchable() && Phaser.Math.Distance.Between(player.x, player.y, each.x, each.y) <= CATCH_RADIUS,
@@ -117,13 +117,13 @@ function dropIntoPile(player: Player, backpack: Backpack, pile: ItemPile, delta:
 // ===== Забрать жареное мясо =====
 
 // Вождь стоит на куче жареного мяса — каждые DROP_INTERVAL мс верхний кусок
-// улетает из кучи ему на спину, пока спина не полная.
+// улетает из кучи ему на спину, пока колонка жареного не полная.
 export function updatePickup(player: Player, backpack: Backpack, pile: ItemPile, delta: number): void {
   const isInZone = pile.contains(player.x, player.y);
-  const canTake = isInZone && !pile.isEmpty() && !backpack.isFull();
+  const canTake = isInZone && !pile.isEmpty() && !backpack.isFull(pile.type);
   pile.setHighlighted(canTake);
 
-  // Вождь не в зоне, куча пустая или спина полная — таймер не копится.
+  // Вождь не в зоне, куча пустая или колонка полная — таймер не копится.
   if (!canTake) {
     pile.dropTimer = 0;
     return;

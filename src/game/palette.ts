@@ -64,11 +64,28 @@ export const COLORS = {
   leafLight: 0x67b356, // листва на свету
   leafHighlight: 0x9fd873, // самые светлые листики
 
-  // ===== Заяц =====
-  hare: 0xf6f3ec, // белый мех
-  hareShade: 0xd9d3c7, // мех в тени
-  hareEar: 0xf3a9b3, // розовое внутри уха
-  hareNose: 0xe77f8f, // нос
+  // ===== Путники =====
+  sack: 0xc9a46a, // котомка охотника — холщовый мешок
+  sackDark: 0x9c7a46, // мешок в тени, заплатка
+  elderCloak: 0x8a90a6, // серый плащ старца
+  elderCloakDark: 0x666c82, // плащ старца в тени и капюшон
+  elderHair: 0xf1f3f7, // седые волосы и борода старца
+  feather: 0xd8573f, // красное перо на посохе
+  featherAlt: 0x3fa6a0, // бирюзовое перо на посохе
+  girlHair: 0x5b3320, // тёмные волосы девушки
+  bead: 0x45b6d0, // бусины на косах
+  basket: 0xd6a85e, // плетёная корзина
+  basketDark: 0x9c7238, // прутья корзины
+
+  // ===== Кролик =====
+  rabbitFur: 0xa08a74, // серо-бурый мех — хорошо виден на снегу
+  rabbitShade: 0x7c6755, // мех в тени, дальнее ухо
+  rabbitLight: 0xc4af97, // светлая спинка и макушка
+  rabbitBelly: 0xf6eee2, // светлое брюхо, щёки, лапы, хвостик
+  rabbitEar: 0xf2a6b0, // розовое внутри уха
+  rabbitEarShade: 0xc98290, // розовое внутри дальнего уха
+  rabbitEye: 0x35261f, // глаз
+  rabbitNose: 0xe77f8f, // нос
 
   // ===== Мясо =====
   rawMeat: 0xf08b8b, // сырое мясо
@@ -78,6 +95,11 @@ export const COLORS = {
   cookedMeatShade: 0x8a4520, // жареное мясо в тени
   cookedMeatLight: 0xe39a55, // блик на жареном мясе
   bone: 0xfff3dc, // косточка
+  tusk: 0xf7f1e3, // эмаль клыка саблезуба — валюта каменного века
+  tuskShade: 0xc9cdd6, // холодная тень на эмали
+  tuskShine: 0xffffff, // блик на эмали
+  tuskRoot: 0xc9a77a, // корень клыка
+  tuskRootShade: 0xa4835a, // корень в тени
   meatRoasting: 0xb07040, // до этого оттенка темнеет сырое мясо на вертеле (tint)
 
   // ===== Ветки и связки хвороста =====
@@ -109,6 +131,9 @@ export const COLORS = {
   hudText: 0xfff6e0, // текст интерфейса
   heatBarBack: 0x3b2a22, // подложка шкалы жара над костром
   heatBar: 0xff8a1f, // заливка шкалы жара
+  patienceFull: 0x7cc84a, // шкала терпения путника: терпения много
+  patienceLow: 0xe8452c, // шкала терпения путника: вот-вот уйдёт
+  bubble: 0xffffff, // пузырь над головой путника
   overlay: 0x0b1220, // затемнение экрана под каменной табличкой
   nightShade: 0x0c1834, // ночная тьма над миром: глубокий синий
   sunsetGlow: 0xff7f8e, // розовый закат
@@ -129,4 +154,15 @@ export const COLORS = {
 // Надписи (Text) в Phaser принимают цвет только строкой.
 export function toCss(color: number): string {
   return '#' + color.toString(16).padStart(6, '0');
+}
+
+// Смешать два цвета 0xRRGGBB: share = 0 — первый цвет, 1 — второй, 0.5 — ровно посередине.
+// Каждый канал (красный, зелёный, синий) смешивается отдельно.
+export function mixColors(from: number, to: number, share: number): number {
+  const channel = (shift: number): number => {
+    const a = (from >> shift) & 0xff;
+    const b = (to >> shift) & 0xff;
+    return Math.round(a + (b - a) * share) << shift;
+  };
+  return channel(16) | channel(8) | channel(0);
 }

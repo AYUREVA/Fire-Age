@@ -30,6 +30,9 @@ const CAMP_CLEAR_RADIUS = 320;
 // Прыжки: высота подскока (пиксели) и скорость (радиан за мс).
 const HOP_HEIGHT = 7;
 const HOP_SPEED = 0.025;
+// «Сжатие-растяжение»: в воздухе кролик вытягивается вверх, у земли сплющивается.
+const HOP_STRETCH = 0.12;
+const HOP_SQUASH = 0.1;
 // Тень под кроликом: ширина и насколько она меньше в прыжке.
 const SHADOW_WIDTH = 46;
 const SHADOW_SHRINK_IN_JUMP = 0.25;
@@ -143,8 +146,9 @@ export class Rabbit {
     this.shadow.setVisible(false);
   }
 
-  // Вызывается сценой каждый кадр. (playerX, playerY) — где вождь.
-  update(delta: number, playerX: number, playerY: number): void {
+  // Вызывается сценой каждый кадр. (playerX, playerY) — где вождь,
+  // speedMultiplier — во сколько раз меняется скорость (в метель кролики медленнее).
+  update(delta: number, playerX: number, playerY: number, speedMultiplier: number): void {
     if (this.state === 'gone') {
       this.waitToRespawn(delta);
       return;
@@ -161,14 +165,15 @@ export class Rabbit {
       this.target = this.home;
     }
 
-    const isMoving = this.state === 'flee' ? this.flee(delta, playerX, playerY) : this.wander(delta);
+    const isMoving =
+      this.state === 'flee' ? this.flee(delta, playerX, playerY, speedMultiplier) : this.wander(delta, speedMultiplier);
     this.place(isMoving ? delta : 0);
   }
 
   // ===== Движение =====
 
   // Бродит: скачет к точке рядом с домом, сидит, выбирает новую. Вернёт true, если двигался.
-  private wander(delta: number): boolean {
+  private wander(delta: number, speedMultiplier: number): boolean {
     const distance = Phaser.Math.Distance.Between(this.x, this.y, this.target.x, this.target.y);
     if (distance < 4) {
       this.sitTime -= delta;
@@ -183,13 +188,13 @@ export class Rabbit {
       return false;
     }
 
-    this.moveTowards(this.target.x - this.x, this.target.y - this.y, RABBIT_WANDER_SPEED, delta);
+    this.moveTowards(this.target.x - this.x, this.target.y - this.y, RABBIT_WANDER_SPEED * speedMultiplier, delta);
     return true;
   }
 
   // Убегает прямо от вождя. Упрётся в край поля — скользит вдоль него.
-  private flee(delta: number, playerX: number, playerY: number): boolean {
-    this.moveTowards(this.x - playerX, this.y - playerY, RABBIT_FLEE_SPEED, delta);
+  private flee(delta: number, playerX: number, playerY: number, speedMultiplier: number): boolean {
+    this.moveTowards(this.x - playerX, this.y - playerY, RABBIT_FLEE_SPEED * speedMultiplier, delta);
     return true;
   }
 
@@ -229,7 +234,16 @@ export class Rabbit {
     // |sin| — подскок без «провала» вниз: каждый прыжок от земли.
     const lift = Math.abs(Math.sin(this.hopTime * HOP_SPEED)) * HOP_HEIGHT;
 
-    this.image.setPosition(this.x, this.y - lift).setFlipX(this.facing < 0).setDepth(this.y);
+    // Доля высоты прыжка: 0 — на земле, 1 — в самой верхней точке.
+    // На ходу у земли кролик сплющен (оттолкнулся/приземлился), в воздухе — вытянут.
+    const air = lift / HOP_HEIGHT;
+    const squash = delta > 0 ? HOP_SQUASH * (1 - air) : 0;
+    const stretch = HOP_STRETCH * air;
+    this.image
+      .setPosition(this.x, this.y - lift)
+      .setScale(1 + squash - stretch * 0.5, 1 - squash + stretch)
+      .setFlipX(this.facing < 0)
+      .setDepth(this.y);
     const shadowScale = this.shadowScale * (1 - (SHADOW_SHRINK_IN_JUMP * lift) / HOP_HEIGHT);
     this.shadow.setPosition(this.x, this.y).setScale(shadowScale).setDepth(this.y + SHADOW_DEPTH_SHIFT);
   }
