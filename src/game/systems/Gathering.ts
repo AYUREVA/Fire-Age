@@ -1,16 +1,17 @@
 import Phaser from 'phaser';
-import { DROP_INTERVAL, GATHER_RADIUS, HIT_INTERVAL } from '../settings';
+import { CATCH_RADIUS, DROP_INTERVAL, GATHER_RADIUS, HIT_INTERVAL } from '../settings';
 import { Player } from '../objects/Player';
-import { CarryStack } from '../objects/CarryStack';
+import { Backpack } from '../objects/Backpack';
 import { ResourceNode } from '../objects/ResourceNode';
-import { DropZone } from '../objects/DropZone';
+import { ItemPile } from '../objects/ItemPile';
+import { Rabbit } from '../objects/Rabbit';
 
 // =====================================================================
-//  Добыча и сдача хвороста.
+//  Добыча (кусты, кролики), сдача в кучи у костра и жареное мясо на спину.
 //
 //  Это функции, а не класс: нужные объекты приходят аргументами,
 //  своего состояния здесь нет. Таймеры хранят сами объекты:
-//  hitTimer — вождь (Player), dropTimer — поленница (DropZone).
+//  hitTimer — вождь (Player), dropTimer — куча у костра (ItemPile).
 //  GameScene вызывает эти функции каждый кадр.
 // =====================================================================
 
@@ -18,11 +19,11 @@ import { DropZone } from '../objects/DropZone';
 
 // Вождь рядом с кустом — бьёт его каждые HIT_INTERVAL мс,
 // и связка хвороста летит из куста на стопку.
-export function updateGathering(player: Player, stack: CarryStack, bushes: ResourceNode[], delta: number): void {
+export function updateGathering(player: Player, backpack: Backpack, bushes: ResourceNode[], delta: number): void {
   const bush = findBushNear(player, bushes);
 
-  // Рядом нет куста с хворостом или стопка полная — удары не копятся.
-  if (!bush || stack.isFull()) {
+  // Рядом нет куста с хворостом или спина полная — удары не копятся.
+  if (!bush || backpack.isFull()) {
     player.hitTimer = 0;
     return;
   }
@@ -35,7 +36,7 @@ export function updateGathering(player: Player, stack: CarryStack, bushes: Resou
   // Весь взмах укладывается в HIT_INTERVAL — до следующего удара.
   player.swing(bush.x, HIT_INTERVAL, () => {
     bush.hit();
-    stack.add(bush.getLootPoint());
+    backpack.add('wood', bush.getLootPoint());
   });
 }
 
@@ -57,29 +58,87 @@ function findBushNear(player: Player, bushes: ResourceNode[]): ResourceNode | un
   return nearest;
 }
 
-// ===== Сдача хвороста =====
+// ===== Охота =====
 
-// Вождь в зоне поленницы — каждые DROP_INTERVAL мс верхняя связка
-// улетает со стопки в кучу на поленнице, пока поленница не полная.
-export function updateDropping(player: Player, stack: CarryStack, woodpile: DropZone, delta: number): void {
-  const isInZone = woodpile.contains(player.x, player.y);
-  const canDrop = isInZone && !woodpile.isFull();
-  // Полная поленница не подсвечивается: сюда пока нельзя.
-  woodpile.setHighlighted(canDrop);
+// Вождь догнал кролика — замах дубиной, кролик исчезает с «пуф»,
+// кусок сырого мяса летит на спину.
+export function updateHunting(player: Player, backpack: Backpack, rabbits: Rabbit[]): void {
+  // Спина полная или вождь уже машет дубиной (например, по кусту) — не ловим.
+  if (backpack.isFull() || player.isSwinging()) return;
 
-  // Вождь не в зоне, поленница полная или нести нечего — таймер не копится.
-  if (!canDrop || stack.isEmpty()) {
-    woodpile.dropTimer = 0;
+  const rabbit = rabbits.find(
+    (each) => each.isCatchable() && Phaser.Math.Distance.Between(player.x, player.y, each.x, each.y) <= CATCH_RADIUS,
+  );
+  if (!rabbit) return;
+
+  // Кролик замирает, вождь замахивается. В момент удара — «пуф» и мясо на спину.
+  rabbit.catch();
+  player.swing(rabbit.x, HIT_INTERVAL, () => {
+    rabbit.poof();
+    backpack.add('rawMeat', rabbit.getLootPoint());
+  });
+}
+
+// ===== Сдача в кучи у костра =====
+
+// Вождь сдаёт ресурсы в кучи у костра: каждая куча принимает только свой тип
+// (поленница — хворост, куча у вертела — сырое мясо).
+export function updateDropping(player: Player, backpack: Backpack, piles: ItemPile[], delta: number): void {
+  for (const pile of piles) {
+    dropIntoPile(player, backpack, pile, delta);
+  }
+}
+
+// Вождь в зоне кучи — каждые DROP_INTERVAL мс верхний предмет её типа
+// улетает со спины в кучу, пока куча не полная.
+function dropIntoPile(player: Player, backpack: Backpack, pile: ItemPile, delta: number): void {
+  const isInZone = pile.contains(player.x, player.y);
+  const canDrop = isInZone && !pile.isFull();
+  // Полная куча не подсвечивается: сюда пока нельзя.
+  pile.setHighlighted(canDrop);
+
+  // Вождь не в зоне, куча полная или нести нечего — таймер не копится.
+  if (!canDrop || !backpack.has(pile.type)) {
+    pile.dropTimer = 0;
     return;
   }
 
-  woodpile.dropTimer += delta;
-  if (woodpile.dropTimer < DROP_INTERVAL) return;
-  woodpile.dropTimer -= DROP_INTERVAL;
+  pile.dropTimer += delta;
+  if (pile.dropTimer < DROP_INTERVAL) return;
+  pile.dropTimer -= DROP_INTERVAL;
 
-  // Верхняя связка может ещё лететь на стопку — тогда её пока не отдаём.
-  const item = stack.takeTop();
+  // Верхний предмет может ещё лететь на спину — тогда его пока не отдаём.
+  const item = backpack.takeTop(pile.type);
   if (!item) return;
 
-  woodpile.receive(item);
+  pile.receive(item);
+}
+
+// ===== Забрать жареное мясо =====
+
+// Вождь стоит на куче жареного мяса — каждые DROP_INTERVAL мс верхний кусок
+// улетает из кучи ему на спину, пока спина не полная.
+export function updatePickup(player: Player, backpack: Backpack, pile: ItemPile, delta: number): void {
+  const isInZone = pile.contains(player.x, player.y);
+  const canTake = isInZone && !pile.isEmpty() && !backpack.isFull();
+  pile.setHighlighted(canTake);
+
+  // Вождь не в зоне, куча пустая или спина полная — таймер не копится.
+  if (!canTake) {
+    pile.dropTimer = 0;
+    return;
+  }
+
+  pile.dropTimer += delta;
+  if (pile.dropTimer < DROP_INTERVAL) return;
+  pile.dropTimer -= DROP_INTERVAL;
+
+  // Верхний кусок может ещё лететь в кучу — тогда его пока не берём.
+  const item = pile.takeTop();
+  if (!item) return;
+
+  // Кусок из кучи исчезает, а на спину по дуге летит такой же — с того же места.
+  const from = { x: item.x, y: item.y };
+  item.destroy();
+  backpack.add(pile.type, from);
 }

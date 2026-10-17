@@ -142,6 +142,20 @@ export class StoneTablet {
       duration: SHOW_TIME,
       ease: SHOW_EASE,
     });
+
+    // Экран поменял размер (повернули телефон) — затемнение снова на весь экран,
+    // табличка снова в середине. Подписка на событие всей игры: при выключении сцены её снимаем.
+    scene.scale.on(Phaser.Scale.Events.RESIZE, this.layout, this);
+    scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      scene.scale.off(Phaser.Scale.Events.RESIZE, this.layout, this);
+    });
+  }
+
+  // Затемнение — на весь текущий экран, табличка — в его середине.
+  private layout(): void {
+    const { width, height } = this.scene.scale;
+    this.overlay.setSize(width, height);
+    this.container.setPosition(width / 2, height / 2);
   }
 
   // Закрыть табличку: она сжимается и тает вместе с затемнением,

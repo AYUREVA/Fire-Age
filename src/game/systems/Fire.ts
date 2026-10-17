@@ -7,7 +7,7 @@ import {
   HEAT_PER_BUNDLE,
 } from '../settings';
 import { Campfire } from '../objects/Campfire';
-import { DropZone } from '../objects/DropZone';
+import { ItemPile } from '../objects/ItemPile';
 
 // =====================================================================
 //  Огонь: жар, угли и подкормка из поленницы.
@@ -20,7 +20,7 @@ import { DropZone } from '../objects/DropZone';
 // Огонь горит: жар убывает, поленница подкармливает огонь.
 // burnMultiplier — во сколько раз быстрее прогорает костёр (ночью — быстрее).
 // Вернёт true, если костёр погас: угли тлели EMBER_TIME мс, а топлива не было.
-export function updateFire(fire: Campfire, woodpile: DropZone, delta: number, burnMultiplier: number): boolean {
+export function updateFire(fire: Campfire, woodpile: ItemPile, delta: number, burnMultiplier: number): boolean {
   burn(fire, delta, burnMultiplier);
   feedFromWoodpile(fire, woodpile, delta);
   return fire.emberTime >= EMBER_TIME;
@@ -40,7 +40,7 @@ function burn(fire: Campfire, delta: number, burnMultiplier: number): void {
 
 // Жар ниже FIRE_FEED_BELOW — верхняя связка из поленницы сама летит в огонь,
 // не чаще одной за FIRE_FEED_INTERVAL мс. Упала в огонь — жар растёт.
-function feedFromWoodpile(fire: Campfire, woodpile: DropZone, delta: number): void {
+function feedFromWoodpile(fire: Campfire, woodpile: ItemPile, delta: number): void {
   // Жара хватает — подкармливать не нужно. Таймер держим полным,
   // чтобы первая связка полетела сразу, как только жар опустится.
   if (fire.heat >= FIRE_FEED_BELOW) {
