@@ -31,14 +31,18 @@ export const TEXTURES = {
   ring: 'ring', // светлое кольцо под ногами вождя
   joystickBase: 'joystick-base', // круг джойстика
   joystickKnob: 'joystick-knob', // ручка джойстика
+  rabbit: 'rabbit', // белый заяц, смотрит вправо; точка опоры — лапы
   bush: 'bush', // зелёный куст, точка опоры — низ ствола
   bushSnow: 'bush-snow', // снег на кроне куста (тот же размер, ложится поверх)
   stump: 'stump', // пенёк — куст без хвороста
   bundle: 'bundle', // связка хвороста, перевязанная верёвкой
+  rawMeat: 'raw-meat', // сырое мясо: розовая ножка с косточкой
+  cookedMeat: 'cooked-meat', // жареное мясо: румяная ножка с косточкой
   snowflake: 'snowflake', // снежинка: падающий снег и снег из куста
   chip: 'chip', // щепка, летит из куста при ударе
-  dropZone: 'drop-zone', // площадка поленницы: рамка и иконка связки
+  dropZone: 'drop-zone', // площадка кучи у костра: светлая рамка (иконку ставит ItemPile)
   firePit: 'fire-pit', // кострище: камни и поленья
+  spit: 'spit', // вертел над костром: две рогатины и палка; точка опоры — низ
   flame: 'flame', // язык пламени; точка опоры — низ
   glow: 'glow', // мягкий белый круг; его красят в цвет света
   spark: 'spark', // искра костра (белая, цвет задаёт частица)
@@ -91,12 +95,15 @@ const RING_SIZE: Size = { w: 90, h: 44 };
 const JOYSTICK_BASE_SIZE: Size = { w: 128, h: 128 };
 const JOYSTICK_KNOB_SIZE: Size = { w: 60, h: 60 };
 const BUSH_SIZE: Size = { w: 124, h: 104 };
+const RABBIT_SIZE: Size = { w: 60, h: 56 };
 const STUMP_SIZE: Size = { w: 80, h: 60 };
 const BUNDLE_SIZE: Size = { w: 56, h: 28 };
+const MEAT_SIZE: Size = { w: 48, h: 32 };
 const SNOWFLAKE_SIZE: Size = { w: 12, h: 12 };
 const CHIP_SIZE: Size = { w: 12, h: 9 };
 const DROP_ZONE_SIZE: Size = { w: 220, h: 132 };
 const FIRE_PIT_SIZE: Size = { w: 110, h: 64 };
+const SPIT_SIZE: Size = { w: 170, h: 96 };
 const FLAME_SIZE: Size = { w: 64, h: 96 };
 const GLOW_SIZE: Size = { w: 128, h: 128 };
 const SPARK_SIZE: Size = { w: 8, h: 8 };
@@ -163,14 +170,20 @@ export function createTextures(scene: Phaser.Scene): void {
   bake(scene, TEXTURES.ring, RING_SIZE, drawRing);
   bake(scene, TEXTURES.joystickBase, JOYSTICK_BASE_SIZE, drawJoystickBase);
   bake(scene, TEXTURES.joystickKnob, JOYSTICK_KNOB_SIZE, drawJoystickKnob);
+  bake(scene, TEXTURES.rabbit, RABBIT_SIZE, drawRabbit);
   bake(scene, TEXTURES.bush, BUSH_SIZE, drawBush);
   bake(scene, TEXTURES.bushSnow, BUSH_SIZE, drawBushSnow);
   bake(scene, TEXTURES.stump, STUMP_SIZE, drawStump);
   bake(scene, TEXTURES.bundle, BUNDLE_SIZE, drawBundle);
+  bake(scene, TEXTURES.rawMeat, MEAT_SIZE, (g) => drawMeat(g, COLORS.rawMeat, COLORS.rawMeatShade, COLORS.rawMeatLight));
+  bake(scene, TEXTURES.cookedMeat, MEAT_SIZE, (g) =>
+    drawMeat(g, COLORS.cookedMeat, COLORS.cookedMeatShade, COLORS.cookedMeatLight),
+  );
   bake(scene, TEXTURES.snowflake, SNOWFLAKE_SIZE, drawSnowflake);
   bake(scene, TEXTURES.chip, CHIP_SIZE, drawChip);
   bake(scene, TEXTURES.dropZone, DROP_ZONE_SIZE, drawDropZone);
   bake(scene, TEXTURES.firePit, FIRE_PIT_SIZE, drawFirePit);
+  bake(scene, TEXTURES.spit, SPIT_SIZE, drawSpit);
   bake(scene, TEXTURES.flame, FLAME_SIZE, drawFlame);
   bake(scene, TEXTURES.glow, GLOW_SIZE, drawGlow);
   bake(scene, TEXTURES.spark, SPARK_SIZE, drawSpark);
@@ -1110,6 +1123,56 @@ function drawBundle(g: Graphics): void {
   drawRopeBand(g, 38);
 }
 
+// Белый заяц, смотрит вправо: круглое тело, голова, два длинных уха
+// с розовым внутри, хвостик-помпон, глаз и розовый нос. Лапы внизу картинки.
+function drawRabbit(g: Graphics): void {
+  // Уши: вытянутые овалы, наклонены назад. Рисуются первыми — голова их перекрывает.
+  drawRabbitEar(g, 36, 16, -0.35);
+  drawRabbitEar(g, 43, 15, -0.1);
+  // Хвостик и тело.
+  outlinedCircle(g, 12, 38, 6, COLORS.hare);
+  outlinedEllipse(g, 27, 40, 34, 26, COLORS.hare);
+  g.fillStyle(COLORS.hareShade, 1);
+  g.fillEllipse(27, 47, 26, 8);
+  // Лапки.
+  outlinedEllipse(g, 20, 52, 12, 6, COLORS.hare);
+  outlinedEllipse(g, 37, 52, 12, 6, COLORS.hare);
+  // Голова, глаз, нос.
+  outlinedCircle(g, 42, 30, 11, COLORS.hare);
+  g.fillStyle(COLORS.outline, 1);
+  g.fillCircle(45, 28, 2.5);
+  g.fillStyle(COLORS.white, 1);
+  g.fillCircle(46, 27, 1);
+  g.fillStyle(COLORS.hareNose, 1);
+  g.fillCircle(52, 32, 2.5);
+}
+
+// Ухо зайца: наружный белый овал и розовая серединка, повёрнутые на angle (радианы).
+function drawRabbitEar(g: Graphics, x: number, y: number, angle: number): void {
+  g.save();
+  g.translateCanvas(x, y);
+  g.rotateCanvas(angle);
+  outlinedEllipse(g, 0, 0, 9, 24, COLORS.hare);
+  g.fillStyle(COLORS.hareEar, 1);
+  g.fillEllipse(0, 1, 4, 16);
+  g.restore();
+}
+
+// Мультяшная мясная ножка: косточка слева, круглый кусок мяса справа,
+// тень снизу и блик сверху. Цвета разные у сырого и жареного мяса.
+function drawMeat(g: Graphics, color: number, shade: number, light: number): void {
+  // Косточка: палочка и две «шишечки» на конце.
+  limb(g, 9, 21, 22, 16, 6, COLORS.bone);
+  outlinedCircle(g, 7, 17, 4, COLORS.bone);
+  outlinedCircle(g, 9, 25, 4, COLORS.bone);
+  // Сам кусок мяса.
+  outlinedEllipse(g, 32, 15, 28, 22, color);
+  g.fillStyle(shade, 1);
+  g.fillEllipse(34, 20, 20, 8);
+  g.fillStyle(light, 1);
+  g.fillEllipse(28, 9, 10, 5);
+}
+
 // Одна палка связки: скруглённый брусок с обводкой и светлым срезом слева.
 function drawStick(g: Graphics, x: number, y: number, length: number, color: number): void {
   const height = 7;
@@ -1131,10 +1194,10 @@ function drawRopeBand(g: Graphics, x: number): void {
   g.strokeRoundedRect(x - 3, 1, 6, 25, 2);
 }
 
-// ===== Поленница и костёр =====
+// ===== Кучи у костра и костёр =====
 
-// Площадка поленницы — как зоны сдачи в мобильных играх:
-// скруглённая рамка, полупрозрачная заливка и иконка связки посередине.
+// Площадка кучи — как зоны сдачи в мобильных играх:
+// скруглённая рамка и полупрозрачная заливка. Иконку ресурса ставит ItemPile.
 function drawDropZone(g: Graphics): void {
   const { w, h } = DROP_ZONE_SIZE;
   const inset = 8;
@@ -1149,19 +1212,6 @@ function drawDropZone(g: Graphics): void {
   g.strokeRoundedRect(inset, inset, width, height, radius);
   g.lineStyle(6, COLORS.zoneBorder, 1);
   g.strokeRoundedRect(inset, inset, width, height, radius);
-
-  drawBundleIcon(g, w / 2, h / 2);
-}
-
-// Иконка связки на площадке: три палки и две верёвки.
-function drawBundleIcon(g: Graphics, cx: number, cy: number): void {
-  g.fillStyle(COLORS.zoneBorder, 0.9);
-  g.fillRoundedRect(cx - 30, cy - 15, 60, 9, 4);
-  g.fillRoundedRect(cx - 35, cy - 4, 68, 9, 4);
-  g.fillRoundedRect(cx - 31, cy + 7, 62, 9, 4);
-  g.fillStyle(COLORS.zoneFill, 1);
-  g.fillRect(cx - 14, cy - 17, 6, 35);
-  g.fillRect(cx + 10, cy - 17, 6, 35);
 }
 
 // Кострище: подтаявшая земля, кольцо камней, угли и два скрещённых полена.
@@ -1231,6 +1281,21 @@ function drawLog(g: Graphics, x: number, y: number, angle: number): void {
   g.fillEllipse(27, 0, 6, 10);
 
   g.restore();
+}
+
+// Вертел: две рогатины по краям костра и палка поперёк, лежащая в развилках.
+function drawSpit(g: Graphics): void {
+  const { w, h } = SPIT_SIZE;
+  const skewerY = 16;
+
+  // Рогатины: столб и два рожка развилки.
+  for (const x of [14, w - 14]) {
+    limb(g, x, h - 2, x, skewerY + 4, 7, COLORS.wood);
+    limb(g, x, skewerY + 6, x - 7, skewerY - 8, 5, COLORS.wood);
+    limb(g, x, skewerY + 6, x + 7, skewerY - 8, 5, COLORS.wood);
+  }
+  // Палка вертела поверх рогатин.
+  limb(g, 4, skewerY, w - 4, skewerY, 5, COLORS.woodLight);
 }
 
 // Язык пламени: несколько «капель» одна в другой — от красного края до почти белой середины.

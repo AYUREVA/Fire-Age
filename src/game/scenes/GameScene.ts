@@ -8,20 +8,29 @@ import {
   BUSH_POSITIONS,
   CAMPFIRE_POSITION,
   WOODPILE_POSITION,
+  WOODPILE_CAPACITY,
+  RABBIT_COUNT,
+  RAW_MEAT_PILE_POSITION,
+  RAW_MEAT_PILE_CAPACITY,
+  COOKED_MEAT_PILE_POSITION,
+  COOKED_MEAT_PILE_CAPACITY,
   PHASES,
   FIRE_MAX_HEAT,
 } from '../settings';
 import { TEXTURES, createTextures, loadFonts } from '../textures';
 import { Player } from '../objects/Player';
-import { CarryStack } from '../objects/CarryStack';
+import { Backpack } from '../objects/Backpack';
 import { ResourceNode } from '../objects/ResourceNode';
-import { DropZone } from '../objects/DropZone';
+import { ItemPile } from '../objects/ItemPile';
+import { Rabbit } from '../objects/Rabbit';
+import { Spit } from '../objects/Spit';
 import { Campfire } from '../objects/Campfire';
 import { Hud } from '../objects/Hud';
 import { CycleEvent, DayNightCycle } from '../objects/DayNightCycle';
 import { NightOverlay } from '../objects/NightOverlay';
 import { PhaseBanner } from '../ui/PhaseBanner';
-import { updateDropping, updateGathering } from '../systems/Gathering';
+import { updateDropping, updateGathering, updateHunting, updatePickup } from '../systems/Gathering';
+import { updateCooking } from '../systems/Cooking';
 import { updateFire } from '../systems/Fire';
 import { ResultData } from './ResultScene';
 
@@ -36,7 +45,7 @@ const GROUND_DEPTH = -300;
 const GROUND_DECOR_DEPTH = -200;
 // Тень лежит сразу под своим предметом.
 const SHADOW_DEPTH_SHIFT = -0.5;
-// Дальше (в других файлах): площадка поленницы и свет костра — -100 (DropZone.ts, Campfire.ts),
+// Дальше (в других файлах): площадки куч и свет костра — -100 (ItemPile.ts, Campfire.ts),
 // летящие связки — 10000, «+1» — 11000 (fx.ts), «МАКС» — 10500 (CarryStack.ts),
 // закат и ночная тьма — 11400 и 11500 (NightOverlay.ts), падающий снег — 12000 (здесь),
 // метель — 12100 (NightOverlay.ts), HUD и джойстик — 20000 (Hud.ts, Player.ts).
@@ -73,9 +82,9 @@ const FOREST_SCALE_MAX = 1.15;
 // Ширина тени относительно ширины предмета.
 const SHADOW_WIDTH_RATIO = 0.85;
 // Мелкий декор не кладём ближе этого расстояния к кусту — чтобы не торчал из куста —
-// и к поленнице — чтобы лагерь с костром стоял на чистом снегу.
+// и к костру — чтобы весь лагерь (костёр, вертел, кучи) стоял на чистом снегу.
 const BUSH_CLEAR_RADIUS = 80;
-const CAMP_CLEAR_RADIUS = 330;
+const CAMP_CLEAR_RADIUS = 360;
 
 // ===== Падающий снег =====
 
@@ -110,14 +119,20 @@ const CAMERA_OFFSET_Y = 60;
 export class GameScene extends Phaser.Scene {
   // Вождь — его водит игрок.
   private player!: Player;
-  // Стопка хвороста за спиной вождя.
-  private stack!: CarryStack;
+  // Всё, что вождь несёт за спиной: колонки хвороста и мяса.
+  private backpack!: Backpack;
   // Кусты хвороста.
   private bushes: ResourceNode[] = [];
-  // Поленница у костра — сюда сдаётся хворост.
-  private dropZone!: DropZone;
+  // Кролики на поле.
+  private rabbits: Rabbit[] = [];
+  // Поленница у костра — сюда сдаётся хворост, из неё кормится огонь.
+  private woodpile!: ItemPile;
   // Костёр в лагере.
   private campfire!: Campfire;
+  // Кухня: куча сырого мяса, вертел над огнём, куча жареного мяса.
+  private rawMeatPile!: ItemPile;
+  private spit!: Spit;
+  private cookedMeatPile!: ItemPile;
   // Интерфейс: сколько осталось до конца дня или ночи, кнопка паузы.
   private hud!: Hud;
   // Смена дня и ночи: фаза, номер суток, сколько осталось до конца фазы.
@@ -142,6 +157,7 @@ export class GameScene extends Phaser.Scene {
     // При перезапуске сцены create() вызывается снова, а поля класса
     // сохраняют старые значения, поэтому сбрасываем их здесь.
     this.bushes = [];
+    this.rabbits = [];
     this.isOver = false;
 
     createTextures(this);
@@ -153,12 +169,30 @@ export class GameScene extends Phaser.Scene {
     this.createGroundDecor(rng);
     this.createBorderForest(rng);
     this.createBushes();
+    for (let i = 0; i < RABBIT_COUNT; i++) {
+      this.rabbits.push(new Rabbit(this));
+    }
     // Сначала костёр: его свет лежит на земле под краем площадки поленницы.
     this.campfire = new Campfire(this, CAMPFIRE_POSITION.x, CAMPFIRE_POSITION.y);
-    this.dropZone = new DropZone(this, WOODPILE_POSITION.x, WOODPILE_POSITION.y);
+    this.woodpile = new ItemPile(this, WOODPILE_POSITION.x, WOODPILE_POSITION.y, 'wood', WOODPILE_CAPACITY);
+    this.spit = new Spit(this, CAMPFIRE_POSITION.x, CAMPFIRE_POSITION.y);
+    this.rawMeatPile = new ItemPile(
+      this,
+      RAW_MEAT_PILE_POSITION.x,
+      RAW_MEAT_PILE_POSITION.y,
+      'rawMeat',
+      RAW_MEAT_PILE_CAPACITY,
+    );
+    this.cookedMeatPile = new ItemPile(
+      this,
+      COOKED_MEAT_PILE_POSITION.x,
+      COOKED_MEAT_PILE_POSITION.y,
+      'cookedMeat',
+      COOKED_MEAT_PILE_CAPACITY,
+    );
 
     this.player = new Player(this, PLAYER_START.x, PLAYER_START.y);
-    this.stack = new CarryStack(this);
+    this.backpack = new Backpack(this);
     this.cycle = new DayNightCycle();
     this.hud = new Hud(this, () => this.pauseGame());
     this.hud.setTimeLeft(this.cycle.timeLeft);
@@ -179,17 +213,31 @@ export class GameScene extends Phaser.Scene {
     const phase = PHASES[this.cycle.phase];
 
     this.player.update(delta, phase.playerSpeedMultiplier);
-    // Стопке сообщаем, где спина вождя, как быстро он идёт и какая у него глубина.
-    this.stack.update(delta, this.player.getBackPoint(), this.player.velocityX, this.player.y);
+    // Рюкзаку сообщаем, где спина вождя, как быстро он идёт, его глубину и куда он смотрит.
+    this.backpack.update(
+      delta,
+      this.player.getBackPoint(),
+      this.player.velocityX,
+      this.player.y,
+      this.player.facing,
+    );
 
     for (const bush of this.bushes) {
       bush.update(delta);
     }
 
-    updateGathering(this.player, this.stack, this.bushes, delta);
-    updateDropping(this.player, this.stack, this.dropZone, delta);
-    const isFireOut = updateFire(this.campfire, this.dropZone, delta, phase.fireBurnMultiplier);
+    for (const rabbit of this.rabbits) {
+      rabbit.update(delta, this.player.x, this.player.y);
+    }
+
+    updateGathering(this.player, this.backpack, this.bushes, delta);
+    updateHunting(this.player, this.backpack, this.rabbits);
+    updateDropping(this.player, this.backpack, [this.woodpile, this.rawMeatPile], delta);
+    updatePickup(this.player, this.backpack, this.cookedMeatPile, delta);
+    const isFireOut = updateFire(this.campfire, this.woodpile, delta, phase.fireBurnMultiplier);
     this.campfire.update(delta);
+    updateCooking(this.campfire, this.rawMeatPile, this.spit, this.cookedMeatPile, delta);
+    this.spit.update(delta);
     this.nightOverlay.update(this.campfire.x, this.campfire.y, this.campfire.heat / FIRE_MAX_HEAT);
 
     const cycleEvent = this.cycle.update(delta);
@@ -297,7 +345,7 @@ export class GameScene extends Phaser.Scene {
   // Рядом ли точка (x, y) с кустом или с лагерем — там декор не кладём.
   private isNearImportantPlace(x: number, y: number): boolean {
     const nearCamp =
-      Phaser.Math.Distance.Between(x, y, WOODPILE_POSITION.x, WOODPILE_POSITION.y) < CAMP_CLEAR_RADIUS;
+      Phaser.Math.Distance.Between(x, y, CAMPFIRE_POSITION.x, CAMPFIRE_POSITION.y) < CAMP_CLEAR_RADIUS;
     const nearBush = BUSH_POSITIONS.some(
       (bush) => Phaser.Math.Distance.Between(x, y, bush.x, bush.y) < BUSH_CLEAR_RADIUS,
     );
@@ -370,17 +418,17 @@ export class GameScene extends Phaser.Scene {
   // эмиттер следит за левым верхним углом того, что видит камера (worldView).
   // Сами снежинки остаются в мире — когда камера едет, они не едут за ней.
   private createSnowfall(): void {
-    const { width, height } = this.scale;
     this.add
       .particles(0, 0, TEXTURES.snowflake, {
         ...SNOWFALL,
         // Место рождения снежинки — случайная точка в прямоугольнике размером с экран.
+        // Размер экрана берём каждый раз заново: телефон могли повернуть.
         emitZone: {
           type: 'random',
           source: {
             getRandomPoint: (point) => {
-              point.x = Phaser.Math.Between(0, width);
-              point.y = Phaser.Math.Between(0, height);
+              point.x = Phaser.Math.Between(0, this.scale.width);
+              point.y = Phaser.Math.Between(0, this.scale.height);
             },
           },
         },

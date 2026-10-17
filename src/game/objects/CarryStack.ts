@@ -1,12 +1,10 @@
 import Phaser from 'phaser';
-import { STACK_CAPACITY } from '../settings';
-import { COLORS, toCss } from '../palette';
-import { FONT_FAMILY, TEXTURES } from '../textures';
+import { BACKPACK_CAPACITY } from '../settings';
 import { flyArc, pop, Point } from '../fx';
 
 // ===== Раскладка стопки =====
 
-// На сколько пикселей каждая следующая связка выше предыдущей.
+// На сколько пикселей каждый следующий предмет выше предыдущего.
 const ITEM_STEP = 18;
 // Стопка рисуется за спиной вождя: чуть дальше от нас, чем его тело.
 const STACK_DEPTH_SHIFT = -0.2;
@@ -43,31 +41,25 @@ const FLY_TIME = 380;
 // На сколько пикселей дуга полёта поднимается над прямой.
 const FLY_ARC_HEIGHT = 90;
 
-// ===== Надпись «МАКС» =====
-
-// Зазор между верхом стопки и надписью.
-const MAX_LABEL_GAP = 14;
-// Надпись пульсирует: до какого размера и как быстро.
-const MAX_LABEL_PULSE = 1.12;
-const MAX_LABEL_PULSE_TIME = 380;
-// Надпись — над всеми предметами мира, но под летящими «+1».
-const MAX_LABEL_DEPTH = 10500;
-
 /**
- * Стопка хвороста за спиной вождя — главная механика игры.
+ * Стопка одного типа ресурса за спиной вождя (хворост, сырое мясо…) —
+ * одна колонка рюкзака (Backpack.ts). Главная механика игры.
  *
  * Что умеет:
- * - add(from)  — принять связку: она по дуге прилетает на вершину;
- * - takeTop()  — отдать верхнюю связку (например, поленнице);
- * - isFull() / isEmpty() — полная ли стопка / пустая ли;
- * - update()   — каждый кадр разложить связки над спиной вождя,
- *                качнуть их и показать «МАКС», если стопка полная.
+ * - add(from)  — принять предмет: он по дуге прилетает на вершину;
+ * - takeTop()  — отдать верхний предмет (например, куче у костра);
+ * - count() / isEmpty() — сколько предметов / пустая ли;
+ * - getTopPoint() — точка над вершиной (там рюкзак пишет «МАКС»);
+ * - update()   — каждый кадр разложить предметы над спиной и качнуть их.
  *
- * Про вождя стопка ничего не знает: сцена каждый кадр сообщает ей
- * точку на спине, скорость вождя и его глубину.
+ * Сколько всего можно унести, решает рюкзак: лимит общий на все колонки.
+ * Про вождя стопка ничего не знает: рюкзак каждый кадр сообщает ей
+ * точку на спине, скорость вождя и глубину.
  */
 export class CarryStack {
   private scene: Phaser.Scene;
+  // Картинка ресурса этой стопки.
+  private texture: string;
   // Связки в стопке. [0] — нижняя, последняя — верхняя.
   private items: Phaser.GameObjects.Image[] = [];
   // Связки, которые ещё летят на своё место. Их двигает полёт, а не раскладка.
@@ -85,40 +77,15 @@ export class CarryStack {
   // Сколько мс прошло с начала игры — из этого считается покачивание.
   private swayTime = 0;
 
-  // Надпись «МАКС» над полной стопкой.
-  private maxLabel: Phaser.GameObjects.Text;
-
-  constructor(scene: Phaser.Scene) {
+  // texture — картинка ресурса этой стопки (у каждого типа своя стопка).
+  constructor(scene: Phaser.Scene, texture: string) {
     this.scene = scene;
-
-    this.maxLabel = scene.add
-      .text(0, 0, 'МАКС', {
-        fontFamily: FONT_FAMILY,
-        fontSize: '26px',
-        fontStyle: 'bold',
-        color: toCss(COLORS.maxText),
-        stroke: toCss(COLORS.outline),
-        strokeThickness: 6,
-        resolution: 2,
-      })
-      .setOrigin(0.5, 1)
-      .setDepth(MAX_LABEL_DEPTH)
-      .setVisible(false);
-
-    // Пульсация идёт всегда, но видна, только когда надпись показана.
-    scene.tweens.add({
-      targets: this.maxLabel,
-      scale: MAX_LABEL_PULSE,
-      duration: MAX_LABEL_PULSE_TIME,
-      yoyo: true,
-      repeat: -1,
-      ease: 'Sine.easeInOut',
-    });
+    this.texture = texture;
   }
 
-  // Стопка полная: больше связок не взять.
-  isFull(): boolean {
-    return this.items.length >= STACK_CAPACITY;
+  // Сколько предметов в стопке (вместе с теми, что ещё летят на неё).
+  count(): number {
+    return this.items.length;
   }
 
   // В стопке нет ни одной связки.
@@ -126,12 +93,11 @@ export class CarryStack {
     return this.items.length === 0;
   }
 
-  // Принять связку, которая вылетает из точки from (например, из куста).
+  // Принять предмет, который вылетает из точки from (например, из куста).
+  // Есть ли на спине место, проверяет рюкзак до вызова.
   add(from: Point): void {
-    if (this.isFull()) return;
-
     // 1. Создаём связку там, откуда она вылетает.
-    const item = this.scene.add.image(from.x, from.y, TEXTURES.bundle).setOrigin(0.5, 1);
+    const item = this.scene.add.image(from.x, from.y, this.texture).setOrigin(0.5, 1);
 
     // 2. Сразу кладём её в стопку — место наверху занято, пока она летит.
     //    Так вместимость считается честно: две связки не займут одно место.
@@ -169,7 +135,11 @@ export class CarryStack {
 
     this.updateLean(velocityX, Math.min(delta / 1000, MAX_STEP_SECONDS));
     this.layoutItems();
-    this.updateMaxLabel();
+  }
+
+  // Точка над вершиной стопки: ячейка над самым верхним предметом.
+  getTopPoint(): Point {
+    return this.getSlotPosition(this.items.length);
   }
 
   // ===== Внутренняя работа стопки =====
@@ -210,8 +180,9 @@ export class CarryStack {
 
   // Где должна стоять связка номер index (0 — нижняя). Возвращает точку низа связки.
   private getSlotPosition(index: number): Point {
-    // Высота ячейки как доля: 0 у нижней связки, 1 у самой верхней возможной.
-    const height = index / Math.max(1, STACK_CAPACITY - 1);
+    // Высота ячейки как доля: 0 у нижней связки, 1 у самой верхней возможной
+    // (когда вся спина занята одной колонкой).
+    const height = index / Math.max(1, BACKPACK_CAPACITY - 1);
 
     // Наклон растёт как квадрат высоты: низ почти не сдвигается,
     // верх сдвигается сильнее всего — стопка гнётся дугой, как удочка.
@@ -225,16 +196,5 @@ export class CarryStack {
       x: this.anchor.x + leanOffset + swayOffset,
       y: this.anchor.y - index * ITEM_STEP,
     };
-  }
-
-  // «МАКС» виден только у полной стопки и висит прямо над её верхом.
-  private updateMaxLabel(): void {
-    const isFull = this.isFull();
-    this.maxLabel.setVisible(isFull);
-    if (!isFull) return;
-
-    // Ячейка над самой верхней связкой — там и ставим надпись.
-    const top = this.getSlotPosition(STACK_CAPACITY);
-    this.maxLabel.setPosition(top.x, top.y - MAX_LABEL_GAP);
   }
 }

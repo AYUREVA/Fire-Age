@@ -64,6 +64,22 @@ export const COLORS = {
   leafLight: 0x67b356, // листва на свету
   leafHighlight: 0x9fd873, // самые светлые листики
 
+  // ===== Заяц =====
+  hare: 0xf6f3ec, // белый мех
+  hareShade: 0xd9d3c7, // мех в тени
+  hareEar: 0xf3a9b3, // розовое внутри уха
+  hareNose: 0xe77f8f, // нос
+
+  // ===== Мясо =====
+  rawMeat: 0xf08b8b, // сырое мясо
+  rawMeatShade: 0xd2646f, // сырое мясо в тени
+  rawMeatLight: 0xffbdb8, // блик на сыром мясе
+  cookedMeat: 0xb8662f, // жареное мясо: румяная корочка
+  cookedMeatShade: 0x8a4520, // жареное мясо в тени
+  cookedMeatLight: 0xe39a55, // блик на жареном мясе
+  bone: 0xfff3dc, // косточка
+  meatRoasting: 0xb07040, // до этого оттенка темнеет сырое мясо на вертеле (tint)
+
   // ===== Ветки и связки хвороста =====
   brush: 0x7a5c48, // сухие ветки куста
   brushDark: 0x56402f, // ветки в тени
