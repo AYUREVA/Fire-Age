@@ -72,11 +72,15 @@ export const COLORS = {
   // Оттенки (tint) для разных путников, чтобы они не были одинаковыми.
   travelerTints: [0xffffff, 0xffe0c2, 0xdde8ff, 0xe4f5d6, 0xf3dcf0],
 
-  // ===== Заяц =====
-  hare: 0xf6f3ec, // белый мех
-  hareShade: 0xd9d3c7, // мех в тени
-  hareEar: 0xf3a9b3, // розовое внутри уха
-  hareNose: 0xe77f8f, // нос
+  // ===== Кролик =====
+  rabbitFur: 0xa08a74, // серо-бурый мех — хорошо виден на снегу
+  rabbitShade: 0x7c6755, // мех в тени, дальнее ухо
+  rabbitLight: 0xc4af97, // светлая спинка и макушка
+  rabbitBelly: 0xf6eee2, // светлое брюхо, щёки, лапы, хвостик
+  rabbitEar: 0xf2a6b0, // розовое внутри уха
+  rabbitEarShade: 0xc98290, // розовое внутри дальнего уха
+  rabbitEye: 0x35261f, // глаз
+  rabbitNose: 0xe77f8f, // нос
 
   // ===== Мясо =====
   rawMeat: 0xf08b8b, // сырое мясо

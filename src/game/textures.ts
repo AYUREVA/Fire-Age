@@ -100,7 +100,7 @@ const RING_SIZE: Size = { w: 90, h: 44 };
 const JOYSTICK_BASE_SIZE: Size = { w: 128, h: 128 };
 const JOYSTICK_KNOB_SIZE: Size = { w: 60, h: 60 };
 const BUSH_SIZE: Size = { w: 124, h: 104 };
-const RABBIT_SIZE: Size = { w: 60, h: 56 };
+const RABBIT_SIZE: Size = { w: 64, h: 60 };
 const TRAVELER_SIZE: Size = { w: 84, h: 112 };
 const BUBBLE_SIZE: Size = { w: 84, h: 50 };
 const STUMP_SIZE: Size = { w: 80, h: 60 };
@@ -1249,38 +1249,56 @@ function drawBubble(g: Graphics): void {
   g.fillRect(w / 2 - 6, body - 3, 12, 4);
 }
 
-// Белый заяц, смотрит вправо: круглое тело, голова, два длинных уха
-// с розовым внутри, хвостик-помпон, глаз и розовый нос. Лапы внизу картинки.
+// Пушистый серо-бурый кролик, смотрит вправо. Тело — из нескольких кругов,
+// поэтому по краю видны вихры меха. Светлое брюхо и щёки, большие уши
+// с розовым внутри (дальнее темнее), крупный блестящий глаз, хвостик-помпон.
+// Лапы — внизу картинки.
 function drawRabbit(g: Graphics): void {
-  // Уши: вытянутые овалы, наклонены назад. Рисуются первыми — голова их перекрывает.
-  drawRabbitEar(g, 36, 16, -0.35);
-  drawRabbitEar(g, 43, 15, -0.1);
-  // Хвостик и тело.
-  outlinedCircle(g, 12, 38, 6, COLORS.hare);
-  outlinedEllipse(g, 27, 40, 34, 26, COLORS.hare);
-  g.fillStyle(COLORS.hareShade, 1);
-  g.fillEllipse(27, 47, 26, 8);
-  // Лапки.
-  outlinedEllipse(g, 20, 52, 12, 6, COLORS.hare);
-  outlinedEllipse(g, 37, 52, 12, 6, COLORS.hare);
-  // Голова, глаз, нос.
-  outlinedCircle(g, 42, 30, 11, COLORS.hare);
-  g.fillStyle(COLORS.outline, 1);
-  g.fillCircle(45, 28, 2.5);
+  // Дальнее ухо (темнее) и ближнее — рисуются первыми, голова их перекрывает.
+  drawRabbitEar(g, 40, 18, -0.45, COLORS.rabbitShade, COLORS.rabbitEarShade);
+  drawRabbitEar(g, 47, 16, -0.12, COLORS.rabbitFur, COLORS.rabbitEar);
+  // Хвостик-помпон.
+  outlinedBlobs(g, [11, 38, 6, 14, 33, 5, 9, 34, 4], COLORS.rabbitBelly);
+  // Пушистое тело: круги с общей обводкой, тень снизу, светлая спинка.
+  outlinedBlobs(g, [22, 40, 14, 33, 38, 13, 15, 45, 10, 28, 47, 12, 37, 45, 10], COLORS.rabbitFur);
+  g.fillStyle(COLORS.rabbitShade, 1);
+  g.fillEllipse(24, 51, 26, 7);
+  g.fillStyle(COLORS.rabbitLight, 1);
+  g.fillEllipse(25, 33, 16, 6);
+  // Светлое брюхо спереди.
+  g.fillStyle(COLORS.rabbitBelly, 1);
+  g.fillEllipse(38, 46, 12, 14);
+  // Длинная задняя лапа и маленькая передняя.
+  outlinedEllipse(g, 20, 55, 18, 6, COLORS.rabbitBelly);
+  outlinedEllipse(g, 42, 55, 9, 5, COLORS.rabbitBelly);
+  // Голова: светлая макушка и светлая мордочка спереди.
+  outlinedCircle(g, 46, 30, 13, COLORS.rabbitFur);
+  g.fillStyle(COLORS.rabbitLight, 1);
+  g.fillEllipse(42, 22, 12, 5);
+  g.fillStyle(COLORS.rabbitBelly, 1);
+  g.fillEllipse(53, 36, 12, 9);
+  // Большой блестящий глаз: тёмный, с двумя бликами.
+  g.fillStyle(COLORS.rabbitEye, 1);
+  g.fillEllipse(49, 27, 8, 9);
   g.fillStyle(COLORS.white, 1);
-  g.fillCircle(46, 27, 1);
-  g.fillStyle(COLORS.hareNose, 1);
-  g.fillCircle(52, 32, 2.5);
+  g.fillCircle(50.8, 24.8, 2);
+  g.fillCircle(47.8, 29.5, 1);
+  // Нос и усы.
+  g.fillStyle(COLORS.rabbitNose, 1);
+  g.fillEllipse(58, 33, 5, 4);
+  g.lineStyle(1, COLORS.outline, 0.45);
+  g.lineBetween(56, 36, 63, 35);
+  g.lineBetween(56, 37, 62, 40);
 }
 
-// Ухо зайца: наружный белый овал и розовая серединка, повёрнутые на angle (радианы).
-function drawRabbitEar(g: Graphics, x: number, y: number, angle: number): void {
+// Ухо кролика: овал цвета fur с розовой серединкой inner, повёрнутый на angle (радианы).
+function drawRabbitEar(g: Graphics, x: number, y: number, angle: number, fur: number, inner: number): void {
   g.save();
   g.translateCanvas(x, y);
   g.rotateCanvas(angle);
-  outlinedEllipse(g, 0, 0, 9, 24, COLORS.hare);
-  g.fillStyle(COLORS.hareEar, 1);
-  g.fillEllipse(0, 1, 4, 16);
+  outlinedEllipse(g, 0, 0, 10, 27, fur);
+  g.fillStyle(inner, 1);
+  g.fillEllipse(0, 2, 4.5, 18);
   g.restore();
 }
 
