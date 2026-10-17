@@ -84,9 +84,11 @@ export const COLORS = {
   cookedMeatShade: 0x8a4520, // жареное мясо в тени
   cookedMeatLight: 0xe39a55, // блик на жареном мясе
   bone: 0xfff3dc, // косточка
-  tusk: 0xfbf3df, // клык — валюта каменного века
-  tuskShade: 0xe2d4b4, // клык в тени
-  tuskRoot: 0xa77c52, // тёмное основание клыка
+  tusk: 0xf7f1e3, // эмаль клыка саблезуба — валюта каменного века
+  tuskShade: 0xc9cdd6, // холодная тень на эмали
+  tuskShine: 0xffffff, // блик на эмали
+  tuskRoot: 0xc9a77a, // корень клыка
+  tuskRootShade: 0xa4835a, // корень в тени
   meatRoasting: 0xb07040, // до этого оттенка темнеет сырое мясо на вертеле (tint)
 
   // ===== Ветки и связки хвороста =====

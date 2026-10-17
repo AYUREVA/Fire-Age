@@ -105,7 +105,9 @@ const BUBBLE_SIZE: Size = { w: 84, h: 50 };
 const STUMP_SIZE: Size = { w: 80, h: 60 };
 const BUNDLE_SIZE: Size = { w: 56, h: 28 };
 const MEAT_SIZE: Size = { w: 48, h: 32 };
-const TUSK_SIZE: Size = { w: 30, h: 34 };
+const TUSK_SIZE: Size = { w: 36, h: 44 };
+// Высота корня клыка (тёмная верхняя часть).
+const TUSK_ROOT_HEIGHT = 12;
 const SNOWFLAKE_SIZE: Size = { w: 12, h: 12 };
 const CHIP_SIZE: Size = { w: 12, h: 9 };
 const DROP_ZONE_SIZE: Size = { w: 220, h: 132 };
@@ -1216,15 +1218,51 @@ function drawRabbitEar(g: Graphics, x: number, y: number, angle: number): void {
   g.restore();
 }
 
-// Клык: изогнутый светлый зуб — широкий у основания, острый и загнутый влево на конце.
-// Вдоль внутреннего края — тень, у основания — тёмное кольцо.
+// Клык саблезуба. Сверху — корень с неровным краем, ниже — изогнутый клинок
+// эмали, который сужается к острию и чуть загибается влево. Объём — три слоя
+// по одной кривой: основа, тень вдоль вогнутого края и блик вдоль выпуклого.
 function drawTusk(g: Graphics): void {
-  const tusk = [8, 31, 21, 31, 24, 24, 24, 16, 21, 9, 15, 3, 8, 1, 12, 7, 14, 14, 14, 22, 11, 28];
-  fillPolygon(g, tusk, COLORS.tusk);
-  fillPolygon(g, [8, 1, 12, 7, 14, 14, 14, 22, 11, 28, 15, 24, 17, 15, 14, 7], COLORS.tuskShade);
-  g.fillStyle(COLORS.tuskRoot, 1);
-  g.fillRect(9, 27, 13, 4);
-  strokePolygon(g, tusk);
+  const { w } = TUSK_SIZE;
+  const top = TUSK_ROOT_HEIGHT;
+  const length = TUSK_SIZE.h - top - 2;
+  // Середина клинка на доле длины t (0 — у корня, 1 — остриё): к острию уходит влево.
+  const centerX = (t: number): number => w / 2 + 4 - 13 * Math.pow(t, 1.5);
+  // Половина толщины клинка: у корня широкий, долго держит толщину и резко сходится в остриё.
+  const halfWidth = (t: number): number => 10 * Math.pow(1 - t, 0.55);
+  const y = (t: number): number => top + length * t;
+
+  // Точки края клинка: right — выпуклый край (справа), left — вогнутый (слева).
+  // shift — насколько точка сдвинута внутрь от края (доля толщины).
+  const edge = (side: number, shift: number, from: number, to: number): number[] => {
+    const points: number[] = [];
+    const steps = 12;
+    for (let i = 0; i <= steps; i++) {
+      const t = Phaser.Math.Linear(from, to, i / steps);
+      points.push(centerX(t) + side * halfWidth(t) * (1 - shift), y(t));
+    }
+    return points;
+  };
+  const reversed = (points: number[]): number[] => {
+    const result: number[] = [];
+    for (let i = points.length - 2; i >= 0; i -= 2) result.push(points[i], points[i + 1]);
+    return result;
+  };
+
+  const blade = [...edge(1, 0, 0, 1), ...reversed(edge(-1, 0, 0, 1))];
+  fillPolygon(g, blade, COLORS.tusk);
+  // Тень вдоль вогнутого края.
+  fillPolygon(g, [...edge(-1, 0, 0, 1), ...reversed(edge(-1, 0.55, 0, 0.95))], COLORS.tuskShade);
+  // Блик вдоль выпуклого края — узкая белая полоска.
+  fillPolygon(g, [...edge(1, 0.25, 0.08, 0.7), ...reversed(edge(1, 0.6, 0.08, 0.7))], COLORS.tuskShine);
+  strokePolygon(g, blade);
+
+  // Корень — шириной с основание клинка: неровный верх, правая сторона в тени.
+  const left = centerX(0) - halfWidth(0);
+  const right = centerX(0) + halfWidth(0);
+  const root = [left, top + 1, left - 1, 6, left + 4, 3, left + 8, 5, left + 12, 2, right, 5, right, top + 1];
+  fillPolygon(g, root, COLORS.tuskRoot);
+  fillPolygon(g, [left + 10, top + 1, left + 11, 4, left + 12, 2, right, 5, right, top + 1], COLORS.tuskRootShade);
+  strokePolygon(g, root);
 }
 
 // Мультяшная мясная ножка: косточка слева, круглый кусок мяса справа,
