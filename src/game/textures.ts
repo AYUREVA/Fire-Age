@@ -44,6 +44,7 @@ export const TEXTURES = {
   dropZone: 'drop-zone', // площадка кучи у костра: светлая рамка (иконку ставит ItemPile)
   firePit: 'fire-pit', // кострище: камни и поленья
   spit: 'spit', // вертел над костром: две рогатины и палка; точка опоры — низ
+  stoneTable: 'stone-table', // каменный стол со шкурой: сюда кладут еду для путников
   flame: 'flame', // язык пламени; точка опоры — низ
   glow: 'glow', // мягкий белый круг; его красят в цвет света
   spark: 'spark', // искра костра (белая, цвет задаёт частица)
@@ -106,6 +107,7 @@ const CHIP_SIZE: Size = { w: 12, h: 9 };
 const DROP_ZONE_SIZE: Size = { w: 220, h: 132 };
 const FIRE_PIT_SIZE: Size = { w: 110, h: 64 };
 const SPIT_SIZE: Size = { w: 170, h: 96 };
+const STONE_TABLE_SIZE: Size = { w: 190, h: 96 };
 const FLAME_SIZE: Size = { w: 64, h: 96 };
 const GLOW_SIZE: Size = { w: 128, h: 128 };
 const SPARK_SIZE: Size = { w: 8, h: 8 };
@@ -187,6 +189,7 @@ export function createTextures(scene: Phaser.Scene): void {
   bake(scene, TEXTURES.dropZone, DROP_ZONE_SIZE, drawDropZone);
   bake(scene, TEXTURES.firePit, FIRE_PIT_SIZE, drawFirePit);
   bake(scene, TEXTURES.spit, SPIT_SIZE, drawSpit);
+  bake(scene, TEXTURES.stoneTable, STONE_TABLE_SIZE, drawStoneTable);
   bake(scene, TEXTURES.flame, FLAME_SIZE, drawFlame);
   bake(scene, TEXTURES.glow, GLOW_SIZE, drawGlow);
   bake(scene, TEXTURES.spark, SPARK_SIZE, drawSpark);
@@ -1310,6 +1313,35 @@ function drawSpit(g: Graphics): void {
   }
   // Палка вертела поверх рогатин.
   limb(g, 4, skewerY, w - 4, skewerY, 5, COLORS.woodLight);
+}
+
+// Каменный стол: плита на двух камнях-ножках, сверху — шкура с пятнами,
+// её край свисает спереди.
+function drawStoneTable(g: Graphics): void {
+  const { w, h } = STONE_TABLE_SIZE;
+
+  // Ножки-камни.
+  for (const x of [34, w - 34]) {
+    g.fillStyle(COLORS.stoneDark, 1);
+    g.fillRoundedRect(x - 18, 50, 36, h - 52, 8);
+    g.lineStyle(OUTLINE_WIDTH, COLORS.outline, 1);
+    g.strokeRoundedRect(x - 18, 50, 36, h - 52, 8);
+  }
+  // Плита: светлый верх и тёмный торец.
+  g.fillStyle(COLORS.stone, 1);
+  g.fillRoundedRect(4, 22, w - 8, 36, 12);
+  g.fillStyle(COLORS.stoneDark, 1);
+  g.fillRoundedRect(8, 44, w - 16, 12, 6);
+  g.lineStyle(OUTLINE_WIDTH, COLORS.outline, 1);
+  g.strokeRoundedRect(4, 22, w - 8, 36, 12);
+  // Шкура сверху: светлый мех, свисающий край спереди и тёмные пятна.
+  const hide = [18, 20, w - 20, 18, w - 12, 30, w - 24, 50, w - 40, 44, w / 2, 52, 40, 46, 24, 50, 12, 32];
+  fillPolygon(g, hide, COLORS.fur);
+  g.fillStyle(COLORS.furSpot, 1);
+  g.fillEllipse(54, 30, 16, 8);
+  g.fillEllipse(w / 2 + 14, 26, 12, 6);
+  g.fillEllipse(w - 52, 34, 14, 7);
+  strokePolygon(g, hide);
 }
 
 // Язык пламени: несколько «капель» одна в другой — от красного края до почти белой середины.

@@ -13,6 +13,7 @@ import {
   RAW_MEAT_PILE_POSITION,
   RAW_MEAT_PILE_CAPACITY,
   COOKED_MEAT_PILE_POSITION,
+  TABLE_POSITION,
   COOKED_MEAT_PILE_CAPACITY,
   PHASES,
   FIRE_MAX_HEAT,
@@ -24,6 +25,7 @@ import { ResourceNode } from '../objects/ResourceNode';
 import { ItemPile } from '../objects/ItemPile';
 import { Rabbit } from '../objects/Rabbit';
 import { Spit } from '../objects/Spit';
+import { StoneTable } from '../objects/StoneTable';
 import { Campfire } from '../objects/Campfire';
 import { Hud } from '../objects/Hud';
 import { CycleEvent, DayNightCycle } from '../objects/DayNightCycle';
@@ -31,6 +33,7 @@ import { NightOverlay } from '../objects/NightOverlay';
 import { PhaseBanner } from '../ui/PhaseBanner';
 import { updateDropping, updateGathering, updateHunting, updatePickup } from '../systems/Gathering';
 import { updateCooking } from '../systems/Cooking';
+import { updateTable, updateTusks } from '../systems/Serving';
 import { updateFire } from '../systems/Fire';
 import { ResultData } from './ResultScene';
 
@@ -82,9 +85,9 @@ const FOREST_SCALE_MAX = 1.15;
 // Ширина тени относительно ширины предмета.
 const SHADOW_WIDTH_RATIO = 0.85;
 // Мелкий декор не кладём ближе этого расстояния к кусту — чтобы не торчал из куста —
-// и к костру — чтобы весь лагерь (костёр, вертел, кучи) стоял на чистом снегу.
+// и к костру — чтобы весь лагерь (костёр, вертел, кучи, стол) стоял на чистом снегу.
 const BUSH_CLEAR_RADIUS = 80;
-const CAMP_CLEAR_RADIUS = 360;
+const CAMP_CLEAR_RADIUS = 460;
 
 // ===== Падающий снег =====
 
@@ -133,6 +136,8 @@ export class GameScene extends Phaser.Scene {
   private rawMeatPile!: ItemPile;
   private spit!: Spit;
   private cookedMeatPile!: ItemPile;
+  // Каменный стол: сюда вождь кладёт жареное мясо, у него очередь путников и кучка клыков.
+  private table!: StoneTable;
   // Интерфейс: сколько осталось до конца дня или ночи, кнопка паузы.
   private hud!: Hud;
   // Смена дня и ночи: фаза, номер суток, сколько осталось до конца фазы.
@@ -190,6 +195,7 @@ export class GameScene extends Phaser.Scene {
       'cookedMeat',
       COOKED_MEAT_PILE_CAPACITY,
     );
+    this.table = new StoneTable(this, TABLE_POSITION.x, TABLE_POSITION.y);
 
     this.player = new Player(this, PLAYER_START.x, PLAYER_START.y);
     this.backpack = new Backpack(this);
@@ -234,6 +240,8 @@ export class GameScene extends Phaser.Scene {
     updateHunting(this.player, this.backpack, this.rabbits);
     updateDropping(this.player, this.backpack, [this.woodpile, this.rawMeatPile], delta);
     updatePickup(this.player, this.backpack, this.cookedMeatPile, delta);
+    updateTable(this.player, this.backpack, this.table, delta);
+    updateTusks(this.player, this.table, this.hud, this.cameras.main);
     const isFireOut = updateFire(this.campfire, this.woodpile, delta, phase.fireBurnMultiplier);
     this.campfire.update(delta);
     updateCooking(this.campfire, this.rawMeatPile, this.spit, this.cookedMeatPile, delta);
