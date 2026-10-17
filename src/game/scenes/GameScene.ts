@@ -87,9 +87,13 @@ const FOREST_SCALE_MAX = 1.15;
 // Ширина тени относительно ширины предмета.
 const SHADOW_WIDTH_RATIO = 0.85;
 // Мелкий декор не кладём ближе этого расстояния к кусту — чтобы не торчал из куста —
-// и к костру — чтобы весь лагерь (костёр, вертел, кучи, стол) стоял на чистом снегу.
+// к костру — чтобы лагерь (костёр, вертел, кучи) стоял на чистом снегу —
+// и к столу — чтобы на чистом снегу стояли стол и очередь путников под ним.
 const BUSH_CLEAR_RADIUS = 80;
-const CAMP_CLEAR_RADIUS = 460;
+const CAMP_CLEAR_RADIUS = 360;
+const TABLE_CLEAR_RADIUS = 320;
+// Середина чистого места у стола — ниже стола, там стоит очередь.
+const TABLE_CLEAR_SHIFT_Y = 120;
 
 // ===== Падающий снег =====
 
@@ -363,10 +367,11 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  // Рядом ли точка (x, y) с кустом или с лагерем — там декор не кладём.
+  // Рядом ли точка (x, y) с кустом, лагерем или столом — там декор не кладём.
   private isNearImportantPlace(x: number, y: number): boolean {
     const nearCamp =
-      Phaser.Math.Distance.Between(x, y, CAMPFIRE_POSITION.x, CAMPFIRE_POSITION.y) < CAMP_CLEAR_RADIUS;
+      Phaser.Math.Distance.Between(x, y, CAMPFIRE_POSITION.x, CAMPFIRE_POSITION.y) < CAMP_CLEAR_RADIUS ||
+      Phaser.Math.Distance.Between(x, y, TABLE_POSITION.x, TABLE_POSITION.y + TABLE_CLEAR_SHIFT_Y) < TABLE_CLEAR_RADIUS;
     const nearBush = BUSH_POSITIONS.some(
       (bush) => Phaser.Math.Distance.Between(x, y, bush.x, bush.y) < BUSH_CLEAR_RADIUS,
     );

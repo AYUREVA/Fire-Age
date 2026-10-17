@@ -22,18 +22,22 @@ const FOOD_FLY_TIME = 300;
 const FOOD_FLY_ARC = 40;
 // Дошёл до места, если ближе этого (пиксели).
 const ARRIVE_DISTANCE = 3;
+// Уходя, путник сначала отходит вбок на столько пикселей — чтобы не идти сквозь очередь.
+const LEAVE_STEP_ASIDE = 130;
 
 // ===== Над головой =====
 
 // Пузырь, надписи и шкала — поверх всех стоящих предметов (как шкала жара костра).
 const OVERHEAD_DEPTH = 9000;
-// Пузырь «что хочу»: середина над ногами на такой высоте; иконка и число внутри.
-const BUBBLE_Y = 124;
+// Пузырь «что хочу» — справа от головы (над путником стоит стол): сдвиг середины
+// пузыря вправо и вверх от ног; иконка и число внутри.
+const BUBBLE_X = 78;
+const BUBBLE_Y = 100;
 const BUBBLE_ICON_X = -14;
 const BUBBLE_ICON_SCALE = 0.62;
 const BUBBLE_TEXT_X = 6;
 // Шкала терпения — под пузырём, уменьшенная шкала жара.
-const PATIENCE_Y = 96;
+const PATIENCE_Y = 68;
 const PATIENCE_SCALE = 0.5;
 // Заливка шкалы начинается на столько пикселей левее середины (у полной шкалы — 52).
 const PATIENCE_FILL_LEFT = 52 * PATIENCE_SCALE;
@@ -75,6 +79,8 @@ export class Traveler {
   private state: TravelerState = 'gone';
   // Куда он идёт: место в очереди или точка в лесу.
   private target: Point = { x: 0, y: 0 };
+  // Куда путник уходит в лес (после шага в сторону) — пока не дошёл, undefined.
+  private exit?: Point;
   // Время для покачивания при ходьбе и «жевания».
   private animTime = 0;
   // Какую еду хочет (пока только жареное мясо; рыба — в версии 0.8).
@@ -173,13 +179,12 @@ export class Traveler {
     this.target = from;
     this.state = 'walking';
 
-    for (const part of [this.image, this.shadow, this.bubble, this.bubbleIcon, this.bubbleText]) {
-      part.setVisible(true);
-    }
-    this.patienceBack.setVisible(true);
-    this.patienceFill.setVisible(true);
+    this.image.setVisible(true);
+    this.shadow.setVisible(true);
+    // Пузырь и шкала появятся, когда путник станет первым в очереди (setFront).
+    this.showOverhead(false);
     this.angryMark.setVisible(false);
-    // У каждого путника свой оттенок плаща.
+    // У каждого путника свой оттенок плаща, а посох — то в правой, то в левой руке.
     this.image.setTint(Phaser.Utils.Array.GetRandom(COLORS.travelerTints));
     this.updateBubble();
   }
@@ -189,6 +194,13 @@ export class Traveler {
     if (slot.x === this.target.x && slot.y === this.target.y) return;
     this.target = slot;
     if (this.state === 'waiting') this.state = 'walking';
+  }
+
+  // Первый в очереди показывает над головой пузырь «что хочу» и шкалу терпения.
+  // Остальные стоят без пузыря — иначе в очереди столбиком пузыри налезали бы на головы.
+  setFront(isFront: boolean): void {
+    if (this.state === 'eating') return;
+    this.showOverhead(isFront);
   }
 
   // Взять кусок со стола: он по дуге летит к путнику и исчезает.
@@ -208,22 +220,17 @@ export class Traveler {
   startEating(): void {
     this.state = 'eating';
     this.eatTime = 0;
-    this.bubble.setVisible(false);
-    this.bubbleIcon.setVisible(false);
-    this.bubbleText.setVisible(false);
-    this.patienceBack.setVisible(false);
-    this.patienceFill.setVisible(false);
+    this.showOverhead(false);
   }
 
-  // Уйти в лес вправо. Голодный (isFed = false) уходит с красным «!».
-  leave(isFed: boolean, exitX: number): void {
+  // Уйти в лес — в точку exit. Голодный (isFed = false) уходит с красным «!».
+  // Сначала отходит вбок — в ту сторону, где лес выхода, — потом идёт к лесу.
+  leave(isFed: boolean, exit: Point): void {
     this.state = 'leaving';
-    this.target = { x: exitX, y: this.y };
-    this.bubble.setVisible(false);
-    this.bubbleIcon.setVisible(false);
-    this.bubbleText.setVisible(false);
-    this.patienceBack.setVisible(false);
-    this.patienceFill.setVisible(false);
+    this.exit = exit;
+    const side = exit.x >= this.x ? 1 : -1;
+    this.target = { x: this.x + side * LEAVE_STEP_ASIDE, y: this.y };
+    this.showOverhead(false);
     this.angryMark.setVisible(!isFed);
     if (!isFed) pop(this.scene, this.angryMark);
   }
@@ -248,7 +255,11 @@ export class Traveler {
     if (distance <= Math.max(step, ARRIVE_DISTANCE)) {
       this.x = this.target.x;
       this.y = this.target.y;
-      if (this.state === 'leaving') {
+      if (this.state === 'leaving' && this.exit) {
+        // Шаг в сторону сделан — теперь в лес.
+        this.target = this.exit;
+        this.exit = undefined;
+      } else if (this.state === 'leaving') {
         this.hide();
       } else {
         this.state = 'waiting';
@@ -274,16 +285,17 @@ export class Traveler {
     if (!isMoving && this.state !== 'eating') this.image.setFlipX(false);
 
     const bubbleY = this.y - BUBBLE_Y;
-    this.bubble.setPosition(this.x, bubbleY);
-    this.bubbleIcon.setPosition(this.x + BUBBLE_ICON_X, bubbleY - 4);
-    this.bubbleText.setPosition(this.x + BUBBLE_TEXT_X, bubbleY - 5);
+    const bubbleX = this.x + BUBBLE_X;
+    this.bubble.setPosition(bubbleX, bubbleY);
+    this.bubbleIcon.setPosition(bubbleX + BUBBLE_ICON_X, bubbleY - 4);
+    this.bubbleText.setPosition(bubbleX + BUBBLE_TEXT_X, bubbleY - 5);
 
     // Шкала терпения: заливка короче и краснее, чем меньше терпения.
     const patienceShare = Phaser.Math.Clamp(this.patience / TRAVELER_PATIENCE, 0, 1);
     const barY = this.y - PATIENCE_Y;
-    this.patienceBack.setPosition(this.x, barY);
+    this.patienceBack.setPosition(bubbleX, barY);
     this.patienceFill
-      .setPosition(this.x - PATIENCE_FILL_LEFT, barY)
+      .setPosition(bubbleX - PATIENCE_FILL_LEFT, barY)
       .setScale(patienceShare * PATIENCE_SCALE, PATIENCE_SCALE)
       .setTint(mixColors(COLORS.patienceLow, COLORS.patienceFull, patienceShare));
 
@@ -295,14 +307,19 @@ export class Traveler {
     this.bubbleText.setText('×' + (this.order - this.received));
   }
 
+  // Показать или спрятать пузырь «что хочу» и шкалу терпения.
+  private showOverhead(visible: boolean): void {
+    for (const part of [this.bubble, this.bubbleIcon, this.bubbleText, this.patienceBack, this.patienceFill]) {
+      part.setVisible(visible);
+    }
+  }
+
   // Убрать путника с поля — он ждёт, когда его позовут снова.
   private hide(): void {
     this.state = 'gone';
-    for (const part of [this.image, this.shadow, this.bubble, this.bubbleIcon, this.bubbleText]) {
-      part.setVisible(false);
-    }
-    this.patienceBack.setVisible(false);
-    this.patienceFill.setVisible(false);
+    this.image.setVisible(false);
+    this.shadow.setVisible(false);
+    this.showOverhead(false);
     this.angryMark.setVisible(false);
   }
 }

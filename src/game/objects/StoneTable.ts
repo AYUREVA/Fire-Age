@@ -1,21 +1,25 @@
 import Phaser from 'phaser';
-import { DROP_RADIUS, TABLE_CAPACITY } from '../settings';
+import { DROP_RADIUS, TABLE_CAPACITY, WORLD_EDGE, WORLD_HEIGHT } from '../settings';
 import { TEXTURES } from '../textures';
-import { ItemType } from '../items';
+import { ITEMS, ItemType } from '../items';
 import { flyArc, pop, Point } from '../fx';
 
 // ===== Площадка у стола =====
 
 // Площадка лежит плоско на земле, как у куч (ItemPile.ts).
 const FLAT_ON_GROUND_DEPTH = -100;
-// Площадка — перед столом: на столько пикселей ниже его основания.
-const ZONE_OFFSET_Y = 70;
+// Площадка — над столом (вождь подходит к столу сверху): на столько пикселей
+// выше его основания.
+const ZONE_OFFSET_Y = -150;
 // Прозрачность и размер площадки: обычно и когда вождь стоит в зоне.
 const PLATFORM_IDLE_ALPHA = 0.75;
 const PLATFORM_ACTIVE_ALPHA = 1;
 const PLATFORM_ACTIVE_SCALE = 1.06;
 // За сколько мс площадка подсвечивается или гаснет.
 const PLATFORM_TWEEN_TIME = 160;
+// Бледная картинка жареного мяса на площадке: что сюда нести (как у куч).
+const ICON_ALPHA = 0.4;
+const ICON_SCALE = 1.2;
 
 // ===== Еда на столе =====
 
@@ -34,21 +38,24 @@ const FOOD_FLY_ARC = 60;
 
 // ===== Очередь путников =====
 
-// Первое место в очереди — справа от стола; остальные — дальше вправо.
-const QUEUE_START_X = 130;
-const QUEUE_STEP = 62;
-const QUEUE_OFFSET_Y = -6;
+// Очередь стоит под столом столбиком вниз: первое место — сразу под столом.
+const QUEUE_START_Y = 80;
+const QUEUE_STEP = 100;
+// Путники выходят из леса и уходят в лес у нижнего края мира, чуть за границей поля,
+// и по горизонтали — не дальше этого от стола.
+const FOREST_SHIFT_Y = 60;
+const FOREST_SPREAD_X = 200;
 
 // ===== Кучка клыков =====
 
-// Клыки лежат кучкой слева спереди от стола.
-const TUSK_PILE_OFFSET = { x: -130, y: 40 };
+// Клыки лежат кучкой на верхнем краю шкуры, слева — со стороны вождя.
+const TUSK_PILE_OFFSET = { x: -62, y: -76 };
 // Кучка: сколько клыков в ряду, шаг по ряду и между рядами.
 const TUSK_COLUMNS = 4;
-const TUSK_COLUMN_STEP = 12;
-const TUSK_ROW_STEP = 9;
-// Как близко подойти к кучке, чтобы клыки полетели в счётчик.
-const TUSK_COLLECT_RADIUS = 70;
+const TUSK_COLUMN_STEP = 10;
+const TUSK_ROW_STEP = 7;
+// Клыки лежат на столе — чуть ближе к нам, чем сам стол.
+const TUSK_DEPTH_SHIFT = 0.2;
 // Клык летит от путника к кучке.
 const TUSK_FLY_TIME = 420;
 const TUSK_FLY_ARC = 70;
@@ -59,9 +66,9 @@ type Food = { image: Phaser.GameObjects.Image; type: ItemType };
 /**
  * Каменный стол со шкурой — сюда вождь выкладывает жареную еду для путников.
  *
- * Перед столом площадка: вождь встаёт на неё, и еда со спины перелетает
- * на стол (systems/Serving.ts). Справа от стола — места очереди путников,
- * слева спереди — кучка клыков, которые оставляют накормленные путники.
+ * Над столом площадка: вождь подходит сверху, и еда со спины перелетает
+ * на стол (systems/Serving.ts), а клыки с верхнего края стола — в счётчик.
+ * Под столом столбиком стоит очередь путников, они приходят из леса снизу.
  * Про вождя и путников стол ничего не знает.
  */
 export class StoneTable {
@@ -99,6 +106,11 @@ export class StoneTable {
       .image(this.zone.x, this.zone.y, TEXTURES.dropZone)
       .setDepth(FLAT_ON_GROUND_DEPTH)
       .setAlpha(PLATFORM_IDLE_ALPHA);
+    scene.add
+      .image(this.zone.x, this.zone.y, ITEMS.cookedMeat.texture)
+      .setScale(ICON_SCALE)
+      .setAlpha(ICON_ALPHA)
+      .setDepth(FLAT_ON_GROUND_DEPTH + 1);
     scene.add.image(x, y, TEXTURES.stoneTable).setOrigin(0.5, 1).setDepth(y);
   }
 
@@ -168,14 +180,22 @@ export class StoneTable {
     return food.image;
   }
 
-  // Место путника номер index в очереди (0 — первый, у самого стола).
+  // Место путника номер index в очереди (0 — первый, сразу под столом).
   getQueueSlot(index: number): Point {
-    return { x: this.x + QUEUE_START_X + index * QUEUE_STEP, y: this.y + QUEUE_OFFSET_Y };
+    return { x: this.x, y: this.y + QUEUE_START_Y + index * QUEUE_STEP };
+  }
+
+  // Случайная точка в лесу внизу, недалеко от стола: отсюда путники приходят и сюда уходят.
+  getForestPoint(): Point {
+    return {
+      x: this.x + Phaser.Math.Between(-FOREST_SPREAD_X, FOREST_SPREAD_X),
+      y: WORLD_HEIGHT - WORLD_EDGE + FOREST_SHIFT_Y,
+    };
   }
 
   // ===== Клыки =====
 
-  // Накормленный путник оставляет count клыков: они летят из точки from в кучку на краю стола.
+  // Накормленный путник оставляет count клыков: они летят из точки from в кучку на верхнем краю стола.
   addTusks(count: number, from: Point): void {
     for (let i = 0; i < count; i++) {
       const tusk = this.scene.add.image(from.x, from.y, TEXTURES.tusk).setOrigin(0.5, 1);
@@ -190,17 +210,11 @@ export class StoneTable {
         height: TUSK_FLY_ARC,
         onLand: () => {
           this.flyingTusks.delete(tusk);
-          tusk.setDepth(slot.y);
+          tusk.setDepth(this.y + TUSK_DEPTH_SHIFT);
           pop(this.scene, tusk);
         },
       });
     }
-  }
-
-  // Рядом ли точка (x, y) с кучкой клыков.
-  isNearTusks(x: number, y: number): boolean {
-    const pile = this.getTuskSlot(0);
-    return Phaser.Math.Distance.Between(x, y, pile.x, pile.y) <= TUSK_COLLECT_RADIUS;
   }
 
   // Забрать из кучки все клыки, которые уже долетели. Их дальше двигает тот, кто забрал.

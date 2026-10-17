@@ -8,8 +8,6 @@ import {
   TRAVELER_SPAWN_INTERVAL,
   TRAVELER_TAKE_DELAY,
   TUSKS_PER_FOOD,
-  WORLD_EDGE,
-  WORLD_WIDTH,
 } from '../settings';
 import { Player } from '../objects/Player';
 import { Backpack } from '../objects/Backpack';
@@ -54,11 +52,6 @@ export function updateTable(player: Player, backpack: Backpack, table: StoneTabl
 
 // ===== Путники =====
 
-// Путники выходят из леса и уходят в лес у правого края поля, чуть дальше границы.
-const FOREST_X = WORLD_WIDTH - WORLD_EDGE + 60;
-// Выходят на высоте стола плюс-минус столько пикселей.
-const SPAWN_SPREAD_Y = 140;
-
 // Путники: приход из леса, очередь у стола, первый в очереди берёт еду,
 // ест, оставляет клыки и уходит. Нет нужной еды — убывает его терпение.
 export function updateTravelers(table: StoneTable, travelers: Traveler[], delta: number): void {
@@ -66,7 +59,11 @@ export function updateTravelers(table: StoneTable, travelers: Traveler[], delta:
 
   // Очередь — путники по порядку талонов: кто пришёл раньше, тот ближе к столу.
   const queue = travelers.filter((traveler) => traveler.isInQueue()).sort((a, b) => a.ticket - b.ticket);
-  queue.forEach((traveler, index) => traveler.setSlot(table.getQueueSlot(index)));
+  // Пузырь «что хочу» и шкала терпения — только у первого: остальные пока просто ждут.
+  queue.forEach((traveler, index) => {
+    traveler.setSlot(table.getQueueSlot(index));
+    traveler.setFront(index === 0);
+  });
 
   if (queue.length > 0) serveFirst(table, queue[0], delta);
 }
@@ -84,8 +81,7 @@ function callTraveler(table: StoneTable, travelers: Traveler[], delta: number): 
 
   table.spawnTimer = 0;
   const order = Phaser.Math.Between(TRAVELER_ORDER_MIN, TRAVELER_ORDER_MAX);
-  const from = { x: FOREST_X, y: table.y + Phaser.Math.Between(-SPAWN_SPREAD_Y, SPAWN_SPREAD_Y) };
-  free.arrive(table.nextTicket, order, from);
+  free.arrive(table.nextTicket, order, table.getForestPoint());
   table.nextTicket += 1;
 }
 
@@ -97,7 +93,7 @@ function serveFirst(table: StoneTable, first: Traveler, delta: number): void {
     first.eatTime += delta;
     if (first.eatTime < TRAVELER_EAT_TIME) return;
     table.addTusks(first.order * TUSKS_PER_FOOD, first.getMouthPoint());
-    first.leave(true, FOREST_X);
+    first.leave(true, table.getForestPoint());
     return;
   }
 
@@ -115,7 +111,7 @@ function serveFirst(table: StoneTable, first: Traveler, delta: number): void {
   if (!table.has(want.type)) {
     first.takeTimer = 0;
     first.patience -= delta;
-    if (first.patience <= 0) first.leave(false, FOREST_X);
+    if (first.patience <= 0) first.leave(false, table.getForestPoint());
     return;
   }
 
@@ -130,11 +126,11 @@ function serveFirst(table: StoneTable, first: Traveler, delta: number): void {
 
 // ===== Клыки в счётчик =====
 
-// Вождь подбежал к кучке клыков — каждый клык летит в счётчик в HUD.
+// Вождь стоит в зоне над столом — каждый клык с края стола летит в счётчик в HUD.
 // Клык лежит в мире, а счётчик — на экране: из точки мира вычитаем
 // левый верхний угол того, что видит камера, и получаем точку экрана.
 export function updateTusks(player: Player, table: StoneTable, hud: Hud, camera: Phaser.Cameras.Scene2D.Camera): void {
-  if (!table.isNearTusks(player.x, player.y)) return;
+  if (!table.contains(player.x, player.y)) return;
 
   for (const tusk of table.takeTusks()) {
     hud.flyTuskToCounter(tusk.x - camera.worldView.x, tusk.y - camera.worldView.y);
