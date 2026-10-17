@@ -7,7 +7,7 @@ import { ItemPile } from '../objects/ItemPile';
 import { Rabbit } from '../objects/Rabbit';
 
 // =====================================================================
-//  Добыча (кусты, кролики) и сдача в кучи у костра.
+//  Добыча (кусты, кролики), сдача в кучи у костра и жареное мясо на спину.
 //
 //  Это функции, а не класс: нужные объекты приходят аргументами,
 //  своего состояния здесь нет. Таймеры хранят сами объекты:
@@ -112,4 +112,33 @@ function dropIntoPile(player: Player, backpack: Backpack, pile: ItemPile, delta:
   if (!item) return;
 
   pile.receive(item);
+}
+
+// ===== Забрать жареное мясо =====
+
+// Вождь стоит на куче жареного мяса — каждые DROP_INTERVAL мс верхний кусок
+// улетает из кучи ему на спину, пока спина не полная.
+export function updatePickup(player: Player, backpack: Backpack, pile: ItemPile, delta: number): void {
+  const isInZone = pile.contains(player.x, player.y);
+  const canTake = isInZone && !pile.isEmpty() && !backpack.isFull();
+  pile.setHighlighted(canTake);
+
+  // Вождь не в зоне, куча пустая или спина полная — таймер не копится.
+  if (!canTake) {
+    pile.dropTimer = 0;
+    return;
+  }
+
+  pile.dropTimer += delta;
+  if (pile.dropTimer < DROP_INTERVAL) return;
+  pile.dropTimer -= DROP_INTERVAL;
+
+  // Верхний кусок может ещё лететь в кучу — тогда его пока не берём.
+  const item = pile.takeTop();
+  if (!item) return;
+
+  // Кусок из кучи исчезает, а на спину по дуге летит такой же — с того же места.
+  const from = { x: item.x, y: item.y };
+  item.destroy();
+  backpack.add(pile.type, from);
 }

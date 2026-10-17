@@ -153,6 +153,9 @@ export class ItemPile {
     if (!top || this.flyingItems.has(top)) return undefined;
 
     this.pile.pop();
+    // «Пружинка» после приземления могла ещё идти — останавливаем её.
+    this.scene.tweens.killTweensOf(top);
+    top.setScale(1);
     return top;
   }
 

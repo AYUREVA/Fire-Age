@@ -42,6 +42,7 @@ export const TEXTURES = {
   chip: 'chip', // щепка, летит из куста при ударе
   dropZone: 'drop-zone', // площадка кучи у костра: светлая рамка (иконку ставит ItemPile)
   firePit: 'fire-pit', // кострище: камни и поленья
+  spit: 'spit', // вертел над костром: две рогатины и палка; точка опоры — низ
   flame: 'flame', // язык пламени; точка опоры — низ
   glow: 'glow', // мягкий белый круг; его красят в цвет света
   spark: 'spark', // искра костра (белая, цвет задаёт частица)
@@ -102,6 +103,7 @@ const SNOWFLAKE_SIZE: Size = { w: 12, h: 12 };
 const CHIP_SIZE: Size = { w: 12, h: 9 };
 const DROP_ZONE_SIZE: Size = { w: 220, h: 132 };
 const FIRE_PIT_SIZE: Size = { w: 110, h: 64 };
+const SPIT_SIZE: Size = { w: 170, h: 96 };
 const FLAME_SIZE: Size = { w: 64, h: 96 };
 const GLOW_SIZE: Size = { w: 128, h: 128 };
 const SPARK_SIZE: Size = { w: 8, h: 8 };
@@ -181,6 +183,7 @@ export function createTextures(scene: Phaser.Scene): void {
   bake(scene, TEXTURES.chip, CHIP_SIZE, drawChip);
   bake(scene, TEXTURES.dropZone, DROP_ZONE_SIZE, drawDropZone);
   bake(scene, TEXTURES.firePit, FIRE_PIT_SIZE, drawFirePit);
+  bake(scene, TEXTURES.spit, SPIT_SIZE, drawSpit);
   bake(scene, TEXTURES.flame, FLAME_SIZE, drawFlame);
   bake(scene, TEXTURES.glow, GLOW_SIZE, drawGlow);
   bake(scene, TEXTURES.spark, SPARK_SIZE, drawSpark);
@@ -1278,6 +1281,21 @@ function drawLog(g: Graphics, x: number, y: number, angle: number): void {
   g.fillEllipse(27, 0, 6, 10);
 
   g.restore();
+}
+
+// Вертел: две рогатины по краям костра и палка поперёк, лежащая в развилках.
+function drawSpit(g: Graphics): void {
+  const { w, h } = SPIT_SIZE;
+  const skewerY = 16;
+
+  // Рогатины: столб и два рожка развилки.
+  for (const x of [14, w - 14]) {
+    limb(g, x, h - 2, x, skewerY + 4, 7, COLORS.wood);
+    limb(g, x, skewerY + 6, x - 7, skewerY - 8, 5, COLORS.wood);
+    limb(g, x, skewerY + 6, x + 7, skewerY - 8, 5, COLORS.wood);
+  }
+  // Палка вертела поверх рогатин.
+  limb(g, 4, skewerY, w - 4, skewerY, 5, COLORS.woodLight);
 }
 
 // Язык пламени: несколько «капель» одна в другой — от красного края до почти белой середины.

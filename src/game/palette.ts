@@ -78,6 +78,7 @@ export const COLORS = {
   cookedMeatShade: 0x8a4520, // жареное мясо в тени
   cookedMeatLight: 0xe39a55, // блик на жареном мясе
   bone: 0xfff3dc, // косточка
+  meatRoasting: 0xb07040, // до этого оттенка темнеет сырое мясо на вертеле (tint)
 
   // ===== Ветки и связки хвороста =====
   brush: 0x7a5c48, // сухие ветки куста
