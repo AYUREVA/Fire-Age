@@ -9,14 +9,17 @@ import { ResultScene } from './scenes/ResultScene';
 // на телефоне и на компьютере, в портрете и в альбоме. Поэтому вождь
 // и интерфейс всегда одного размера, а длинная сторона показывает больше мира.
 const SCREEN_SHORT_SIDE = 640;
-// Длинная сторона не больше чем в 2 раза длиннее короткой
-// (требование Яндекс Игр 1.6.2.2). Окно ещё шире — по бокам полосы.
+// На компьютере длинная сторона не больше чем в 2 раза длиннее короткой
+// (требование Яндекс Игр 1.6.2.2 — оно только для десктопа). Окно ещё шире — по бокам полосы.
+// У телефонов экран вытянутее 2:1, поэтому на сенсорном экране ограничения нет: игра на весь экран.
 const MAX_ASPECT = 2;
+const IS_TOUCH_SCREEN = navigator.maxTouchPoints > 0;
 
 // Размер игры для окна parentWidth × parentHeight: те же пропорции, что у окна
-// (но не вытянутее 2:1), короткая сторона — SCREEN_SHORT_SIDE.
+// (на компьютере — не вытянутее 2:1), короткая сторона — SCREEN_SHORT_SIDE.
 function screenSize(parentWidth: number, parentHeight: number): { width: number; height: number } {
-  const aspect = Phaser.Math.Clamp(parentWidth / Math.max(1, parentHeight), 1 / MAX_ASPECT, MAX_ASPECT);
+  const windowAspect = parentWidth / Math.max(1, parentHeight);
+  const aspect = IS_TOUCH_SCREEN ? windowAspect : Phaser.Math.Clamp(windowAspect, 1 / MAX_ASPECT, MAX_ASPECT);
   if (aspect >= 1) {
     return { width: Math.round(SCREEN_SHORT_SIDE * aspect), height: SCREEN_SHORT_SIDE };
   }
