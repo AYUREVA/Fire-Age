@@ -248,17 +248,18 @@ export class GameScene extends Phaser.Scene {
     updateHunting(this.player, this.backpack, this.rabbits);
     updateDropping(this.player, this.backpack, [this.woodpile, this.rawMeatPile], delta);
     updatePickup(this.player, this.backpack, this.cookedMeatPile, delta);
+    const isFireOut = updateFire(this.campfire, this.woodpile, delta, phase.fireBurnMultiplier);
+    this.campfire.update(delta);
+    updateCooking(this.campfire, this.rawMeatPile, this.spit, this.cookedMeatPile, delta);
+    this.spit.update(delta);
+    this.nightOverlay.update(this.campfire.x, this.campfire.y, this.campfire.heat / FIRE_MAX_HEAT);
+
     updateTable(this.player, this.backpack, this.table, delta);
     for (const traveler of this.travelers) {
       traveler.update(delta);
     }
     updateTravelers(this.table, this.travelers, delta);
     updateTusks(this.player, this.table, this.hud, this.cameras.main);
-    const isFireOut = updateFire(this.campfire, this.woodpile, delta, phase.fireBurnMultiplier);
-    this.campfire.update(delta);
-    updateCooking(this.campfire, this.rawMeatPile, this.spit, this.cookedMeatPile, delta);
-    this.spit.update(delta);
-    this.nightOverlay.update(this.campfire.x, this.campfire.y, this.campfire.heat / FIRE_MAX_HEAT);
 
     const cycleEvent = this.cycle.update(delta);
     this.hud.setTimeLeft(this.cycle.timeLeft);
