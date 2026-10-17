@@ -67,6 +67,8 @@ export const COLORS = {
   // ===== Путники =====
   travelerCloak: 0xb98a5a, // меховой плащ путника (оттенок меняет tint)
   travelerCloakDark: 0x8a6240, // плащ в тени и капюшон
+  sack: 0xc9a46a, // котомка путника — холщовый мешок
+  sackDark: 0x9c7a46, // мешок в тени, заплатка
   // Оттенки (tint) для разных путников, чтобы они не были одинаковыми.
   travelerTints: [0xffffff, 0xffe0c2, 0xdde8ff, 0xe4f5d6, 0xf3dcf0],
 

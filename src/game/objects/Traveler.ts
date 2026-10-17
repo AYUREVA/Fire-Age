@@ -101,7 +101,7 @@ export class Traveler {
 
     this.shadow = scene.add.image(0, 0, TEXTURES.shadow);
     this.shadow.setScale(SHADOW_WIDTH / this.shadow.width);
-    this.image = scene.add.image(0, 0, TEXTURES.traveler).setOrigin(0.5, 1);
+    this.image = scene.add.image(0, 0, TEXTURES.travelerBack).setOrigin(0.5, 1);
 
     this.bubble = scene.add.image(0, 0, TEXTURES.bubble).setDepth(OVERHEAD_DEPTH);
     this.bubbleIcon = scene.add.image(0, 0, ITEMS.cookedMeat.texture).setScale(BUBBLE_ICON_SCALE);
@@ -186,6 +186,7 @@ export class Traveler {
     this.angryMark.setVisible(false);
     // У каждого путника свой оттенок плаща, а посох — то в правой, то в левой руке.
     this.image.setTint(Phaser.Utils.Array.GetRandom(COLORS.travelerTints));
+    this.image.setFlipX(Math.random() < 0.5);
     this.updateBubble();
   }
 
@@ -270,8 +271,6 @@ export class Traveler {
     const direction = new Phaser.Math.Vector2(this.target.x - this.x, this.target.y - this.y).normalize();
     this.x += direction.x * step;
     this.y += direction.y * step;
-    // Картинка смотрит влево; идёт вправо — отражаем.
-    this.image.setFlipX(direction.x > 0);
   }
 
   // Ставит картинку, тень и всё, что над головой.
@@ -280,9 +279,11 @@ export class Traveler {
 
     const bob = isMoving ? Math.abs(Math.sin(this.animTime * WALK_BOB_SPEED)) * WALK_BOB_HEIGHT : 0;
     const chew = this.state === 'eating' ? Math.sin(this.animTime * CHEW_SPEED) * CHEW_SQUASH : 0;
+    // К столу путник идёт и стоит спиной к нам, уходит — лицом к нам.
+    const texture = this.state === 'leaving' ? TEXTURES.travelerFront : TEXTURES.travelerBack;
+    if (this.image.texture.key !== texture) this.image.setTexture(texture);
     this.image.setPosition(this.x, this.y - bob).setScale(1 + chew, 1 - chew).setDepth(this.y);
     this.shadow.setPosition(this.x, this.y).setDepth(this.y + SHADOW_DEPTH_SHIFT);
-    if (!isMoving && this.state !== 'eating') this.image.setFlipX(false);
 
     const bubbleY = this.y - BUBBLE_Y;
     const bubbleX = this.x + BUBBLE_X;
