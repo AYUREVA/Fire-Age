@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { COLORS, toCss } from '../palette';
 import { PHASES } from '../settings';
 import { TEXTURES, TITLE_FONT } from '../textures';
-import { pop } from '../fx';
+import { flyArc, pop } from '../fx';
 
 // HUD рисуется поверх всего мира (джойстик — на том же уровне, см. Player.ts).
 const HUD_DEPTH = 20000;
@@ -10,8 +10,13 @@ const HUD_DEPTH = 20000;
 const PANEL_MARGIN = 16;
 // Иконка солнца или луны на плашке: середина иконки от левого края плашки.
 const ICON_X = 38;
-// Где начинается время (от левого края плашки).
+// Где начинается время (от левого края плашки). Так же — число на плашке клыков.
 const TIME_X = 68;
+// Плашка клыков стоит справа от плашки времени с таким зазором.
+const PANEL_GAP = 10;
+// Клык летит в счётчик за столько мс по дуге такой высоты.
+const TUSK_FLY_TIME = 450;
+const TUSK_FLY_ARC = 80;
 // Плашки ночных модификаторов под плашкой времени: зазор, размер плашки
 // (уменьшенная плашка времени), расстояние между плашками.
 const MODIFIER_GAP = 6;
@@ -30,7 +35,8 @@ const PAUSE_HOVER_TINT = 0xffffff;
 
 /**
  * Интерфейс поверх игры: плашка «сколько осталось до конца дня или ночи»
- * (днём на ней солнце, ночью луна), под ней ночью — плашки модификаторов
+ * (днём на ней солнце, ночью луна), справа от неё — счётчик клыков,
+ * под ней ночью — плашки модификаторов
  * («×1.6» огонь, «×0.75» скорость), и кнопка паузы в правом верхнем углу (для телефона).
  * Всё в координатах экрана (scrollFactor 0) — не двигается вместе с камерой.
  */
@@ -40,6 +46,11 @@ export class Hud {
   private phaseIcon: Phaser.GameObjects.Image;
   // Время до конца дня или ночи на плашке, например «1:59».
   private timeText: Phaser.GameObjects.Text;
+  // Сколько клыков собрано (валюта; в уровне 1 — просто счёт).
+  tusks = 0;
+  // Иконка клыка и число на плашке клыков.
+  private tuskIcon: Phaser.GameObjects.Image;
+  private tuskText: Phaser.GameObjects.Text;
   // Кнопка паузы в правом верхнем углу.
   private pauseButton: Phaser.GameObjects.Image;
   // Плашки ночных модификаторов: видны только ночью.
@@ -55,6 +66,21 @@ export class Hud {
 
     this.timeText = scene.add
       .text(PANEL_MARGIN + TIME_X, panelCenterY, '', {
+        fontFamily: TITLE_FONT,
+        fontSize: '34px',
+        color: toCss(COLORS.hudText),
+        stroke: toCss(COLORS.outline),
+        strokeThickness: 6,
+        resolution: 2,
+      })
+      .setOrigin(0, 0.5);
+
+    // Плашка клыков справа от плашки времени.
+    const tuskPanelX = PANEL_MARGIN + panel.width + PANEL_GAP;
+    const tuskPanel = scene.add.image(tuskPanelX, PANEL_MARGIN, TEXTURES.hudPanel).setOrigin(0, 0);
+    this.tuskIcon = scene.add.image(tuskPanelX + ICON_X, panelCenterY, TEXTURES.tusk);
+    this.tuskText = scene.add
+      .text(tuskPanelX + TIME_X, panelCenterY, '0', {
         fontFamily: TITLE_FONT,
         fontSize: '34px',
         color: toCss(COLORS.hudText),
@@ -87,7 +113,8 @@ export class Hud {
     this.setModifiers(false);
 
     // Всё в координатах экрана и поверх мира.
-    for (const object of [panel, this.phaseIcon, this.timeText, pauseButton, ...this.modifiers]) {
+    const parts = [panel, this.phaseIcon, this.timeText, tuskPanel, this.tuskIcon, this.tuskText, pauseButton];
+    for (const object of [...parts, ...this.modifiers]) {
       object.setScrollFactor(0).setDepth(HUD_DEPTH);
     }
 
@@ -120,6 +147,26 @@ export class Hud {
   setPhase(isNight: boolean): void {
     this.phaseIcon.setTexture(isNight ? TEXTURES.moonIcon : TEXTURES.sunIcon);
     pop(this.scene, this.phaseIcon);
+  }
+
+  // Клык летит из точки экрана (screenX, screenY) в счётчик. Долетел — +1 и «пружинка».
+  flyTuskToCounter(screenX: number, screenY: number): void {
+    const tusk = this.scene.add.image(screenX, screenY, TEXTURES.tusk).setScrollFactor(0);
+    flyArc(this.scene, tusk, {
+      from: { x: screenX, y: screenY },
+      target: () => ({ x: this.tuskIcon.x, y: this.tuskIcon.y }),
+      duration: TUSK_FLY_TIME,
+      height: TUSK_FLY_ARC,
+      onLand: () => {
+        tusk.destroy();
+        this.tusks += 1;
+        this.tuskText.setText(String(this.tusks));
+        pop(this.scene, this.tuskText);
+        pop(this.scene, this.tuskIcon);
+      },
+    });
+    // flyArc ставит летящим предметам глубину мира — клык должен лететь поверх HUD.
+    tusk.setDepth(HUD_DEPTH + 1);
   }
 
   // Плашка модификатора: иконка и множитель, например «×1.6». (x, y) — середина плашки.

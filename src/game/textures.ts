@@ -37,6 +37,7 @@ export const TEXTURES = {
   stump: 'stump', // пенёк — куст без хвороста
   bundle: 'bundle', // связка хвороста, перевязанная верёвкой
   rawMeat: 'raw-meat', // сырое мясо: розовая ножка с косточкой
+  tusk: 'tusk', // клык — валюта каменного века
   cookedMeat: 'cooked-meat', // жареное мясо: румяная ножка с косточкой
   snowflake: 'snowflake', // снежинка: падающий снег и снег из куста
   chip: 'chip', // щепка, летит из куста при ударе
@@ -99,6 +100,7 @@ const RABBIT_SIZE: Size = { w: 60, h: 56 };
 const STUMP_SIZE: Size = { w: 80, h: 60 };
 const BUNDLE_SIZE: Size = { w: 56, h: 28 };
 const MEAT_SIZE: Size = { w: 48, h: 32 };
+const TUSK_SIZE: Size = { w: 30, h: 34 };
 const SNOWFLAKE_SIZE: Size = { w: 12, h: 12 };
 const CHIP_SIZE: Size = { w: 12, h: 9 };
 const DROP_ZONE_SIZE: Size = { w: 220, h: 132 };
@@ -175,6 +177,7 @@ export function createTextures(scene: Phaser.Scene): void {
   bake(scene, TEXTURES.bushSnow, BUSH_SIZE, drawBushSnow);
   bake(scene, TEXTURES.stump, STUMP_SIZE, drawStump);
   bake(scene, TEXTURES.bundle, BUNDLE_SIZE, drawBundle);
+  bake(scene, TEXTURES.tusk, TUSK_SIZE, drawTusk);
   bake(scene, TEXTURES.rawMeat, MEAT_SIZE, (g) => drawMeat(g, COLORS.rawMeat, COLORS.rawMeatShade, COLORS.rawMeatLight));
   bake(scene, TEXTURES.cookedMeat, MEAT_SIZE, (g) =>
     drawMeat(g, COLORS.cookedMeat, COLORS.cookedMeatShade, COLORS.cookedMeatLight),
@@ -1156,6 +1159,17 @@ function drawRabbitEar(g: Graphics, x: number, y: number, angle: number): void {
   g.fillStyle(COLORS.hareEar, 1);
   g.fillEllipse(0, 1, 4, 16);
   g.restore();
+}
+
+// Клык: изогнутый светлый зуб — широкий у основания, острый и загнутый влево на конце.
+// Вдоль внутреннего края — тень, у основания — тёмное кольцо.
+function drawTusk(g: Graphics): void {
+  const tusk = [8, 31, 21, 31, 24, 24, 24, 16, 21, 9, 15, 3, 8, 1, 12, 7, 14, 14, 14, 22, 11, 28];
+  fillPolygon(g, tusk, COLORS.tusk);
+  fillPolygon(g, [8, 1, 12, 7, 14, 14, 14, 22, 11, 28, 15, 24, 17, 15, 14, 7], COLORS.tuskShade);
+  g.fillStyle(COLORS.tuskRoot, 1);
+  g.fillRect(9, 27, 13, 4);
+  strokePolygon(g, tusk);
 }
 
 // Мультяшная мясная ножка: косточка слева, круглый кусок мяса справа,
