@@ -39,7 +39,7 @@ export const TEXTURES = {
   cookedMeat: 'cooked-meat', // жареное мясо: румяная ножка с косточкой
   snowflake: 'snowflake', // снежинка: падающий снег и снег из куста
   chip: 'chip', // щепка, летит из куста при ударе
-  dropZone: 'drop-zone', // площадка поленницы: рамка и иконка связки
+  dropZone: 'drop-zone', // площадка кучи у костра: светлая рамка (иконку ставит ItemPile)
   firePit: 'fire-pit', // кострище: камни и поленья
   flame: 'flame', // язык пламени; точка опоры — низ
   glow: 'glow', // мягкий белый круг; его красят в цвет света
@@ -1153,10 +1153,10 @@ function drawRopeBand(g: Graphics, x: number): void {
   g.strokeRoundedRect(x - 3, 1, 6, 25, 2);
 }
 
-// ===== Поленница и костёр =====
+// ===== Кучи у костра и костёр =====
 
-// Площадка поленницы — как зоны сдачи в мобильных играх:
-// скруглённая рамка, полупрозрачная заливка и иконка связки посередине.
+// Площадка кучи — как зоны сдачи в мобильных играх:
+// скруглённая рамка и полупрозрачная заливка. Иконку ресурса ставит ItemPile.
 function drawDropZone(g: Graphics): void {
   const { w, h } = DROP_ZONE_SIZE;
   const inset = 8;
@@ -1171,19 +1171,6 @@ function drawDropZone(g: Graphics): void {
   g.strokeRoundedRect(inset, inset, width, height, radius);
   g.lineStyle(6, COLORS.zoneBorder, 1);
   g.strokeRoundedRect(inset, inset, width, height, radius);
-
-  drawBundleIcon(g, w / 2, h / 2);
-}
-
-// Иконка связки на площадке: три палки и две верёвки.
-function drawBundleIcon(g: Graphics, cx: number, cy: number): void {
-  g.fillStyle(COLORS.zoneBorder, 0.9);
-  g.fillRoundedRect(cx - 30, cy - 15, 60, 9, 4);
-  g.fillRoundedRect(cx - 35, cy - 4, 68, 9, 4);
-  g.fillRoundedRect(cx - 31, cy + 7, 62, 9, 4);
-  g.fillStyle(COLORS.zoneFill, 1);
-  g.fillRect(cx - 14, cy - 17, 6, 35);
-  g.fillRect(cx + 10, cy - 17, 6, 35);
 }
 
 // Кострище: подтаявшая земля, кольцо камней, угли и два скрещённых полена.

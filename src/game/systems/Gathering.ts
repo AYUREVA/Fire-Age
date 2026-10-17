@@ -3,14 +3,14 @@ import { DROP_INTERVAL, GATHER_RADIUS, HIT_INTERVAL } from '../settings';
 import { Player } from '../objects/Player';
 import { Backpack } from '../objects/Backpack';
 import { ResourceNode } from '../objects/ResourceNode';
-import { DropZone } from '../objects/DropZone';
+import { ItemPile } from '../objects/ItemPile';
 
 // =====================================================================
 //  Добыча и сдача хвороста.
 //
 //  Это функции, а не класс: нужные объекты приходят аргументами,
 //  своего состояния здесь нет. Таймеры хранят сами объекты:
-//  hitTimer — вождь (Player), dropTimer — поленница (DropZone).
+//  hitTimer — вождь (Player), dropTimer — куча у костра (ItemPile).
 //  GameScene вызывает эти функции каждый кадр.
 // =====================================================================
 
@@ -57,29 +57,37 @@ function findBushNear(player: Player, bushes: ResourceNode[]): ResourceNode | un
   return nearest;
 }
 
-// ===== Сдача хвороста =====
+// ===== Сдача в кучи у костра =====
 
-// Вождь в зоне поленницы — каждые DROP_INTERVAL мс верхняя связка
-// улетает со стопки в кучу на поленнице, пока поленница не полная.
-export function updateDropping(player: Player, backpack: Backpack, woodpile: DropZone, delta: number): void {
-  const isInZone = woodpile.contains(player.x, player.y);
-  const canDrop = isInZone && !woodpile.isFull();
-  // Полная поленница не подсвечивается: сюда пока нельзя.
-  woodpile.setHighlighted(canDrop);
+// Вождь сдаёт ресурсы в кучи у костра: каждая куча принимает только свой тип
+// (поленница — хворост, куча у вертела — сырое мясо).
+export function updateDropping(player: Player, backpack: Backpack, piles: ItemPile[], delta: number): void {
+  for (const pile of piles) {
+    dropIntoPile(player, backpack, pile, delta);
+  }
+}
 
-  // Вождь не в зоне, поленница полная или нести нечего — таймер не копится.
-  if (!canDrop || !backpack.has('wood')) {
-    woodpile.dropTimer = 0;
+// Вождь в зоне кучи — каждые DROP_INTERVAL мс верхний предмет её типа
+// улетает со спины в кучу, пока куча не полная.
+function dropIntoPile(player: Player, backpack: Backpack, pile: ItemPile, delta: number): void {
+  const isInZone = pile.contains(player.x, player.y);
+  const canDrop = isInZone && !pile.isFull();
+  // Полная куча не подсвечивается: сюда пока нельзя.
+  pile.setHighlighted(canDrop);
+
+  // Вождь не в зоне, куча полная или нести нечего — таймер не копится.
+  if (!canDrop || !backpack.has(pile.type)) {
+    pile.dropTimer = 0;
     return;
   }
 
-  woodpile.dropTimer += delta;
-  if (woodpile.dropTimer < DROP_INTERVAL) return;
-  woodpile.dropTimer -= DROP_INTERVAL;
+  pile.dropTimer += delta;
+  if (pile.dropTimer < DROP_INTERVAL) return;
+  pile.dropTimer -= DROP_INTERVAL;
 
-  // Верхняя связка может ещё лететь на стопку — тогда её пока не отдаём.
-  const item = backpack.takeTop('wood');
+  // Верхний предмет может ещё лететь на спину — тогда его пока не отдаём.
+  const item = backpack.takeTop(pile.type);
   if (!item) return;
 
-  woodpile.receive(item);
+  pile.receive(item);
 }

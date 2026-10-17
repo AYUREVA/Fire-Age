@@ -1,10 +1,11 @@
 import Phaser from 'phaser';
-import { DROP_RADIUS, WOODPILE_CAPACITY } from '../settings';
+import { DROP_RADIUS } from '../settings';
 import { COLORS } from '../palette';
 import { TEXTURES } from '../textures';
+import { ITEMS, ItemType } from '../items';
 import { floatText, flyArc, pop, Point } from '../fx';
 
-// ===== Площадка поленницы =====
+// ===== Площадка =====
 
 // Площадка лежит плоско на земле, на одном слое со светом костра (Campfire.ts):
 // выше декора земли (-200 в GameScene), ниже всего, что стоит (depth = y ≥ 0).
@@ -15,47 +16,56 @@ const PLATFORM_ACTIVE_ALPHA = 1;
 const PLATFORM_ACTIVE_SCALE = 1.06;
 // За сколько мс площадка подсвечивается или гаснет.
 const PLATFORM_TWEEN_TIME = 160;
+// Бледная картинка своего ресурса посередине площадки: что сюда складывать.
+const ICON_ALPHA = 0.4;
+const ICON_SCALE = 1.2;
 
-// ===== Куча хвороста =====
+// ===== Куча =====
 
-// Сколько связок в одном ряду кучи. Сколько всего — WOODPILE_CAPACITY в settings.ts.
+// Сколько предметов в одном ряду кучи. Сколько всего — capacity из конструктора.
 const PILE_COLUMNS = 3;
-// Расстояние между связками в ряду и высота ряда.
+// Расстояние между предметами в ряду и высота ряда.
 const PILE_COLUMN_STEP = 50;
 const PILE_ROW_STEP = 18;
-// Нечётные ряды сдвинуты вбок — связки лежат «кирпичиком».
+// Нечётные ряды сдвинуты вбок — предметы лежат «кирпичиком».
 const PILE_BRICK_SHIFT = 10;
 // Низ кучи ниже середины площадки на столько пикселей.
 const PILE_BASE_OFFSET_Y = 22;
-// Каждая следующая связка в куче чуть ближе к нам, чем предыдущая.
+// Каждый следующий предмет в куче чуть ближе к нам, чем предыдущий.
 const PILE_DEPTH_STEP = 0.001;
 
-// ===== Полёт связки в кучу =====
+// ===== Полёт предмета в кучу =====
 
-// Сколько мс связка летит со стопки в кучу и как высоко поднимается дуга.
+// Сколько мс предмет летит в кучу и как высоко поднимается дуга.
 const FLY_TIME = 300;
 const FLY_ARC_HEIGHT = 70;
-// «+1» появляется над связкой, которая легла в кучу.
+// «+1» появляется над предметом, который лёг в кучу.
 const PLUS_ONE_OFFSET_Y = 30;
 
 /**
- * Поленница у костра — точка сдачи хвороста.
+ * Куча одного типа ресурса у костра с лимитом: поленница (хворост),
+ * куча сырого мяса у вертела, куча жареного мяса.
  *
- * Площадка со светлой рамкой: вождь встаёт в её зону, и сцена передаёт
- * сюда связки со стопки по одной. Каждая связка по дуге летит в аккуратную
- * кучу, куча растёт до WOODPILE_CAPACITY. Слева от поленницы горит костёр
- * (Campfire.ts) — он забирает связки с верха кучи через takeTop().
- * Про вождя, стопку и костёр поленница ничего не знает.
+ * Площадка со светлой рамкой и бледной картинкой своего ресурса.
+ * Предметы по дуге летят в аккуратную кучу (receive) и забираются
+ * с верха (takeTop): хворост — в огонь, сырое мясо — на вертел,
+ * жареное — вождю на спину. Куча принимает только свой тип —
+ * за этим следят системы (systems/Gathering.ts, Fire.ts, Cooking.ts).
+ * Про вождя, рюкзак и костёр куча ничего не знает.
  */
-export class DropZone {
+export class ItemPile {
   // Середина площадки.
   readonly x: number;
   readonly y: number;
-  // Сколько мс вождь уже стоит на поленнице. Набралось DROP_INTERVAL — сдаёт связку.
-  // Меняет его systems/Gathering.ts.
+  // Какой ресурс лежит в этой куче.
+  readonly type: ItemType;
+  // Сколько мс вождь уже стоит на площадке. Набралось DROP_INTERVAL — кладёт
+  // или забирает предмет. Меняет его systems/Gathering.ts.
   dropTimer = 0;
 
   private scene: Phaser.Scene;
+  // Сколько предметов помещается в кучу.
+  private capacity: number;
   private platform: Phaser.GameObjects.Image;
   // Подсвечена ли площадка сейчас (вождь в зоне).
   private isHighlighted = false;
@@ -65,15 +75,24 @@ export class DropZone {
   // Связки, которые ещё летят в кучу. Их пока нельзя забрать.
   private flyingItems = new Set<Phaser.GameObjects.Image>();
 
-  constructor(scene: Phaser.Scene, x: number, y: number) {
+  // type — какой ресурс лежит в куче, capacity — сколько предметов помещается.
+  constructor(scene: Phaser.Scene, x: number, y: number, type: ItemType, capacity: number) {
     this.scene = scene;
     this.x = x;
     this.y = y;
+    this.type = type;
+    this.capacity = capacity;
 
     this.platform = scene.add
       .image(x, y, TEXTURES.dropZone)
       .setDepth(FLAT_ON_GROUND_DEPTH)
       .setAlpha(PLATFORM_IDLE_ALPHA);
+    // Иконка лежит на площадке, поверх рамки, но под предметами кучи.
+    scene.add
+      .image(x, y, ITEMS[type].texture)
+      .setScale(ICON_SCALE)
+      .setAlpha(ICON_ALPHA)
+      .setDepth(FLAT_ON_GROUND_DEPTH + 1);
   }
 
   // Стоит ли точка (x, y) в зоне сдачи.
@@ -81,9 +100,14 @@ export class DropZone {
     return Phaser.Math.Distance.Between(x, y, this.x, this.y) <= DROP_RADIUS;
   }
 
-  // Поленница полная: больше связок не принять.
+  // Куча полная: больше предметов не принять.
   isFull(): boolean {
-    return this.pile.length >= WOODPILE_CAPACITY;
+    return this.pile.length >= this.capacity;
+  }
+
+  // В куче нет ни одного предмета.
+  isEmpty(): boolean {
+    return this.pile.length === 0;
   }
 
   // Подсветка площадки, пока вождь в зоне. Сцена вызывает это каждый кадр.
@@ -101,13 +125,13 @@ export class DropZone {
     });
   }
 
-  // Принять связку со стопки: она летит по дуге в кучу.
-  // Сцена зовёт это, только когда поленница не полная.
+  // Принять предмет (со спины или с вертела): он летит по дуге в кучу.
+  // Системы зовут это, только когда куча не полная.
   receive(item: Phaser.GameObjects.Image): void {
-    // В стопке связка могла быть наклонена — выпрямляем.
+    // В стопке предмет мог быть наклонён — выпрямляем.
     item.setAngle(0);
 
-    // Место в куче занимаем сразу, пока связка ещё летит, — как в стопке за спиной.
+    // Место в куче занимаем сразу, пока предмет ещё летит, — как в стопке за спиной.
     const slotIndex = this.pile.length;
     this.pile.push(item);
     this.flyingItems.add(item);
@@ -122,8 +146,8 @@ export class DropZone {
     });
   }
 
-  // Забрать верхнюю связку (её заберёт костёр). Дальше её двигает тот, кто забрал.
-  // Вернёт undefined, если куча пуста или верхняя связка ещё летит.
+  // Забрать верхний предмет (в огонь, на вертел или на спину). Дальше его двигает тот, кто забрал.
+  // Вернёт undefined, если куча пуста или верхний предмет ещё летит.
   takeTop(): Phaser.GameObjects.Image | undefined {
     const top = this.pile[this.pile.length - 1];
     if (!top || this.flyingItems.has(top)) return undefined;
@@ -134,7 +158,7 @@ export class DropZone {
 
   // ===== Куча =====
 
-  // Связка легла в кучу: «пружинка» и «+1».
+  // Предмет лёг в кучу: «пружинка» и «+1».
   private store(item: Phaser.GameObjects.Image, slotIndex: number): void {
     this.flyingItems.delete(item);
     floatText(this.scene, item.x, item.y - PLUS_ONE_OFFSET_Y, '+1', COLORS.plusOne);
@@ -142,13 +166,13 @@ export class DropZone {
     pop(this.scene, item);
   }
 
-  // Где лежит связка номер index в куче (точка низа связки).
+  // Где лежит предмет номер index в куче (точка низа предмета).
   private getPileSlot(index: number): Point {
     const row = Math.floor(index / PILE_COLUMNS);
     const column = index % PILE_COLUMNS;
     // Нечётные ряды сдвинуты вбок — «кирпичиком».
     const brickShift = row % 2 === 1 ? PILE_BRICK_SHIFT : 0;
-    // column − середина ряда: у левой связки −1, у средней 0, у правой +1.
+    // column − середина ряда: у левого предмета −1, у среднего 0, у правого +1.
     const columnFromCenter = column - (PILE_COLUMNS - 1) / 2;
 
     return {
@@ -157,7 +181,7 @@ export class DropZone {
     };
   }
 
-  // Глубина связки в куче: вся куча стоит на одной линии, каждая следующая связка чуть ближе.
+  // Глубина предмета в куче: вся куча стоит на одной линии, каждый следующий чуть ближе.
   private getPileDepth(index: number): number {
     return this.y + PILE_BASE_OFFSET_Y + index * PILE_DEPTH_STEP;
   }

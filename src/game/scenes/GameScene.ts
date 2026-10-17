@@ -8,6 +8,7 @@ import {
   BUSH_POSITIONS,
   CAMPFIRE_POSITION,
   WOODPILE_POSITION,
+  WOODPILE_CAPACITY,
   PHASES,
   FIRE_MAX_HEAT,
 } from '../settings';
@@ -15,7 +16,7 @@ import { TEXTURES, createTextures, loadFonts } from '../textures';
 import { Player } from '../objects/Player';
 import { Backpack } from '../objects/Backpack';
 import { ResourceNode } from '../objects/ResourceNode';
-import { DropZone } from '../objects/DropZone';
+import { ItemPile } from '../objects/ItemPile';
 import { Campfire } from '../objects/Campfire';
 import { Hud } from '../objects/Hud';
 import { CycleEvent, DayNightCycle } from '../objects/DayNightCycle';
@@ -36,7 +37,7 @@ const GROUND_DEPTH = -300;
 const GROUND_DECOR_DEPTH = -200;
 // Тень лежит сразу под своим предметом.
 const SHADOW_DEPTH_SHIFT = -0.5;
-// Дальше (в других файлах): площадка поленницы и свет костра — -100 (DropZone.ts, Campfire.ts),
+// Дальше (в других файлах): площадки куч и свет костра — -100 (ItemPile.ts, Campfire.ts),
 // летящие связки — 10000, «+1» — 11000 (fx.ts), «МАКС» — 10500 (CarryStack.ts),
 // закат и ночная тьма — 11400 и 11500 (NightOverlay.ts), падающий снег — 12000 (здесь),
 // метель — 12100 (NightOverlay.ts), HUD и джойстик — 20000 (Hud.ts, Player.ts).
@@ -114,8 +115,8 @@ export class GameScene extends Phaser.Scene {
   private backpack!: Backpack;
   // Кусты хвороста.
   private bushes: ResourceNode[] = [];
-  // Поленница у костра — сюда сдаётся хворост.
-  private dropZone!: DropZone;
+  // Поленница у костра — сюда сдаётся хворост, из неё кормится огонь.
+  private woodpile!: ItemPile;
   // Костёр в лагере.
   private campfire!: Campfire;
   // Интерфейс: сколько осталось до конца дня или ночи, кнопка паузы.
@@ -155,7 +156,7 @@ export class GameScene extends Phaser.Scene {
     this.createBushes();
     // Сначала костёр: его свет лежит на земле под краем площадки поленницы.
     this.campfire = new Campfire(this, CAMPFIRE_POSITION.x, CAMPFIRE_POSITION.y);
-    this.dropZone = new DropZone(this, WOODPILE_POSITION.x, WOODPILE_POSITION.y);
+    this.woodpile = new ItemPile(this, WOODPILE_POSITION.x, WOODPILE_POSITION.y, 'wood', WOODPILE_CAPACITY);
 
     this.player = new Player(this, PLAYER_START.x, PLAYER_START.y);
     this.backpack = new Backpack(this);
@@ -193,8 +194,8 @@ export class GameScene extends Phaser.Scene {
     }
 
     updateGathering(this.player, this.backpack, this.bushes, delta);
-    updateDropping(this.player, this.backpack, this.dropZone, delta);
-    const isFireOut = updateFire(this.campfire, this.dropZone, delta, phase.fireBurnMultiplier);
+    updateDropping(this.player, this.backpack, [this.woodpile], delta);
+    const isFireOut = updateFire(this.campfire, this.woodpile, delta, phase.fireBurnMultiplier);
     this.campfire.update(delta);
     this.nightOverlay.update(this.campfire.x, this.campfire.y, this.campfire.heat / FIRE_MAX_HEAT);
 
