@@ -160,7 +160,7 @@ export const COOK_TIME = 4000;
 
 // Где стоит каменный стол: прямо под костром. Вождь подходит к нему сверху
 // и выкладывает жареное мясо, путники стоят в очереди снизу.
-export const TABLE_POSITION = { x: 1120, y: 1340 };
+export const TABLE_POSITION = { x: 1120, y: 1365 };
 
 // Сколько еды помещается на стол.
 export const TABLE_CAPACITY = 8;

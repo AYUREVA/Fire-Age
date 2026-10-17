@@ -10,7 +10,7 @@ import { flyArc, pop, Point } from '../fx';
 const FLAT_ON_GROUND_DEPTH = -100;
 // Площадка — над столом (вождь подходит к столу сверху): на столько пикселей
 // выше его основания.
-const ZONE_OFFSET_Y = -150;
+const ZONE_OFFSET_Y = -175;
 // Прозрачность и размер площадки: обычно и когда вождь стоит в зоне.
 const PLATFORM_IDLE_ALPHA = 0.75;
 const PLATFORM_ACTIVE_ALPHA = 1;
@@ -25,10 +25,10 @@ const ICON_SCALE = 1.2;
 
 // Еда лежит на шкуре двумя рядами: сколько в ряду, шаг по ряду и между рядами.
 const FOOD_COLUMNS = 4;
-const FOOD_COLUMN_STEP = 36;
-const FOOD_ROW_STEP = 12;
+const FOOD_COLUMN_STEP = 32;
+const FOOD_ROW_STEP = 14;
 // Низ дальнего ряда еды — на столько пикселей выше основания стола.
-const FOOD_TOP_Y = 64;
+const FOOD_TOP_Y = 92;
 // Еда лежит перед столом; каждый следующий кусок чуть ближе к нам.
 const FOOD_DEPTH_SHIFT = 0.1;
 const FOOD_DEPTH_STEP = 0.001;
@@ -49,11 +49,14 @@ const FOREST_SPREAD_X = 200;
 // ===== Кучка клыков =====
 
 // Клыки лежат кучкой на верхнем краю шкуры, слева — со стороны вождя.
-const TUSK_PILE_OFFSET = { x: -62, y: -76 };
+const TUSK_PILE_OFFSET = { x: -86, y: -98 };
 // Кучка: сколько клыков в ряду, шаг по ряду и между рядами.
-const TUSK_COLUMNS = 4;
-const TUSK_COLUMN_STEP = 10;
-const TUSK_ROW_STEP = 7;
+const TUSK_COLUMNS = 3;
+const TUSK_COLUMN_STEP = 12;
+const TUSK_ROW_STEP = 6;
+// Клыки лежат на шкуре набок (угол в градусах) и чуть меньше, чем в счётчике.
+const TUSK_LYING_ANGLE = 75;
+const TUSK_LYING_SCALE = 0.8;
 // Клыки лежат на столе — чуть ближе к нам, чем сам стол.
 const TUSK_DEPTH_SHIFT = 0.2;
 // Клык летит от путника к кучке.
@@ -210,8 +213,8 @@ export class StoneTable {
         height: TUSK_FLY_ARC,
         onLand: () => {
           this.flyingTusks.delete(tusk);
-          tusk.setDepth(this.y + TUSK_DEPTH_SHIFT);
-          pop(this.scene, tusk);
+          tusk.setDepth(this.y + TUSK_DEPTH_SHIFT).setAngle(TUSK_LYING_ANGLE);
+          pop(this.scene, tusk, TUSK_LYING_SCALE);
         },
       });
     }
