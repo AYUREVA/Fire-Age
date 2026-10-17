@@ -143,8 +143,9 @@ export class Rabbit {
     this.shadow.setVisible(false);
   }
 
-  // Вызывается сценой каждый кадр. (playerX, playerY) — где вождь.
-  update(delta: number, playerX: number, playerY: number): void {
+  // Вызывается сценой каждый кадр. (playerX, playerY) — где вождь,
+  // speedMultiplier — во сколько раз меняется скорость (в метель кролики медленнее).
+  update(delta: number, playerX: number, playerY: number, speedMultiplier: number): void {
     if (this.state === 'gone') {
       this.waitToRespawn(delta);
       return;
@@ -161,14 +162,15 @@ export class Rabbit {
       this.target = this.home;
     }
 
-    const isMoving = this.state === 'flee' ? this.flee(delta, playerX, playerY) : this.wander(delta);
+    const isMoving =
+      this.state === 'flee' ? this.flee(delta, playerX, playerY, speedMultiplier) : this.wander(delta, speedMultiplier);
     this.place(isMoving ? delta : 0);
   }
 
   // ===== Движение =====
 
   // Бродит: скачет к точке рядом с домом, сидит, выбирает новую. Вернёт true, если двигался.
-  private wander(delta: number): boolean {
+  private wander(delta: number, speedMultiplier: number): boolean {
     const distance = Phaser.Math.Distance.Between(this.x, this.y, this.target.x, this.target.y);
     if (distance < 4) {
       this.sitTime -= delta;
@@ -183,13 +185,13 @@ export class Rabbit {
       return false;
     }
 
-    this.moveTowards(this.target.x - this.x, this.target.y - this.y, RABBIT_WANDER_SPEED, delta);
+    this.moveTowards(this.target.x - this.x, this.target.y - this.y, RABBIT_WANDER_SPEED * speedMultiplier, delta);
     return true;
   }
 
   // Убегает прямо от вождя. Упрётся в край поля — скользит вдоль него.
-  private flee(delta: number, playerX: number, playerY: number): boolean {
-    this.moveTowards(this.x - playerX, this.y - playerY, RABBIT_FLEE_SPEED, delta);
+  private flee(delta: number, playerX: number, playerY: number, speedMultiplier: number): boolean {
+    this.moveTowards(this.x - playerX, this.y - playerY, RABBIT_FLEE_SPEED * speedMultiplier, delta);
     return true;
   }
 

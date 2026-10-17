@@ -21,12 +21,13 @@ export const NIGHT_DURATION = 120000;
 // За сколько мс до ночи начинается закат: небо розовеет.
 export const SUNSET_TIME = 8000;
 
-// Фазы суток. Ночью (фаза 2) меняются ровно два параметра:
+// Фазы суток. Ночью (фаза 2) меняются три параметра:
 // fireBurnMultiplier — во сколько раз быстрее прогорает костёр,
-// playerSpeedMultiplier — во сколько раз меняется скорость вождя (0.6 — на 40% медленнее).
+// playerSpeedMultiplier — во сколько раз меняется скорость вождя (0.6 — на 40% медленнее),
+// rabbitSpeedMultiplier — во сколько раз меняется скорость кроликов.
 export const PHASES = {
-  day: { fireBurnMultiplier: 1, playerSpeedMultiplier: 1 },
-  night: { fireBurnMultiplier: 2, playerSpeedMultiplier: 0.6 },
+  day: { fireBurnMultiplier: 1, playerSpeedMultiplier: 1, rabbitSpeedMultiplier: 1 },
+  night: { fireBurnMultiplier: 2, playerSpeedMultiplier: 0.6, rabbitSpeedMultiplier: 0.6 },
 };
 
 // ===== МИР =====
@@ -121,7 +122,7 @@ export const EMBER_TIME = 10000;
 // ===== КРОЛИКИ =====
 
 // Сколько кроликов бегает по полю одновременно.
-export const RABBIT_COUNT = 4;
+export const RABBIT_COUNT = 8;
 
 // Скорость кролика, когда он спокойно бродит (пиксели в секунду).
 export const RABBIT_WANDER_SPEED = 60;
@@ -133,7 +134,7 @@ export const RABBIT_FLEE_SPEED = 150;
 export const RABBIT_FLEE_RADIUS = 200;
 
 // Вождь ближе этого расстояния — кролик пойман: удар дубиной, мясо на спину.
-export const CATCH_RADIUS = 55;
+export const CATCH_RADIUS = 90;
 
 // Через сколько мс после поимки из леса прибегает новый кролик.
 export const RABBIT_RESPAWN_TIME = 10000;

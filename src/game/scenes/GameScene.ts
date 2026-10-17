@@ -226,8 +226,8 @@ export class GameScene extends Phaser.Scene {
   // Порядок: сначала двигаем вождя, потом стопку за ним, потом системы
   // (systems/) проверяют, что вождь делает рядом с кустами и с поленницей.
   update(_time: number, delta: number): void {
-    // Параметры текущей фазы суток. Ночью меняются ровно два: скорость вождя
-    // и скорость горения костра (таблица PHASES в settings.ts).
+    // Параметры текущей фазы суток. Ночью меняются три: скорость вождя,
+    // скорость горения костра и скорость кроликов (таблица PHASES в settings.ts).
     const phase = PHASES[this.cycle.phase];
 
     this.player.update(delta, phase.playerSpeedMultiplier);
@@ -245,7 +245,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     for (const rabbit of this.rabbits) {
-      rabbit.update(delta, this.player.x, this.player.y);
+      rabbit.update(delta, this.player.x, this.player.y, phase.rabbitSpeedMultiplier);
     }
 
     updateGathering(this.player, this.backpack, this.bushes, delta);
