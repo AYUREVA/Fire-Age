@@ -98,6 +98,18 @@ export class NightOverlay {
       .setAlpha(0);
 
     this.blizzard = this.createBlizzard();
+
+    // Экран поменял размер (повернули телефон) — закат снова на весь экран.
+    // Подписка на событие всей игры: при выключении сцены её снимаем.
+    scene.scale.on(Phaser.Scale.Events.RESIZE, this.layout, this);
+    scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      scene.scale.off(Phaser.Scale.Events.RESIZE, this.layout, this);
+    });
+  }
+
+  // Розовая пелена заката — размером с текущий экран.
+  private layout(): void {
+    this.sunset.setSize(this.scene.scale.width, this.scene.scale.height);
   }
 
   // Закат: экран за SUNSET_TIME плавно розовеет.
@@ -164,8 +176,9 @@ export class NightOverlay {
 
   // Метель: снежинки рождаются в видимой части мира и правее неё
   // (прямоугольник едет вместе с камерой, как обычный снег в GameScene).
+  // Размер экрана берём каждый раз заново: телефон могли повернуть.
   private createBlizzard(): Phaser.GameObjects.Particles.ParticleEmitter {
-    const { width, height } = this.scene.scale;
+    const scale = this.scene.scale;
     return this.scene.add
       .particles(0, 0, TEXTURES.snowflake, {
         ...BLIZZARD,
@@ -173,8 +186,8 @@ export class NightOverlay {
           type: 'random',
           source: {
             getRandomPoint: (point) => {
-              point.x = Phaser.Math.Between(0, width + BLIZZARD_SPAWN_SHIFT_X);
-              point.y = Phaser.Math.Between(-height / 2, height);
+              point.x = Phaser.Math.Between(0, scale.width + BLIZZARD_SPAWN_SHIFT_X);
+              point.y = Phaser.Math.Between(-scale.height / 2, scale.height);
             },
           },
         },

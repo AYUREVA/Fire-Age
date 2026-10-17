@@ -418,17 +418,17 @@ export class GameScene extends Phaser.Scene {
   // эмиттер следит за левым верхним углом того, что видит камера (worldView).
   // Сами снежинки остаются в мире — когда камера едет, они не едут за ней.
   private createSnowfall(): void {
-    const { width, height } = this.scale;
     this.add
       .particles(0, 0, TEXTURES.snowflake, {
         ...SNOWFALL,
         // Место рождения снежинки — случайная точка в прямоугольнике размером с экран.
+        // Размер экрана берём каждый раз заново: телефон могли повернуть.
         emitZone: {
           type: 'random',
           source: {
             getRandomPoint: (point) => {
-              point.x = Phaser.Math.Between(0, width);
-              point.y = Phaser.Math.Between(0, height);
+              point.x = Phaser.Math.Between(0, this.scale.width);
+              point.y = Phaser.Math.Between(0, this.scale.height);
             },
           },
         },

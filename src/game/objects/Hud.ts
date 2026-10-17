@@ -40,6 +40,8 @@ export class Hud {
   private phaseIcon: Phaser.GameObjects.Image;
   // Время до конца дня или ночи на плашке, например «1:59».
   private timeText: Phaser.GameObjects.Text;
+  // Кнопка паузы в правом верхнем углу.
+  private pauseButton: Phaser.GameObjects.Image;
   // Плашки ночных модификаторов: видны только ночью.
   private modifiers: (Phaser.GameObjects.Image | Phaser.GameObjects.Text)[] = [];
 
@@ -63,10 +65,7 @@ export class Hud {
       .setOrigin(0, 0.5);
 
     const pauseButton = scene.add.image(0, 0, TEXTURES.pauseButton).setTint(PAUSE_IDLE_TINT);
-    pauseButton.setPosition(
-      scene.scale.width - PANEL_MARGIN - pauseButton.width / 2,
-      PANEL_MARGIN + pauseButton.height / 2,
-    );
+    this.pauseButton = pauseButton;
     pauseButton.setInteractive({ useHandCursor: true });
     pauseButton.on('pointerover', () => pauseButton.setTint(PAUSE_HOVER_TINT));
     pauseButton.on('pointerout', () => pauseButton.setTint(PAUSE_IDLE_TINT));
@@ -91,6 +90,23 @@ export class Hud {
     for (const object of [panel, this.phaseIcon, this.timeText, pauseButton, ...this.modifiers]) {
       object.setScrollFactor(0).setDepth(HUD_DEPTH);
     }
+
+    // Плашка времени прижата к левому верхнему углу и от размера экрана не зависит,
+    // а кнопка паузы — к правому: при повороте телефона её переставляем.
+    // Подписка на событие всей игры: при выключении сцены её снимаем.
+    this.layout();
+    scene.scale.on(Phaser.Scale.Events.RESIZE, this.layout, this);
+    scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      scene.scale.off(Phaser.Scale.Events.RESIZE, this.layout, this);
+    });
+  }
+
+  // Кнопка паузы — в правом верхнем углу текущего экрана.
+  private layout(): void {
+    this.pauseButton.setPosition(
+      this.scene.scale.width - PANEL_MARGIN - this.pauseButton.width / 2,
+      PANEL_MARGIN + this.pauseButton.height / 2,
+    );
   }
 
   // Показать или спрятать плашки ночных модификаторов.
