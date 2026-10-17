@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { STACK_CAPACITY } from '../settings';
 import { COLORS, toCss } from '../palette';
-import { FONT_FAMILY, TEXTURES } from '../textures';
+import { FONT_FAMILY } from '../textures';
 import { flyArc, pop, Point } from '../fx';
 
 // ===== Раскладка стопки =====
@@ -68,6 +68,8 @@ const MAX_LABEL_DEPTH = 10500;
  */
 export class CarryStack {
   private scene: Phaser.Scene;
+  // Картинка ресурса этой стопки.
+  private texture: string;
   // Связки в стопке. [0] — нижняя, последняя — верхняя.
   private items: Phaser.GameObjects.Image[] = [];
   // Связки, которые ещё летят на своё место. Их двигает полёт, а не раскладка.
@@ -88,8 +90,10 @@ export class CarryStack {
   // Надпись «МАКС» над полной стопкой.
   private maxLabel: Phaser.GameObjects.Text;
 
-  constructor(scene: Phaser.Scene) {
+  // texture — картинка ресурса этой стопки (у каждого типа своя стопка).
+  constructor(scene: Phaser.Scene, texture: string) {
     this.scene = scene;
+    this.texture = texture;
 
     this.maxLabel = scene.add
       .text(0, 0, 'МАКС', {
@@ -131,7 +135,7 @@ export class CarryStack {
     if (this.isFull()) return;
 
     // 1. Создаём связку там, откуда она вылетает.
-    const item = this.scene.add.image(from.x, from.y, TEXTURES.bundle).setOrigin(0.5, 1);
+    const item = this.scene.add.image(from.x, from.y, this.texture).setOrigin(0.5, 1);
 
     // 2. Сразу кладём её в стопку — место наверху занято, пока она летит.
     //    Так вместимость считается честно: две связки не займут одно место.

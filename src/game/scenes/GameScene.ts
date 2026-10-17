@@ -18,6 +18,7 @@ import { ResourceNode } from '../objects/ResourceNode';
 import { DropZone } from '../objects/DropZone';
 import { Campfire } from '../objects/Campfire';
 import { Hud } from '../objects/Hud';
+import { ITEMS } from '../items';
 import { CycleEvent, DayNightCycle } from '../objects/DayNightCycle';
 import { NightOverlay } from '../objects/NightOverlay';
 import { PhaseBanner } from '../ui/PhaseBanner';
@@ -158,7 +159,7 @@ export class GameScene extends Phaser.Scene {
     this.dropZone = new DropZone(this, WOODPILE_POSITION.x, WOODPILE_POSITION.y);
 
     this.player = new Player(this, PLAYER_START.x, PLAYER_START.y);
-    this.stack = new CarryStack(this);
+    this.stack = new CarryStack(this, ITEMS.wood.texture);
     this.cycle = new DayNightCycle();
     this.hud = new Hud(this, () => this.pauseGame());
     this.hud.setTimeLeft(this.cycle.timeLeft);

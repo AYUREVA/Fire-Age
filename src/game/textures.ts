@@ -35,6 +35,8 @@ export const TEXTURES = {
   bushSnow: 'bush-snow', // снег на кроне куста (тот же размер, ложится поверх)
   stump: 'stump', // пенёк — куст без хвороста
   bundle: 'bundle', // связка хвороста, перевязанная верёвкой
+  rawMeat: 'raw-meat', // сырое мясо: розовая ножка с косточкой
+  cookedMeat: 'cooked-meat', // жареное мясо: румяная ножка с косточкой
   snowflake: 'snowflake', // снежинка: падающий снег и снег из куста
   chip: 'chip', // щепка, летит из куста при ударе
   dropZone: 'drop-zone', // площадка поленницы: рамка и иконка связки
@@ -93,6 +95,7 @@ const JOYSTICK_KNOB_SIZE: Size = { w: 60, h: 60 };
 const BUSH_SIZE: Size = { w: 124, h: 104 };
 const STUMP_SIZE: Size = { w: 80, h: 60 };
 const BUNDLE_SIZE: Size = { w: 56, h: 28 };
+const MEAT_SIZE: Size = { w: 48, h: 32 };
 const SNOWFLAKE_SIZE: Size = { w: 12, h: 12 };
 const CHIP_SIZE: Size = { w: 12, h: 9 };
 const DROP_ZONE_SIZE: Size = { w: 220, h: 132 };
@@ -167,6 +170,10 @@ export function createTextures(scene: Phaser.Scene): void {
   bake(scene, TEXTURES.bushSnow, BUSH_SIZE, drawBushSnow);
   bake(scene, TEXTURES.stump, STUMP_SIZE, drawStump);
   bake(scene, TEXTURES.bundle, BUNDLE_SIZE, drawBundle);
+  bake(scene, TEXTURES.rawMeat, MEAT_SIZE, (g) => drawMeat(g, COLORS.rawMeat, COLORS.rawMeatShade, COLORS.rawMeatLight));
+  bake(scene, TEXTURES.cookedMeat, MEAT_SIZE, (g) =>
+    drawMeat(g, COLORS.cookedMeat, COLORS.cookedMeatShade, COLORS.cookedMeatLight),
+  );
   bake(scene, TEXTURES.snowflake, SNOWFLAKE_SIZE, drawSnowflake);
   bake(scene, TEXTURES.chip, CHIP_SIZE, drawChip);
   bake(scene, TEXTURES.dropZone, DROP_ZONE_SIZE, drawDropZone);
@@ -1108,6 +1115,21 @@ function drawBundle(g: Graphics): void {
 
   drawRopeBand(g, 17);
   drawRopeBand(g, 38);
+}
+
+// Мультяшная мясная ножка: косточка слева, круглый кусок мяса справа,
+// тень снизу и блик сверху. Цвета разные у сырого и жареного мяса.
+function drawMeat(g: Graphics, color: number, shade: number, light: number): void {
+  // Косточка: палочка и две «шишечки» на конце.
+  limb(g, 9, 21, 22, 16, 6, COLORS.bone);
+  outlinedCircle(g, 7, 17, 4, COLORS.bone);
+  outlinedCircle(g, 9, 25, 4, COLORS.bone);
+  // Сам кусок мяса.
+  outlinedEllipse(g, 32, 15, 28, 22, color);
+  g.fillStyle(shade, 1);
+  g.fillEllipse(34, 20, 20, 8);
+  g.fillStyle(light, 1);
+  g.fillEllipse(28, 9, 10, 5);
 }
 
 // Одна палка связки: скруглённый брусок с обводкой и светлым срезом слева.
