@@ -13,12 +13,11 @@ import {
 } from '../settings';
 import { TEXTURES, createTextures, loadFonts } from '../textures';
 import { Player } from '../objects/Player';
-import { CarryStack } from '../objects/CarryStack';
+import { Backpack } from '../objects/Backpack';
 import { ResourceNode } from '../objects/ResourceNode';
 import { DropZone } from '../objects/DropZone';
 import { Campfire } from '../objects/Campfire';
 import { Hud } from '../objects/Hud';
-import { ITEMS } from '../items';
 import { CycleEvent, DayNightCycle } from '../objects/DayNightCycle';
 import { NightOverlay } from '../objects/NightOverlay';
 import { PhaseBanner } from '../ui/PhaseBanner';
@@ -111,8 +110,8 @@ const CAMERA_OFFSET_Y = 60;
 export class GameScene extends Phaser.Scene {
   // Вождь — его водит игрок.
   private player!: Player;
-  // Стопка хвороста за спиной вождя.
-  private stack!: CarryStack;
+  // Всё, что вождь несёт за спиной: колонки хвороста и мяса.
+  private backpack!: Backpack;
   // Кусты хвороста.
   private bushes: ResourceNode[] = [];
   // Поленница у костра — сюда сдаётся хворост.
@@ -159,7 +158,7 @@ export class GameScene extends Phaser.Scene {
     this.dropZone = new DropZone(this, WOODPILE_POSITION.x, WOODPILE_POSITION.y);
 
     this.player = new Player(this, PLAYER_START.x, PLAYER_START.y);
-    this.stack = new CarryStack(this, ITEMS.wood.texture);
+    this.backpack = new Backpack(this);
     this.cycle = new DayNightCycle();
     this.hud = new Hud(this, () => this.pauseGame());
     this.hud.setTimeLeft(this.cycle.timeLeft);
@@ -180,15 +179,21 @@ export class GameScene extends Phaser.Scene {
     const phase = PHASES[this.cycle.phase];
 
     this.player.update(delta, phase.playerSpeedMultiplier);
-    // Стопке сообщаем, где спина вождя, как быстро он идёт и какая у него глубина.
-    this.stack.update(delta, this.player.getBackPoint(), this.player.velocityX, this.player.y);
+    // Рюкзаку сообщаем, где спина вождя, как быстро он идёт, его глубину и куда он смотрит.
+    this.backpack.update(
+      delta,
+      this.player.getBackPoint(),
+      this.player.velocityX,
+      this.player.y,
+      this.player.facing,
+    );
 
     for (const bush of this.bushes) {
       bush.update(delta);
     }
 
-    updateGathering(this.player, this.stack, this.bushes, delta);
-    updateDropping(this.player, this.stack, this.dropZone, delta);
+    updateGathering(this.player, this.backpack, this.bushes, delta);
+    updateDropping(this.player, this.backpack, this.dropZone, delta);
     const isFireOut = updateFire(this.campfire, this.dropZone, delta, phase.fireBurnMultiplier);
     this.campfire.update(delta);
     this.nightOverlay.update(this.campfire.x, this.campfire.y, this.campfire.heat / FIRE_MAX_HEAT);

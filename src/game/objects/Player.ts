@@ -115,9 +115,11 @@ export class Player {
   // Меняет его systems/Gathering.ts.
   hitTimer = 0;
 
-  private scene: Phaser.Scene;
   // Куда смотрит вождь: 1 — вправо, -1 — влево.
-  private facing = 1;
+  // Сцена передаёт это рюкзаку: колонки за спиной уходят в обратную сторону.
+  facing = 1;
+
+  private scene: Phaser.Scene;
   // Фаза шага (радианы): из неё считаются движения ног, руки и тела.
   private stepPhase = 0;
   // Куда сейчас отведены ноги: от -1 до 1 (0 — стоят ровно).

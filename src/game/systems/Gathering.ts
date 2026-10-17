@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { DROP_INTERVAL, GATHER_RADIUS, HIT_INTERVAL } from '../settings';
 import { Player } from '../objects/Player';
-import { CarryStack } from '../objects/CarryStack';
+import { Backpack } from '../objects/Backpack';
 import { ResourceNode } from '../objects/ResourceNode';
 import { DropZone } from '../objects/DropZone';
 
@@ -18,11 +18,11 @@ import { DropZone } from '../objects/DropZone';
 
 // Вождь рядом с кустом — бьёт его каждые HIT_INTERVAL мс,
 // и связка хвороста летит из куста на стопку.
-export function updateGathering(player: Player, stack: CarryStack, bushes: ResourceNode[], delta: number): void {
+export function updateGathering(player: Player, backpack: Backpack, bushes: ResourceNode[], delta: number): void {
   const bush = findBushNear(player, bushes);
 
-  // Рядом нет куста с хворостом или стопка полная — удары не копятся.
-  if (!bush || stack.isFull()) {
+  // Рядом нет куста с хворостом или спина полная — удары не копятся.
+  if (!bush || backpack.isFull()) {
     player.hitTimer = 0;
     return;
   }
@@ -35,7 +35,7 @@ export function updateGathering(player: Player, stack: CarryStack, bushes: Resou
   // Весь взмах укладывается в HIT_INTERVAL — до следующего удара.
   player.swing(bush.x, HIT_INTERVAL, () => {
     bush.hit();
-    stack.add(bush.getLootPoint());
+    backpack.add('wood', bush.getLootPoint());
   });
 }
 
@@ -61,14 +61,14 @@ function findBushNear(player: Player, bushes: ResourceNode[]): ResourceNode | un
 
 // Вождь в зоне поленницы — каждые DROP_INTERVAL мс верхняя связка
 // улетает со стопки в кучу на поленнице, пока поленница не полная.
-export function updateDropping(player: Player, stack: CarryStack, woodpile: DropZone, delta: number): void {
+export function updateDropping(player: Player, backpack: Backpack, woodpile: DropZone, delta: number): void {
   const isInZone = woodpile.contains(player.x, player.y);
   const canDrop = isInZone && !woodpile.isFull();
   // Полная поленница не подсвечивается: сюда пока нельзя.
   woodpile.setHighlighted(canDrop);
 
   // Вождь не в зоне, поленница полная или нести нечего — таймер не копится.
-  if (!canDrop || stack.isEmpty()) {
+  if (!canDrop || !backpack.has('wood')) {
     woodpile.dropTimer = 0;
     return;
   }
@@ -78,7 +78,7 @@ export function updateDropping(player: Player, stack: CarryStack, woodpile: Drop
   woodpile.dropTimer -= DROP_INTERVAL;
 
   // Верхняя связка может ещё лететь на стопку — тогда её пока не отдаём.
-  const item = stack.takeTop();
+  const item = backpack.takeTop('wood');
   if (!item) return;
 
   woodpile.receive(item);
