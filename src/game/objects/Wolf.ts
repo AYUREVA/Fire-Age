@@ -39,6 +39,9 @@ const LOOT_FLY_ARC = 30;
 const HIT_SHAKE_ANGLE = 14;
 // Дошёл до точки, если ближе этого (пиксели).
 const ARRIVE_DISTANCE = 6;
+// Морда волка впереди лап на столько пикселей: шаг вбок проверяется по ней,
+// чтобы голова не влезала в частокол.
+const BODY_REACH = 45;
 
 // Что сейчас делает волк.
 // 'gone' — в лесу, ждёт, чтобы выйти; 'hunt' — бежит к вождю;
@@ -235,8 +238,11 @@ export class Wolf {
   }
 
   // Шагнуть в точку (x, y), если частокол пускает: отдельно по x и по y.
+  // Откуда — всегда лапы; куда вбок — проверяем по морде (она впереди лап),
+  // вверх-вниз — по лапам.
   private stepTo(x: number, y: number): void {
-    if (this.canStep(this.x, this.y, x, this.y)) this.x = x;
+    const reach = Math.sign(x - this.x) * BODY_REACH;
+    if (this.canStep(this.x, this.y, x + reach, this.y)) this.x = x;
     if (this.canStep(this.x, this.y, this.x, y)) this.y = y;
   }
 
