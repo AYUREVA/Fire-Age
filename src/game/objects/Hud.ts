@@ -46,9 +46,7 @@ export class Hud {
   private phaseIcon: Phaser.GameObjects.Image;
   // Время до конца дня или ночи на плашке, например «1:59».
   private timeText: Phaser.GameObjects.Text;
-  // Сколько клыков собрано (валюта; в уровне 1 — просто счёт).
-  tusks = 0;
-  // Иконка клыка и число на плашке клыков.
+  // Иконка клыка и число на плашке клыков. Само число хранит вождь (Player.tusks).
   private tuskIcon: Phaser.GameObjects.Image;
   private tuskText: Phaser.GameObjects.Text;
   // Кнопка паузы в правом верхнем углу.
@@ -149,8 +147,9 @@ export class Hud {
     pop(this.scene, this.phaseIcon);
   }
 
-  // Клык летит из точки экрана (screenX, screenY) в счётчик. Долетел — +1 и «пружинка».
-  flyTuskToCounter(screenX: number, screenY: number): void {
+  // Клык летит из точки экрана (screenX, screenY) в счётчик. Долетел — счётчик
+  // показывает total (сколько клыков у вождя вместе с этим) и «пружинит».
+  flyTuskToCounter(screenX: number, screenY: number, total: number): void {
     const tusk = this.scene.add.image(screenX, screenY, TEXTURES.tusk).setScrollFactor(0);
     flyArc(this.scene, tusk, {
       from: { x: screenX, y: screenY },
@@ -159,8 +158,7 @@ export class Hud {
       height: TUSK_FLY_ARC,
       onLand: () => {
         tusk.destroy();
-        this.tusks += 1;
-        this.tuskText.setText(String(this.tusks));
+        this.tuskText.setText(String(total));
         pop(this.scene, this.tuskText);
         pop(this.scene, this.tuskIcon);
       },

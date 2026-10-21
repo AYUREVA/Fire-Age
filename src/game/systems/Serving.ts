@@ -126,14 +126,16 @@ function serveFirst(table: StoneTable, first: Traveler, delta: number): void {
 
 // ===== Клыки в счётчик =====
 
-// Вождь стоит в зоне над столом — каждый клык с края стола летит в счётчик в HUD.
+// Вождь стоит в зоне над столом — клыки с края стола сразу становятся его (player.tusks),
+// а в HUD каждый клык летит в счётчик и показывает новое число, когда долетит.
 // Клык лежит в мире, а счётчик — на экране: из точки мира вычитаем
 // левый верхний угол того, что видит камера, и получаем точку экрана.
 export function updateTusks(player: Player, table: StoneTable, hud: Hud, camera: Phaser.Cameras.Scene2D.Camera): void {
   if (!table.contains(player.x, player.y)) return;
 
   for (const tusk of table.takeTusks()) {
-    hud.flyTuskToCounter(tusk.x - camera.worldView.x, tusk.y - camera.worldView.y);
+    player.tusks += 1;
+    hud.flyTuskToCounter(tusk.x - camera.worldView.x, tusk.y - camera.worldView.y, player.tusks);
     tusk.destroy();
   }
 }
