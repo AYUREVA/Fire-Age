@@ -37,7 +37,7 @@ const PAUSE_HOVER_TINT = 0xffffff;
  * Интерфейс поверх игры: плашка «сколько осталось до конца дня или ночи»
  * (днём на ней солнце, ночью луна), справа от неё — счётчик клыков,
  * под ней ночью — плашки модификаторов
- * («×1.6» огонь, «×0.75» скорость), и кнопка паузы в правом верхнем углу (для телефона).
+ * (огонь и скорость вождя, числа из таблицы PHASES), и кнопка паузы в правом верхнем углу (для телефона).
  * Всё в координатах экрана (scrollFactor 0) — не двигается вместе с камерой.
  */
 export class Hud {
@@ -46,9 +46,7 @@ export class Hud {
   private phaseIcon: Phaser.GameObjects.Image;
   // Время до конца дня или ночи на плашке, например «1:59».
   private timeText: Phaser.GameObjects.Text;
-  // Сколько клыков собрано (валюта; в уровне 1 — просто счёт).
-  tusks = 0;
-  // Иконка клыка и число на плашке клыков.
+  // Иконка клыка и число на плашке клыков. Само число хранит вождь (Player.tusks).
   private tuskIcon: Phaser.GameObjects.Image;
   private tuskText: Phaser.GameObjects.Text;
   // Кнопка паузы в правом верхнем углу.
@@ -149,8 +147,9 @@ export class Hud {
     pop(this.scene, this.phaseIcon);
   }
 
-  // Клык летит из точки экрана (screenX, screenY) в счётчик. Долетел — +1 и «пружинка».
-  flyTuskToCounter(screenX: number, screenY: number): void {
+  // Клык летит из точки экрана (screenX, screenY) в счётчик. Долетел — счётчик
+  // показывает total (сколько клыков у вождя вместе с этим) и «пружинит».
+  flyTuskToCounter(screenX: number, screenY: number, total: number): void {
     const tusk = this.scene.add.image(screenX, screenY, TEXTURES.tusk).setScrollFactor(0);
     flyArc(this.scene, tusk, {
       from: { x: screenX, y: screenY },
@@ -159,8 +158,7 @@ export class Hud {
       height: TUSK_FLY_ARC,
       onLand: () => {
         tusk.destroy();
-        this.tusks += 1;
-        this.tuskText.setText(String(this.tusks));
+        this.tuskText.setText(String(total));
         pop(this.scene, this.tuskText);
         pop(this.scene, this.tuskIcon);
       },
@@ -169,7 +167,7 @@ export class Hud {
     tusk.setDepth(HUD_DEPTH + 1);
   }
 
-  // Плашка модификатора: иконка и множитель, например «×1.6». (x, y) — середина плашки.
+  // Плашка модификатора: иконка и множитель, например «×2». (x, y) — середина плашки.
   private createModifier(
     x: number,
     y: number,

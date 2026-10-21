@@ -1,10 +1,18 @@
 import Phaser from 'phaser';
 import {
   CAMPFIRE_POSITION,
+  PLAYER_START,
+  RABBIT_CALM_DOWN_SHARE,
+  RABBIT_CAMP_CLEAR_RADIUS,
   RABBIT_FLEE_RADIUS,
   RABBIT_FLEE_SPEED,
   RABBIT_RESPAWN_TIME,
+  RABBIT_SIT_TIME_MAX,
+  RABBIT_SIT_TIME_MIN,
+  RABBIT_SPAWN_RADIUS,
+  RABBIT_WANDER_RADIUS,
   RABBIT_WANDER_SPEED,
+  TABLE_POSITION,
   WORLD_EDGE,
   WORLD_HEIGHT,
   WORLD_WIDTH,
@@ -15,15 +23,8 @@ import { Point, pop } from '../fx';
 
 // ===== Прогулка =====
 
-// Кролик бродит в этом радиусе вокруг своего места (пиксели).
-const WANDER_RADIUS = 160;
-// Дойдя до точки, кролик сидит и принюхивается столько мс (от и до).
-const SIT_TIME_MIN = 600;
-const SIT_TIME_MAX = 1800;
-// Убежав так далеко от вождя (доля радиуса испуга), кролик успокаивается.
-const CALM_DOWN_SHARE = 1.4;
-// Новые кролики появляются не ближе этого расстояния к костру — лагерь не их место.
-const CAMP_CLEAR_RADIUS = 320;
+// Дошёл до точки прогулки, если ближе этого (пиксели).
+const ARRIVE_DISTANCE = 4;
 
 // ===== Вид =====
 
@@ -103,7 +104,8 @@ export class Rabbit {
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
-    const start = randomFieldPoint();
+    // Вождь в начале игры стоит в PLAYER_START — кролик не садится у него под ногами.
+    const start = randomSpawnPoint(PLAYER_START);
     this.x = start.x;
     this.y = start.y;
     this.home = start;
@@ -150,7 +152,7 @@ export class Rabbit {
   // speedMultiplier — во сколько раз меняется скорость (в метель кролики медленнее).
   update(delta: number, playerX: number, playerY: number, speedMultiplier: number): void {
     if (this.state === 'gone') {
-      this.waitToRespawn(delta);
+      this.waitToRespawn(delta, { x: playerX, y: playerY });
       return;
     }
     if (this.state === 'caught') return;
@@ -158,7 +160,7 @@ export class Rabbit {
     const distance = Phaser.Math.Distance.Between(this.x, this.y, playerX, playerY);
     if (distance < RABBIT_FLEE_RADIUS) {
       this.state = 'flee';
-    } else if (this.state === 'flee' && distance > RABBIT_FLEE_RADIUS * CALM_DOWN_SHARE) {
+    } else if (this.state === 'flee' && distance > RABBIT_FLEE_RADIUS * RABBIT_CALM_DOWN_SHARE) {
       // Убежал далеко — успокоился и бродит уже здесь.
       this.state = 'wander';
       this.home = { x: this.x, y: this.y };
@@ -175,15 +177,15 @@ export class Rabbit {
   // Бродит: скачет к точке рядом с домом, сидит, выбирает новую. Вернёт true, если двигался.
   private wander(delta: number, speedMultiplier: number): boolean {
     const distance = Phaser.Math.Distance.Between(this.x, this.y, this.target.x, this.target.y);
-    if (distance < 4) {
+    if (distance < ARRIVE_DISTANCE) {
       this.sitTime -= delta;
       if (this.sitTime > 0) return false;
 
       // Насиделся — выбирает новую точку рядом с домом.
-      this.sitTime = Phaser.Math.Between(SIT_TIME_MIN, SIT_TIME_MAX);
+      this.sitTime = Phaser.Math.Between(RABBIT_SIT_TIME_MIN, RABBIT_SIT_TIME_MAX);
       this.target = clampToField({
-        x: this.home.x + Phaser.Math.Between(-WANDER_RADIUS, WANDER_RADIUS),
-        y: this.home.y + Phaser.Math.Between(-WANDER_RADIUS, WANDER_RADIUS),
+        x: this.home.x + Phaser.Math.Between(-RABBIT_WANDER_RADIUS, RABBIT_WANDER_RADIUS),
+        y: this.home.y + Phaser.Math.Between(-RABBIT_WANDER_RADIUS, RABBIT_WANDER_RADIUS),
       });
       return false;
     }
@@ -209,12 +211,13 @@ export class Rabbit {
     if (direction.x < 0) this.facing = -1;
   }
 
-  // После «пуф» ждёт RABBIT_RESPAWN_TIME и выпрыгивает из леса у края поля.
-  private waitToRespawn(delta: number): void {
+  // После «пуф» ждёт RABBIT_RESPAWN_TIME и выпрыгивает из сугроба недалеко от лагеря
+  // (player — где сейчас вождь: рядом с ним кролик не появляется).
+  private waitToRespawn(delta: number, player: Point): void {
     this.goneTime += delta;
     if (this.goneTime < RABBIT_RESPAWN_TIME) return;
 
-    const start = randomEdgePoint();
+    const start = randomSpawnPoint(player);
     this.x = start.x;
     this.y = start.y;
     this.home = start;
@@ -224,6 +227,9 @@ export class Rabbit {
     this.shadow.setVisible(true);
     this.place(0);
     pop(this.scene, this.image);
+    // Из сугроба взлетает облачко снега.
+    const point = this.getLootPoint();
+    this.poofSnow.setDepth(this.y + POOF_DEPTH_SHIFT).explode(POOF_SNOW_COUNT, point.x, point.y);
   }
 
   // ===== Вид =====
@@ -257,31 +263,24 @@ function clampToField(point: Point): Point {
   };
 }
 
-// Случайная точка у края поля, рядом с лесом: отсюда прибегает новый кролик.
-function randomEdgePoint(): Point {
-  const x = Phaser.Math.Between(WORLD_EDGE, WORLD_WIDTH - WORLD_EDGE);
-  const y = Phaser.Math.Between(WORLD_EDGE, WORLD_HEIGHT - WORLD_EDGE);
-  // Одна из четырёх сторон поля.
-  switch (Phaser.Math.Between(0, 3)) {
-    case 0:
-      return { x, y: WORLD_EDGE };
-    case 1:
-      return { x, y: WORLD_HEIGHT - WORLD_EDGE };
-    case 2:
-      return { x: WORLD_EDGE, y };
-    default:
-      return { x: WORLD_WIDTH - WORLD_EDGE, y };
-  }
-}
-
-// Случайная точка на поле подальше от костра — тут кролики сидят в начале игры.
-function randomFieldPoint(): Point {
+// Случайная точка, где появляется кролик (в начале игры и после поимки):
+// в кольце вокруг лагеря — от RABBIT_CAMP_CLEAR_RADIUS до RABBIT_SPAWN_RADIUS от костра,
+// не у стола, не в лесу и не ближе RABBIT_FLEE_RADIUS к вождю (player).
+// Берём случайную точку в квадрате вокруг костра, пока не подойдёт.
+function randomSpawnPoint(player: Point): Point {
   while (true) {
     const point = {
-      x: Phaser.Math.Between(WORLD_EDGE, WORLD_WIDTH - WORLD_EDGE),
-      y: Phaser.Math.Between(WORLD_EDGE, WORLD_HEIGHT - WORLD_EDGE),
+      x: CAMPFIRE_POSITION.x + Phaser.Math.Between(-RABBIT_SPAWN_RADIUS, RABBIT_SPAWN_RADIUS),
+      y: CAMPFIRE_POSITION.y + Phaser.Math.Between(-RABBIT_SPAWN_RADIUS, RABBIT_SPAWN_RADIUS),
     };
+    const field = clampToField(point);
+    const isInField = field.x === point.x && field.y === point.y;
     const toCamp = Phaser.Math.Distance.Between(point.x, point.y, CAMPFIRE_POSITION.x, CAMPFIRE_POSITION.y);
-    if (toCamp > CAMP_CLEAR_RADIUS) return point;
+    const toTable = Phaser.Math.Distance.Between(point.x, point.y, TABLE_POSITION.x, TABLE_POSITION.y);
+    const toPlayer = Phaser.Math.Distance.Between(point.x, point.y, player.x, player.y);
+    const isInRing = toCamp >= RABBIT_CAMP_CLEAR_RADIUS && toCamp <= RABBIT_SPAWN_RADIUS;
+    if (isInField && isInRing && toTable >= RABBIT_CAMP_CLEAR_RADIUS && toPlayer >= RABBIT_FLEE_RADIUS) {
+      return point;
+    }
   }
 }

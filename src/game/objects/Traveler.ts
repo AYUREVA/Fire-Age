@@ -36,6 +36,9 @@ const BUBBLE_Y = 100;
 const BUBBLE_ICON_X = -14;
 const BUBBLE_ICON_SCALE = 0.62;
 const BUBBLE_TEXT_X = 6;
+// Иконка и число чуть выше середины пузыря: внизу у пузыря хвостик.
+const BUBBLE_ICON_Y = -4;
+const BUBBLE_TEXT_Y = -5;
 // Шкала терпения — под пузырём, уменьшенная шкала жара.
 const PATIENCE_Y = 68;
 const PATIENCE_SCALE = 0.5;
@@ -298,8 +301,8 @@ export class Traveler {
     const bubbleY = this.y - BUBBLE_Y;
     const bubbleX = this.x + BUBBLE_X;
     this.bubble.setPosition(bubbleX, bubbleY);
-    this.bubbleIcon.setPosition(bubbleX + BUBBLE_ICON_X, bubbleY - 4);
-    this.bubbleText.setPosition(bubbleX + BUBBLE_TEXT_X, bubbleY - 5);
+    this.bubbleIcon.setPosition(bubbleX + BUBBLE_ICON_X, bubbleY + BUBBLE_ICON_Y);
+    this.bubbleText.setPosition(bubbleX + BUBBLE_TEXT_X, bubbleY + BUBBLE_TEXT_Y);
 
     // Шкала терпения: заливка короче и краснее, чем меньше терпения.
     const patienceShare = Phaser.Math.Clamp(this.patience / TRAVELER_PATIENCE, 0, 1);
