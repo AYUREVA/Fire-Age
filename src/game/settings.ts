@@ -177,8 +177,8 @@ export const WOLF_RETURN_TIME_MAX = 15000;
 // Днём вождь быстрее (260), ночью волк быстрее (вождь 156).
 export const WOLF_SPEED = 200;
 
-// Скорость волка с добычей в зубах — догнать можно.
-export const WOLF_CARRY_SPEED = 150;
+// Скорость волка с добычей в зубах: тяжело бежать — даже ночью (вождь 156) его можно догнать.
+export const WOLF_CARRY_SPEED = 110;
 
 // Скорость отогнанного волка: удирает в лес со всех лап.
 export const WOLF_FLEE_SPEED = 260;
