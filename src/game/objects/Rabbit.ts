@@ -19,7 +19,7 @@ import {
 } from '../settings';
 import { COLORS } from '../palette';
 import { TEXTURES } from '../textures';
-import { Point, pop } from '../fx';
+import { CanStep, Point, pop } from '../fx';
 
 // ===== Прогулка =====
 
@@ -149,8 +149,9 @@ export class Rabbit {
   }
 
   // Вызывается сценой каждый кадр. (playerX, playerY) — где вождь,
-  // speedMultiplier — во сколько раз меняется скорость (в метель кролики медленнее).
-  update(delta: number, playerX: number, playerY: number, speedMultiplier: number): void {
+  // speedMultiplier — во сколько раз меняется скорость (в метель кролики медленнее),
+  // canStep — можно ли шагнуть из точки в точку (кролики не прыгают сквозь частокол).
+  update(delta: number, playerX: number, playerY: number, speedMultiplier: number, canStep: CanStep): void {
     if (this.state === 'gone') {
       this.waitToRespawn(delta, { x: playerX, y: playerY });
       return;
@@ -168,14 +169,17 @@ export class Rabbit {
     }
 
     const isMoving =
-      this.state === 'flee' ? this.flee(delta, playerX, playerY, speedMultiplier) : this.wander(delta, speedMultiplier);
+      this.state === 'flee'
+        ? this.flee(delta, playerX, playerY, speedMultiplier, canStep)
+        : this.wander(delta, speedMultiplier, canStep);
     this.place(isMoving ? delta : 0);
   }
 
   // ===== Движение =====
 
   // Бродит: скачет к точке рядом с домом, сидит, выбирает новую. Вернёт true, если двигался.
-  private wander(delta: number, speedMultiplier: number): boolean {
+  // Упёрся в стену — считает, что дошёл, сидит и выбирает новую точку.
+  private wander(delta: number, speedMultiplier: number, canStep: CanStep): boolean {
     const distance = Phaser.Math.Distance.Between(this.x, this.y, this.target.x, this.target.y);
     if (distance < ARRIVE_DISTANCE) {
       this.sitTime -= delta;
@@ -190,25 +194,33 @@ export class Rabbit {
       return false;
     }
 
-    this.moveTowards(this.target.x - this.x, this.target.y - this.y, RABBIT_WANDER_SPEED * speedMultiplier, delta);
+    const speed = RABBIT_WANDER_SPEED * speedMultiplier;
+    if (!this.moveTowards(this.target.x - this.x, this.target.y - this.y, speed, delta, canStep)) {
+      this.target = { x: this.x, y: this.y };
+      return false;
+    }
     return true;
   }
 
   // Убегает прямо от вождя. Упрётся в край поля — скользит вдоль него.
-  private flee(delta: number, playerX: number, playerY: number, speedMultiplier: number): boolean {
-    this.moveTowards(this.x - playerX, this.y - playerY, RABBIT_FLEE_SPEED * speedMultiplier, delta);
-    return true;
+  private flee(delta: number, playerX: number, playerY: number, speedMultiplier: number, canStep: CanStep): boolean {
+    return this.moveTowards(this.x - playerX, this.y - playerY, RABBIT_FLEE_SPEED * speedMultiplier, delta, canStep);
   }
 
   // Сдвинуться в направлении (dx, dy) со скоростью speed, не выходя за поле.
-  private moveTowards(dx: number, dy: number, speed: number, delta: number): void {
+  // Шаг по x и по y проверяется отдельно: в стену — нельзя, вдоль — можно.
+  // Вернёт true, если хоть куда-то сдвинулся.
+  private moveTowards(dx: number, dy: number, speed: number, delta: number, canStep: CanStep): boolean {
     const direction = new Phaser.Math.Vector2(dx, dy).normalize();
     const step = (speed * delta) / 1000;
     const next = clampToField({ x: this.x + direction.x * step, y: this.y + direction.y * step });
-    this.x = next.x;
-    this.y = next.y;
+    const startX = this.x;
+    const startY = this.y;
+    if (canStep(this.x, this.y, next.x, this.y)) this.x = next.x;
+    if (canStep(this.x, this.y, this.x, next.y)) this.y = next.y;
     if (direction.x > 0) this.facing = 1;
     if (direction.x < 0) this.facing = -1;
+    return this.x !== startX || this.y !== startY;
   }
 
   // После «пуф» ждёт RABBIT_RESPAWN_TIME и выпрыгивает из сугроба недалеко от лагеря

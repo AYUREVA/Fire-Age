@@ -10,6 +10,10 @@ import {
   WOODPILE_POSITION,
   WOODPILE_CAPACITY,
   RABBIT_COUNT,
+  WOLF_COUNT,
+  WOLF_FIRST_DELAY,
+  WOLF_RETURN_TIME_MAX,
+  WOLF_RETURN_TIME_MIN,
   RAW_MEAT_PILE_POSITION,
   RAW_MEAT_PILE_CAPACITY,
   COOKED_MEAT_PILE_POSITION,
@@ -25,10 +29,15 @@ import { Backpack } from '../objects/Backpack';
 import { ResourceNode } from '../objects/ResourceNode';
 import { ItemPile } from '../objects/ItemPile';
 import { Rabbit } from '../objects/Rabbit';
+import { Wolf } from '../objects/Wolf';
 import { Spit } from '../objects/Spit';
 import { StoneTable } from '../objects/StoneTable';
 import { Traveler } from '../objects/Traveler';
 import { Campfire } from '../objects/Campfire';
+import { BuyZone } from '../objects/BuyZone';
+import { Hut } from '../objects/Hut';
+import { Fence } from '../objects/Fence';
+import { CanStep } from '../fx';
 import { Hud } from '../objects/Hud';
 import { CycleEvent, DayNightCycle } from '../objects/DayNightCycle';
 import { NightOverlay } from '../objects/NightOverlay';
@@ -37,6 +46,10 @@ import { updateDropping, updateGathering, updateHunting, updatePickup } from '..
 import { updateCooking } from '../systems/Cooking';
 import { updateTable, updateTravelers, updateTusks } from '../systems/Serving';
 import { updateFire } from '../systems/Fire';
+import { updatePurchases } from '../systems/Purchases';
+import { updateWolfFight, updateWolves } from '../systems/Predators';
+import { FENCE_PRICE, FENCE_SPOT, HUT_PRICE, HUT_SPOTS, WEAPONS, WEAPON_SPOT } from '../data/upgrades';
+import { LevelStats, PauseSource, track } from '../analytics';
 import { ReadyData } from './ReadyScene';
 import { PauseData } from './PauseScene';
 import { ResultData } from './ResultScene';
@@ -148,6 +161,8 @@ export class GameScene extends Phaser.Scene {
   private bushes: ResourceNode[] = [];
   // Кролики на поле.
   private rabbits: Rabbit[] = [];
+  // Волки: созданы заранее (сколько может быть на поле ночью), выходят из леса по одному.
+  private wolves: Wolf[] = [];
   // Поленница у костра — сюда сдаётся хворост, из неё кормится огонь.
   private woodpile!: ItemPile;
   // Костёр в лагере.
@@ -160,6 +175,15 @@ export class GameScene extends Phaser.Scene {
   private table!: StoneTable;
   // Путники: созданы заранее (сколько мест в очереди), приходят из леса по очереди.
   private travelers: Traveler[] = [];
+  // Точки покупки: клыки из счётчика → покупка. Оружие продаётся на одной точке.
+  private buyZones: BuyZone[] = [];
+  private weaponZone!: BuyZone;
+  // Хижины и их точки покупки (одинаковый порядок: hutZones[i] строит huts[i]).
+  private huts: Hut[] = [];
+  private hutZones: BuyZone[] = [];
+  // Частокол вокруг лагеря и его точка покупки.
+  private fence!: Fence;
+  private fenceZone!: BuyZone;
   // Интерфейс: сколько осталось до конца дня или ночи, кнопка паузы.
   private hud!: Hud;
   // Смена дня и ночи: фаза, номер суток, сколько осталось до конца фазы.
@@ -170,6 +194,9 @@ export class GameScene extends Phaser.Scene {
   private phaseBanner!: PhaseBanner;
   // Режим игры. Меняют его только функции переходов (раздел «Режим игры» ниже).
   private mode: GameMode = 'ready';
+  // Статистика уровня: накормлено, ушло голодными, клыки, время игры, волки.
+  // Меняют системы, аналитика читает её в переходах (analytics.ts).
+  private stats!: LevelStats;
 
   constructor() {
     super('GameScene');
@@ -185,8 +212,13 @@ export class GameScene extends Phaser.Scene {
     // сохраняют старые значения, поэтому сбрасываем их здесь.
     this.bushes = [];
     this.rabbits = [];
+    this.wolves = [];
     this.travelers = [];
+    this.buyZones = [];
+    this.huts = [];
+    this.hutZones = [];
     this.mode = 'ready';
+    this.stats = { fed: 0, hungry: 0, tusksEarned: 0, playTime: 0, wolvesDriven: 0, itemsStolen: 0 };
 
     createTextures(this);
 
@@ -200,6 +232,7 @@ export class GameScene extends Phaser.Scene {
     for (let i = 0; i < RABBIT_COUNT; i++) {
       this.rabbits.push(new Rabbit(this));
     }
+    this.createWolves();
     // Сначала костёр: его свет лежит на земле под краем площадки поленницы.
     this.campfire = new Campfire(this, CAMPFIRE_POSITION.x, CAMPFIRE_POSITION.y);
     this.woodpile = new ItemPile(this, WOODPILE_POSITION.x, WOODPILE_POSITION.y, 'wood', WOODPILE_CAPACITY);
@@ -219,14 +252,17 @@ export class GameScene extends Phaser.Scene {
       COOKED_MEAT_PILE_CAPACITY,
     );
     this.table = new StoneTable(this, TABLE_POSITION.x, TABLE_POSITION.y);
+    this.fence = new Fence(this);
     for (let i = 0; i < QUEUE_SIZE; i++) {
       this.travelers.push(new Traveler(this));
     }
 
+    this.createBuyZones();
+
     this.player = new Player(this, PLAYER_START.x, PLAYER_START.y);
     this.backpack = new Backpack(this);
     this.cycle = new DayNightCycle();
-    this.hud = new Hud(this, () => this.pauseGame());
+    this.hud = new Hud(this, () => this.pauseGame('button'));
     this.hud.setTimeLeft(this.cycle.timeLeft);
 
     this.setupCamera();
@@ -248,8 +284,13 @@ export class GameScene extends Phaser.Scene {
     // Параметры текущей фазы суток. Ночью меняются три: скорость вождя,
     // скорость горения костра и скорость кроликов (таблица PHASES в settings.ts).
     const phase = PHASES[this.cycle.phase];
+    // update() работает только в режиме PLAYING (в остальных сцена на паузе) —
+    // здесь копится чистое время игры.
+    this.stats.playTime += delta;
 
-    this.player.update(delta, phase.playerSpeedMultiplier);
+    this.player.update(delta, phase.playerSpeedMultiplier, this.canWalk);
+    // Калитка, к которой подошёл вождь, распахивается.
+    this.fence.update(delta, this.player.x, this.player.y);
     // Рюкзаку сообщаем, где спина вождя, как быстро он идёт, его глубину и куда он смотрит.
     this.backpack.update(
       delta,
@@ -264,9 +305,20 @@ export class GameScene extends Phaser.Scene {
     }
 
     for (const rabbit of this.rabbits) {
-      rabbit.update(delta, this.player.x, this.player.y, phase.rabbitSpeedMultiplier);
+      rabbit.update(delta, this.player.x, this.player.y, phase.rabbitSpeedMultiplier, this.canWalk);
     }
 
+    // Сначала волки: вождь бьёт волка раньше, чем куст.
+    updateWolves(
+      this.wolves,
+      this.player,
+      this.backpack,
+      this.stats,
+      WOLF_COUNT[this.cycle.phase],
+      this.canWolfStep,
+      delta,
+    );
+    updateWolfFight(this.player, this.backpack, this.wolves, this.stats);
     updateGathering(this.player, this.backpack, this.bushes, delta);
     updateHunting(this.player, this.backpack, this.rabbits);
     updateDropping(this.player, this.backpack, [this.woodpile, this.rawMeatPile], delta);
@@ -281,8 +333,10 @@ export class GameScene extends Phaser.Scene {
     for (const traveler of this.travelers) {
       traveler.update(delta);
     }
-    updateTravelers(this.table, this.travelers, delta);
-    updateTusks(this.player, this.table, this.hud, this.cameras.main);
+    updateTravelers(this.table, this.travelers, this.huts, this.stats, delta);
+    updateTusks(this.player, this.table, this.hud, this.stats, this.cameras.main);
+    const purchase = updatePurchases(this.player, this.buyZones, this.hud, this.cameras.main, delta);
+    if (purchase) this.onPurchase(purchase);
 
     const cycleEvent = this.cycle.update(delta);
     this.hud.setTimeLeft(this.cycle.timeLeft);
@@ -305,6 +359,7 @@ export class GameScene extends Phaser.Scene {
         this.nightOverlay.startSunset();
         break;
       case 'night':
+        track({ name: 'nightStart', day: this.cycle.dayNumber });
         this.nightOverlay.startNight();
         this.hud.setPhase(true);
         // Когда табличка уедет, ночные модификаторы остаются в HUD до утра.
@@ -322,21 +377,96 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  // ===== Покупки =====
+
+  // Точки покупки из data/upgrades.ts. Оружие — с первого, что можно купить (топор).
+  private createBuyZones(): void {
+    const firstWeapon = WEAPONS[1];
+    this.weaponZone = new BuyZone(this, WEAPON_SPOT.x, WEAPON_SPOT.y, firstWeapon.price, firstWeapon.icon);
+    this.buyZones.push(this.weaponZone);
+
+    this.fenceZone = new BuyZone(this, FENCE_SPOT.x, FENCE_SPOT.y, FENCE_PRICE, TEXTURES.fenceIcon);
+    this.buyZones.push(this.fenceZone);
+
+    // Хижины: на каждом месте — точка покупки, хижина появится на её месте.
+    for (const spot of HUT_SPOTS) {
+      this.huts.push(new Hut(this, spot.x, spot.y));
+      this.hutZones.push(new BuyZone(this, spot.x, spot.y, HUT_PRICE, TEXTURES.hut));
+    }
+    this.buyZones.push(...this.hutZones);
+  }
+
+  // Покупка на точке zone готова: сцена решает, что купили.
+  // Оружие: следующее — в руку; если есть ещё лучше — точка предлагает его, иначе закрывается.
+  // Хижина: точка закрывается, на её месте вырастает хижина.
+  // Частокол: вырастает вокруг лагеря; волки, оказавшиеся внутри, удирают.
+  private onPurchase(zone: BuyZone): void {
+    if (zone === this.fenceZone) {
+      zone.close();
+      this.fence.build();
+      for (const wolf of this.wolves) {
+        if (wolf.canBeHit() && this.fence.isInside(wolf.x, wolf.y)) wolf.giveUp();
+      }
+    }
+
+    const hutIndex = this.hutZones.indexOf(zone);
+    if (hutIndex >= 0) {
+      zone.close();
+      this.huts[hutIndex].build();
+    }
+    if (zone === this.weaponZone) {
+      this.player.upgradeWeapon();
+      const next = WEAPONS[this.player.weaponLevel + 1];
+      if (next) {
+        zone.offer(next.price, next.icon);
+      } else {
+        zone.close();
+      }
+    }
+  }
+
+  // ===== Частокол =====
+
+  // Можно ли вождю или кролику шагнуть из точки в точку: сквозь стену — нет, в калитку — да.
+  private canWalk: CanStep = (fromX, fromY, toX, toY) => this.fence.allows(fromX, fromY, toX, toY, true);
+
+  // Можно ли волку шагнуть: ни сквозь стену, ни в калитку. Волк, оказавшийся во дворе
+  // (частокол вырос вокруг него), может выбежать наружу прямо сквозь стену.
+  private canWolfStep: CanStep = (fromX, fromY, toX, toY) =>
+    this.fence.isInside(fromX, fromY) || this.fence.allows(fromX, fromY, toX, toY, false);
+
   // ===== Пауза =====
 
   // Пауза: клавиши P и Esc, кнопка в HUD (её подключает Hud) и автопауза,
   // когда вкладку свернули. Сработает, только если игра идёт (режим PLAYING).
+  // Ещё здесь — событие аналитики «игрок закрыл вкладку».
   private setupPause(): void {
-    this.input.keyboard?.on('keydown-P', () => this.pauseGame());
-    this.input.keyboard?.on('keydown-ESC', () => this.pauseGame());
+    this.input.keyboard?.on('keydown-P', () => this.pauseGame('key'));
+    this.input.keyboard?.on('keydown-ESC', () => this.pauseGame('key'));
 
-    // Событие «вкладка скрыта» приходит от всей игры, а не от сцены. Поэтому
-    // при выключении сцены (рестарт) подписку снимаем, иначе их станет две.
-    this.game.events.on(Phaser.Core.Events.HIDDEN, this.pauseGame, this);
+    // События «вкладка скрыта» и «страницу закрывают» приходят от всей игры
+    // и от окна браузера, а не от сцены. Поэтому при выключении сцены (рестарт)
+    // подписки снимаем, иначе их станет две.
+    this.game.events.on(Phaser.Core.Events.HIDDEN, this.onTabHidden, this);
+    window.addEventListener('pagehide', this.onPageHide);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
-      this.game.events.off(Phaser.Core.Events.HIDDEN, this.pauseGame, this);
+      this.game.events.off(Phaser.Core.Events.HIDDEN, this.onTabHidden, this);
+      window.removeEventListener('pagehide', this.onPageHide);
     });
   }
+
+  // Вкладку свернули — автопауза.
+  private onTabHidden(): void {
+    this.pauseGame('hidden');
+  }
+
+  // Страницу закрывают. Если уровень был начат (идёт или на паузе) —
+  // сообщаем аналитике, сколько игрок успел поиграть.
+  // Стрелочная функция: её саму передаём окну и потом снимаем той же ссылкой.
+  private onPageHide = (): void => {
+    if (this.mode !== 'playing' && this.mode !== 'paused') return;
+    track({ name: 'tabClosed', playTime: this.stats.playTime });
+  };
 
   // ===== Режим игры =====
   //
@@ -360,15 +490,18 @@ export class GameScene extends Phaser.Scene {
   private startPlaying(): void {
     if (this.mode !== 'ready') return;
     this.mode = 'playing';
+    track({ name: 'levelStart' });
 
     this.scene.stop('ReadyScene');
     this.scene.resume();
   }
 
   // PLAYING → PAUSED: игра замирает, поверх — табличка «ПАУЗА».
-  private pauseGame(): void {
+  // source — откуда пришла пауза: кнопка, клавиша или свёрнутая вкладка.
+  private pauseGame(source: PauseSource): void {
     if (this.mode !== 'playing') return;
     this.mode = 'paused';
+    track({ name: 'pause', source });
 
     this.scene.pause();
     const data: PauseData = { onResume: () => this.resumeGame(), onRestart: () => this.restart() };
@@ -379,6 +512,7 @@ export class GameScene extends Phaser.Scene {
   private resumeGame(): void {
     if (this.mode !== 'paused') return;
     this.mode = 'playing';
+    track({ name: 'resume' });
 
     this.scene.stop('PauseScene');
     this.scene.resume();
@@ -389,8 +523,10 @@ export class GameScene extends Phaser.Scene {
   // Режим меняем сразу: второе «Заново» в том же кадре уже ничего не сделает.
   private restart(): void {
     if (this.mode !== 'paused' && this.mode !== 'result') return;
-    const tabletScene = this.mode === 'paused' ? 'PauseScene' : 'ResultScene';
+    const isFromPause = this.mode === 'paused';
     this.mode = 'ready';
+    track({ name: 'restart', from: isFromPause ? 'pause' : 'result' });
+    const tabletScene = isFromPause ? 'PauseScene' : 'ResultScene';
 
     this.scene.stop(tabletScene);
     this.scene.restart();
@@ -400,6 +536,13 @@ export class GameScene extends Phaser.Scene {
   private endGame(isWin: boolean): void {
     if (this.mode !== 'playing') return;
     this.mode = 'result';
+    track({
+      name: 'levelEnd',
+      isWin,
+      reason: isWin ? 'dawn' : 'fireOut',
+      day: this.cycle.dayNumber,
+      ...this.stats,
+    });
 
     this.scene.pause();
     const data: ResultData = { isWin, onRestart: () => this.restart() };
@@ -441,6 +584,17 @@ export class GameScene extends Phaser.Scene {
       (bush) => Phaser.Math.Distance.Between(x, y, bush.x, bush.y) < BUSH_CLEAR_RADIUS,
     );
     return nearCamp || nearBush;
+  }
+
+  // Волков столько, сколько их может быть на поле ночью. Первый выходит через
+  // WOLF_FIRST_DELAY, остальные — каждый на случайное время позже предыдущего.
+  private createWolves(): void {
+    const count = Math.max(WOLF_COUNT.day, WOLF_COUNT.night);
+    let delay = WOLF_FIRST_DELAY;
+    for (let i = 0; i < count; i++) {
+      this.wolves.push(new Wolf(this, delay));
+      delay += Phaser.Math.Between(WOLF_RETURN_TIME_MIN, WOLF_RETURN_TIME_MAX);
+    }
   }
 
   // Сажает кусты хвороста в точки из settings.ts.

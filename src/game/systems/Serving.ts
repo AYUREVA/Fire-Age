@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import {
   TABLE_DROP_INTERVAL,
+  HUT_SPAWN_FACTOR,
   TRAVELER_EAT_TIME,
   TRAVELER_FIRST_DELAY,
   TRAVELER_ORDER_MAX,
@@ -14,6 +15,8 @@ import { Backpack } from '../objects/Backpack';
 import { StoneTable } from '../objects/StoneTable';
 import { Hud } from '../objects/Hud';
 import { Traveler } from '../objects/Traveler';
+import { Hut } from '../objects/Hut';
+import { LevelStats } from '../analytics';
 
 // =====================================================================
 //  Стол и путники: вождь выкладывает еду на стол, путники едят
@@ -54,8 +57,16 @@ export function updateTable(player: Player, backpack: Backpack, table: StoneTabl
 
 // Путники: приход из леса, очередь у стола, первый в очереди берёт еду,
 // ест, оставляет клыки и уходит. Нет нужной еды — убывает его терпение.
-export function updateTravelers(table: StoneTable, travelers: Traveler[], delta: number): void {
-  callTraveler(table, travelers, delta);
+// huts — хижины: каждая построенная ускоряет приход путников.
+// stats — статистика уровня: сюда считаются накормленные и голодные.
+export function updateTravelers(
+  table: StoneTable,
+  travelers: Traveler[],
+  huts: Hut[],
+  stats: LevelStats,
+  delta: number,
+): void {
+  callTraveler(table, travelers, huts, delta);
 
   // Очередь — путники по порядку талонов: кто пришёл раньше, тот ближе к столу.
   const queue = travelers.filter((traveler) => traveler.isInQueue()).sort((a, b) => a.ticket - b.ticket);
@@ -65,13 +76,16 @@ export function updateTravelers(table: StoneTable, travelers: Traveler[], delta:
     traveler.setFront(index === 0);
   });
 
-  if (queue.length > 0) serveFirst(table, queue[0], delta);
+  if (queue.length > 0) serveFirst(table, queue[0], stats, delta);
 }
 
 // Раз в TRAVELER_SPAWN_INTERVAL (первый — через TRAVELER_FIRST_DELAY) из леса выходит
 // новый путник, если в очереди есть место. Путники созданы заранее — зовём свободного.
-function callTraveler(table: StoneTable, travelers: Traveler[], delta: number): void {
-  const interval = table.nextTicket === 1 ? TRAVELER_FIRST_DELAY : TRAVELER_SPAWN_INTERVAL;
+// Каждая построенная хижина умножает интервал на HUT_SPAWN_FACTOR — путники приходят чаще.
+function callTraveler(table: StoneTable, travelers: Traveler[], huts: Hut[], delta: number): void {
+  const builtHuts = huts.filter((hut) => hut.isBuilt()).length;
+  const spawnInterval = TRAVELER_SPAWN_INTERVAL * Math.pow(HUT_SPAWN_FACTOR, builtHuts);
+  const interval = table.nextTicket === 1 ? TRAVELER_FIRST_DELAY : spawnInterval;
   // Очередь полная — таймер не копится дальше: путник придёт сразу, как освободится место.
   table.spawnTimer = Math.min(table.spawnTimer + delta, interval);
   if (table.spawnTimer < interval) return;
@@ -87,13 +101,14 @@ function callTraveler(table: StoneTable, travelers: Traveler[], delta: number): 
 
 // Первый в очереди у стола: берёт нужную еду по куску, ест, платит и уходит.
 // Нужной еды на столе нет — ждёт, и его терпение убывает; кончилось — уходит голодным.
-function serveFirst(table: StoneTable, first: Traveler, delta: number): void {
+function serveFirst(table: StoneTable, first: Traveler, stats: LevelStats, delta: number): void {
   // Ест: доел — клыки летят на край стола, путник уходит.
   if (first.isEating()) {
     first.eatTime += delta;
     if (first.eatTime < TRAVELER_EAT_TIME) return;
     table.addTusks(first.order * TUSKS_PER_FOOD, first.getMouthPoint());
     first.leave(true, table.getForestPoint());
+    stats.fed += 1;
     return;
   }
 
@@ -111,7 +126,10 @@ function serveFirst(table: StoneTable, first: Traveler, delta: number): void {
   if (!table.has(want.type)) {
     first.takeTimer = 0;
     first.patience -= delta;
-    if (first.patience <= 0) first.leave(false, table.getForestPoint());
+    if (first.patience <= 0) {
+      first.leave(false, table.getForestPoint());
+      stats.hungry += 1;
+    }
     return;
   }
 
@@ -130,11 +148,18 @@ function serveFirst(table: StoneTable, first: Traveler, delta: number): void {
 // а в HUD каждый клык летит в счётчик и показывает новое число, когда долетит.
 // Клык лежит в мире, а счётчик — на экране: из точки мира вычитаем
 // левый верхний угол того, что видит камера, и получаем точку экрана.
-export function updateTusks(player: Player, table: StoneTable, hud: Hud, camera: Phaser.Cameras.Scene2D.Camera): void {
+export function updateTusks(
+  player: Player,
+  table: StoneTable,
+  hud: Hud,
+  stats: LevelStats,
+  camera: Phaser.Cameras.Scene2D.Camera,
+): void {
   if (!table.contains(player.x, player.y)) return;
 
   for (const tusk of table.takeTusks()) {
     player.tusks += 1;
+    stats.tusksEarned += 1;
     hud.flyTuskToCounter(tusk.x - camera.worldView.x, tusk.y - camera.worldView.y, player.tusks);
     tusk.destroy();
   }

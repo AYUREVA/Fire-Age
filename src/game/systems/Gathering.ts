@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { CATCH_RADIUS, DROP_INTERVAL, GATHER_RADIUS, HIT_INTERVAL } from '../settings';
+import { CATCH_RADIUS, DROP_INTERVAL, GATHER_RADIUS } from '../settings';
 import { Player } from '../objects/Player';
 import { Backpack } from '../objects/Backpack';
 import { ResourceNode } from '../objects/ResourceNode';
@@ -17,8 +17,8 @@ import { Rabbit } from '../objects/Rabbit';
 
 // ===== Добыча хвороста =====
 
-// Вождь рядом с кустом — бьёт его каждые HIT_INTERVAL мс,
-// и связка хвороста летит из куста на стопку.
+// Вождь рядом с кустом — бьёт его раз в интервал удара своего оружия
+// (дубина — HIT_INTERVAL, топор и копьё чаще), и связка хвороста летит из куста на стопку.
 export function updateGathering(player: Player, backpack: Backpack, bushes: ResourceNode[], delta: number): void {
   const bush = findBushNear(player, bushes);
 
@@ -28,13 +28,19 @@ export function updateGathering(player: Player, backpack: Backpack, bushes: Reso
     return;
   }
 
+  const hitInterval = player.getWeapon().hitInterval;
   player.hitTimer += delta;
-  if (player.hitTimer < HIT_INTERVAL) return;
-  player.hitTimer -= HIT_INTERVAL;
+  if (player.hitTimer < hitInterval) return;
+  // Вождь ещё машет (например, бьёт волка) — по кусту ударит, как только закончит.
+  if (player.isSwinging()) {
+    player.hitTimer = hitInterval;
+    return;
+  }
+  player.hitTimer -= hitInterval;
 
-  // Удар засчитывается, когда дубина долетает до куста, а не в начале замаха.
-  // Весь взмах укладывается в HIT_INTERVAL — до следующего удара.
-  player.swing(bush.x, HIT_INTERVAL, () => {
+  // Удар засчитывается, когда оружие долетает до куста, а не в начале замаха.
+  // Весь взмах укладывается в интервал удара — до следующего удара.
+  player.swing(bush.x, hitInterval, () => {
     bush.hit();
     backpack.add('wood', bush.getLootPoint());
   });
@@ -73,7 +79,7 @@ export function updateHunting(player: Player, backpack: Backpack, rabbits: Rabbi
 
   // Кролик замирает, вождь замахивается. В момент удара — «пуф» и мясо на спину.
   rabbit.catch();
-  player.swing(rabbit.x, HIT_INTERVAL, () => {
+  player.swing(rabbit.x, player.getWeapon().hitInterval, () => {
     rabbit.poof();
     backpack.add('rawMeat', rabbit.getLootPoint());
   });
