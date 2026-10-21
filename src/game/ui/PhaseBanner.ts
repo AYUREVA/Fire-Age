@@ -113,7 +113,9 @@ export class PhaseBanner {
 
   // Каменная табличка с иконкой и «высеченной» надписью. Сначала — за верхним краем экрана.
   private createBanner(icon: string, title: string): Phaser.GameObjects.Container {
-    // Прошлая табличка ещё не уехала — убираем её сразу.
+    // Прошлая табличка ещё не уехала — убираем её сразу вместе с её твинами:
+    // иначе в конце старого твина сработал бы его onDone (ночные модификаторы утром).
+    if (this.banner) this.scene.tweens.killTweensOf(this.banner);
     this.banner?.destroy();
 
     const banner = this.scene.add.container(this.scene.scale.width / 2, BANNER_HIDDEN_Y, [
