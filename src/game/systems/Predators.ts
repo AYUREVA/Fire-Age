@@ -5,6 +5,7 @@ import { Player } from '../objects/Player';
 import { Backpack } from '../objects/Backpack';
 import { Wolf, randomForestPoint } from '../objects/Wolf';
 import { LevelStats } from '../analytics';
+import { CanStep } from '../fx';
 
 // =====================================================================
 //  Звери: волки выходят из леса, крадут со спины, вождь отбивается.
@@ -19,19 +20,21 @@ import { LevelStats } from '../analytics';
 // Волки: выход из леса, бег к вождю, кража и побег в лес.
 // maxCount — сколько волков может быть на поле сейчас (днём меньше, ночью больше).
 // stats — статистика уровня: сюда считаются украденные предметы.
+// canStep — можно ли волку шагнуть из точки в точку (частокол и калитки волков не пускают).
 export function updateWolves(
   wolves: Wolf[],
   player: Player,
   backpack: Backpack,
   stats: LevelStats,
   maxCount: number,
+  canStep: CanStep,
   delta: number,
 ): void {
   callWolves(wolves, maxCount, delta);
 
   for (const wolf of wolves) {
     // Убежал в лес с добычей — предмет пропал.
-    if (wolf.update(delta, player.x, player.y)) stats.itemsStolen += 1;
+    if (wolf.update(delta, player.x, player.y, canStep)) stats.itemsStolen += 1;
     if (!wolf.isHunting()) continue;
 
     // Долго не может добраться (например, вождь за частоколом) — уходит.

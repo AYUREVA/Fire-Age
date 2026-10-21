@@ -32,6 +32,11 @@ const POP_TIME = 260;
 // Точка на карте.
 export type Point = { x: number; y: number };
 
+// Можно ли шагнуть из точки (fromX, fromY) в точку (toX, toY).
+// Такую проверку сцена передаёт тем, кто ходит (вождь, кролики, волки):
+// сами они про частокол ничего не знают.
+export type CanStep = (fromX: number, fromY: number, toX: number, toY: number) => boolean;
+
 // Настройки полёта по дуге.
 export type ArcFlight = {
   from: Point; // откуда летит

@@ -56,6 +56,8 @@ export const TEXTURES = {
   snowflake: 'snowflake', // снежинка: падающий снег и снег из куста
   chip: 'chip', // щепка, летит из куста при ударе
   dropZone: 'drop-zone', // площадка кучи у костра: светлая рамка (иконку ставит ItemPile)
+  fenceStake: 'fence-stake', // заострённый кол частокола со снежной шапкой; точка опоры — низ
+  fenceIcon: 'fence-icon', // три кола, связанные верёвкой, — частокол на точке покупки
   hut: 'hut', // хижина-шалаш из шкур на жердях, со снегом; точка опоры — низ
   buyZone: 'buy-zone', // круг точки покупки на снегу (кольцо оплаты и цену рисует BuyZone)
   firePit: 'fire-pit', // кострище: камни и поленья
@@ -135,6 +137,8 @@ const CHIP_SIZE: Size = { w: 12, h: 9 };
 const DROP_ZONE_SIZE: Size = { w: 220, h: 132 };
 const BUY_ZONE_SIZE: Size = { w: 180, h: 110 };
 const HUT_SIZE: Size = { w: 170, h: 160 };
+const FENCE_STAKE_SIZE: Size = { w: 30, h: 80 };
+const FENCE_ICON_SIZE: Size = { w: 78, h: 92 };
 const FIRE_PIT_SIZE: Size = { w: 110, h: 64 };
 const SPIT_SIZE: Size = { w: 170, h: 96 };
 const STONE_TABLE_SIZE: Size = { w: 240, h: 150 };
@@ -232,6 +236,8 @@ export function createTextures(scene: Phaser.Scene): void {
   bake(scene, TEXTURES.dropZone, DROP_ZONE_SIZE, drawDropZone);
   bake(scene, TEXTURES.buyZone, BUY_ZONE_SIZE, drawBuyZone);
   bake(scene, TEXTURES.hut, HUT_SIZE, drawHut);
+  bake(scene, TEXTURES.fenceStake, FENCE_STAKE_SIZE, drawFenceStake);
+  bake(scene, TEXTURES.fenceIcon, FENCE_ICON_SIZE, drawFenceIcon);
   bake(scene, TEXTURES.firePit, FIRE_PIT_SIZE, drawFirePit);
   bake(scene, TEXTURES.spit, SPIT_SIZE, drawSpit);
   bake(scene, TEXTURES.stoneTable, STONE_TABLE_SIZE, drawStoneTable);
@@ -1750,6 +1756,56 @@ function drawBuyZone(g: Graphics): void {
     const from = (i / dashes) * Math.PI * 2;
     const to = from + (Math.PI * 2) / dashes / 2;
     g.strokePoints(toPoints(ellipsePoints(cx, cy, rx, ry, from, to)), false);
+  }
+}
+
+// ===== Частокол =====
+
+// Кол частокола: бревно с заострённым верхом, полосками коры и верёвкой,
+// на острие — снежная шапка, у подножия — снег.
+function drawFenceStake(g: Graphics): void {
+  const { w, h } = FENCE_STAKE_SIZE;
+  const cx = w / 2;
+  const half = 9;
+  const tipY = 6;
+  const shoulderY = 22;
+
+  // Голубая тень на снегу у подножия.
+  g.fillStyle(COLORS.snowShade, 1);
+  g.fillEllipse(cx, h - 5, w - 4, 8);
+
+  // Бревно: светлая левая сторона, тёмная правая, остриё сверху.
+  const log = [cx - half, h - 5, cx - half, shoulderY, cx, tipY, cx + half, shoulderY, cx + half, h - 5];
+  fillPolygon(g, log, COLORS.wood);
+  fillPolygon(g, [cx + 2, h - 5, cx + 2, shoulderY - 6, cx + half, shoulderY, cx + half, h - 5], COLORS.woodDark);
+  g.lineStyle(2, COLORS.woodLight, 1);
+  g.lineBetween(cx - half + 3, shoulderY + 2, cx - half + 3, h - 12);
+  // Полоски коры.
+  g.lineStyle(1.5, COLORS.woodDark, 1);
+  g.lineBetween(cx - 3, shoulderY + 12, cx - 4, shoulderY + 26);
+  g.lineBetween(cx - 1, h - 26, cx - 2, h - 14);
+  strokePolygon(g, log);
+
+  // Верёвка: колья связаны между собой.
+  limb(g, cx - half, 44, cx + half, 46, 3, COLORS.rope);
+
+  // Снежная шапка на острие.
+  const cap = [cx - 6, 16, cx, tipY - 2, cx + 6, 16, cx + 3, 19, cx - 1, 17, cx - 4, 20];
+  fillPolygon(g, cap, COLORS.snowLight);
+  // Снег у подножия.
+  g.fillStyle(COLORS.snowLight, 1);
+  g.fillEllipse(cx - 2, h - 6, 22, 7);
+}
+
+// Иконка частокола: три кола рядом, средний выше и впереди.
+function drawFenceIcon(g: Graphics): void {
+  const { w, h } = FENCE_ICON_SIZE;
+  const stakeLeft = (cx: number): number => cx - FENCE_STAKE_SIZE.w / 2;
+  for (const [cx, shiftY] of [[w / 2 - 22, 8], [w / 2 + 22, 8], [w / 2, 0]]) {
+    g.save();
+    g.translateCanvas(stakeLeft(cx), h - FENCE_STAKE_SIZE.h - 4 + shiftY);
+    drawFenceStake(g);
+    g.restore();
   }
 }
 

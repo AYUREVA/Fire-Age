@@ -15,7 +15,7 @@ import {
 } from '../settings';
 import { TEXTURES } from '../textures';
 import { ItemType } from '../items';
-import { flyArc, Point, shake } from '../fx';
+import { CanStep, flyArc, Point, shake } from '../fx';
 
 // ===== Вид =====
 
@@ -87,6 +87,8 @@ export class Wolf {
   private runTime = 0;
   // Куда смотрит: 1 — вправо, -1 — влево.
   private facing = 1;
+  // Проверка шага на этот кадр (её передаёт update()): частокол волков не пускает.
+  private canStep: CanStep = () => true;
 
   private image: Phaser.GameObjects.Image;
   private shadow: Phaser.GameObjects.Image;
@@ -176,10 +178,12 @@ export class Wolf {
 
   // ===== Каждый кадр =====
 
-  // Вызывается systems/Predators.ts каждый кадр. (playerX, playerY) — где вождь.
+  // Вызывается systems/Predators.ts каждый кадр. (playerX, playerY) — где вождь,
+  // canStep — можно ли шагнуть из точки в точку (сквозь частокол волки не ходят).
   // Вернёт true, если волк только что убежал в лес с добычей (предмет пропал).
-  update(delta: number, playerX: number, playerY: number): boolean {
+  update(delta: number, playerX: number, playerY: number, canStep: CanStep): boolean {
     if (this.state === 'gone') return false;
+    this.canStep = canStep;
     this.runTime += delta;
 
     switch (this.state) {
@@ -214,21 +218,26 @@ export class Wolf {
   }
 
   // Шаг к точке (targetX, targetY) со скоростью speed. Вернёт true, если дошёл.
+  // Шаг по x и по y проверяется отдельно: упёрся в частокол — скользит вдоль него.
   // turn — поворачиваться ли мордой по ходу (отлетая от удара, волк не поворачивается).
   private moveTowards(targetX: number, targetY: number, speed: number, delta: number, turn = true): boolean {
     const distance = Phaser.Math.Distance.Between(this.x, this.y, targetX, targetY);
     const step = (speed * delta) / 1000;
     if (distance <= Math.max(step, ARRIVE_DISTANCE)) {
-      this.x = targetX;
-      this.y = targetY;
-      return true;
+      this.stepTo(targetX, targetY);
+      return this.x === targetX && this.y === targetY;
     }
 
     const direction = new Phaser.Math.Vector2(targetX - this.x, targetY - this.y).normalize();
-    this.x += direction.x * step;
-    this.y += direction.y * step;
+    this.stepTo(this.x + direction.x * step, this.y + direction.y * step);
     if (turn && direction.x !== 0) this.facing = direction.x > 0 ? 1 : -1;
     return false;
+  }
+
+  // Шагнуть в точку (x, y), если частокол пускает: отдельно по x и по y.
+  private stepTo(x: number, y: number): void {
+    if (this.canStep(this.x, this.y, x, this.y)) this.x = x;
+    if (this.canStep(this.x, this.y, this.x, y)) this.y = y;
   }
 
   // Удирает в ближайший лес (отогнан или устал).

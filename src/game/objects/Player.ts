@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { pop } from '../fx';
+import { CanStep, pop } from '../fx';
 import { JOYSTICK_RADIUS, PLAYER_SPEED, WORLD_EDGE, WORLD_HEIGHT, WORLD_WIDTH } from '../settings';
 import { TEXTURES, WEAPON_GRIP_FROM_BOTTOM } from '../textures';
 import { WEAPONS, Weapon } from '../data/upgrades';
@@ -210,11 +210,12 @@ export class Player {
 
   // Вызывается сценой каждый кадр. delta — сколько мс прошло с прошлого кадра.
   // speedMultiplier — во сколько раз меняется скорость (ночью вождь идёт медленнее).
-  update(delta: number, speedMultiplier: number): void {
+  // canStep — можно ли шагнуть из точки в точку (сцена не пускает сквозь частокол).
+  update(delta: number, speedMultiplier: number, canStep: CanStep): void {
     const direction = this.readInput();
     const isMoving = direction.length() > 0;
 
-    this.move(direction, delta, speedMultiplier);
+    this.move(direction, delta, speedMultiplier, canStep);
     this.animate(delta, isMoving);
     this.place();
   }
@@ -334,15 +335,18 @@ export class Player {
   // ===== Движение и анимация =====
 
   // Двигает вождя: скорость = направление × PLAYER_SPEED × множитель фазы суток.
-  private move(direction: Phaser.Math.Vector2, delta: number, speedMultiplier: number): void {
+  // Шаг по x и по y проверяется отдельно: упёрся в стену — скользит вдоль неё.
+  private move(direction: Phaser.Math.Vector2, delta: number, speedMultiplier: number, canStep: CanStep): void {
     const seconds = delta / 1000;
     const speed = PLAYER_SPEED * speedMultiplier;
     this.velocityX = direction.x * speed;
     this.velocityY = direction.y * speed;
 
     // Вождь не уходит в лес по краям мира.
-    this.x = Phaser.Math.Clamp(this.x + this.velocityX * seconds, WORLD_EDGE, WORLD_WIDTH - WORLD_EDGE);
-    this.y = Phaser.Math.Clamp(this.y + this.velocityY * seconds, WORLD_EDGE, WORLD_HEIGHT - WORLD_EDGE);
+    const nextX = Phaser.Math.Clamp(this.x + this.velocityX * seconds, WORLD_EDGE, WORLD_WIDTH - WORLD_EDGE);
+    if (canStep(this.x, this.y, nextX, this.y)) this.x = nextX;
+    const nextY = Phaser.Math.Clamp(this.y + this.velocityY * seconds, WORLD_EDGE, WORLD_HEIGHT - WORLD_EDGE);
+    if (canStep(this.x, this.y, this.x, nextY)) this.y = nextY;
 
     // Разворот: смотрим туда, куда идём по горизонтали.
     if (this.velocityX > 0) this.facing = 1;

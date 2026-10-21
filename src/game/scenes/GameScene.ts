@@ -36,6 +36,8 @@ import { Traveler } from '../objects/Traveler';
 import { Campfire } from '../objects/Campfire';
 import { BuyZone } from '../objects/BuyZone';
 import { Hut } from '../objects/Hut';
+import { Fence } from '../objects/Fence';
+import { CanStep } from '../fx';
 import { Hud } from '../objects/Hud';
 import { CycleEvent, DayNightCycle } from '../objects/DayNightCycle';
 import { NightOverlay } from '../objects/NightOverlay';
@@ -46,7 +48,7 @@ import { updateTable, updateTravelers, updateTusks } from '../systems/Serving';
 import { updateFire } from '../systems/Fire';
 import { updatePurchases } from '../systems/Purchases';
 import { updateWolfFight, updateWolves } from '../systems/Predators';
-import { HUT_PRICE, HUT_SPOTS, WEAPONS, WEAPON_SPOT } from '../data/upgrades';
+import { FENCE_PRICE, FENCE_SPOT, HUT_PRICE, HUT_SPOTS, WEAPONS, WEAPON_SPOT } from '../data/upgrades';
 import { LevelStats, PauseSource, track } from '../analytics';
 import { ReadyData } from './ReadyScene';
 import { PauseData } from './PauseScene';
@@ -179,6 +181,9 @@ export class GameScene extends Phaser.Scene {
   // Хижины и их точки покупки (одинаковый порядок: hutZones[i] строит huts[i]).
   private huts: Hut[] = [];
   private hutZones: BuyZone[] = [];
+  // Частокол вокруг лагеря и его точка покупки.
+  private fence!: Fence;
+  private fenceZone!: BuyZone;
   // Интерфейс: сколько осталось до конца дня или ночи, кнопка паузы.
   private hud!: Hud;
   // Смена дня и ночи: фаза, номер суток, сколько осталось до конца фазы.
@@ -247,6 +252,7 @@ export class GameScene extends Phaser.Scene {
       COOKED_MEAT_PILE_CAPACITY,
     );
     this.table = new StoneTable(this, TABLE_POSITION.x, TABLE_POSITION.y);
+    this.fence = new Fence(this);
     for (let i = 0; i < QUEUE_SIZE; i++) {
       this.travelers.push(new Traveler(this));
     }
@@ -282,7 +288,7 @@ export class GameScene extends Phaser.Scene {
     // здесь копится чистое время игры.
     this.stats.playTime += delta;
 
-    this.player.update(delta, phase.playerSpeedMultiplier);
+    this.player.update(delta, phase.playerSpeedMultiplier, this.canWalk);
     // Рюкзаку сообщаем, где спина вождя, как быстро он идёт, его глубину и куда он смотрит.
     this.backpack.update(
       delta,
@@ -297,11 +303,19 @@ export class GameScene extends Phaser.Scene {
     }
 
     for (const rabbit of this.rabbits) {
-      rabbit.update(delta, this.player.x, this.player.y, phase.rabbitSpeedMultiplier);
+      rabbit.update(delta, this.player.x, this.player.y, phase.rabbitSpeedMultiplier, this.canWalk);
     }
 
     // Сначала волки: вождь бьёт волка раньше, чем куст.
-    updateWolves(this.wolves, this.player, this.backpack, this.stats, WOLF_COUNT[this.cycle.phase], delta);
+    updateWolves(
+      this.wolves,
+      this.player,
+      this.backpack,
+      this.stats,
+      WOLF_COUNT[this.cycle.phase],
+      this.canWolfStep,
+      delta,
+    );
     updateWolfFight(this.player, this.backpack, this.wolves, this.stats);
     updateGathering(this.player, this.backpack, this.bushes, delta);
     updateHunting(this.player, this.backpack, this.rabbits);
@@ -369,6 +383,9 @@ export class GameScene extends Phaser.Scene {
     this.weaponZone = new BuyZone(this, WEAPON_SPOT.x, WEAPON_SPOT.y, firstWeapon.price, firstWeapon.icon);
     this.buyZones.push(this.weaponZone);
 
+    this.fenceZone = new BuyZone(this, FENCE_SPOT.x, FENCE_SPOT.y, FENCE_PRICE, TEXTURES.fenceIcon);
+    this.buyZones.push(this.fenceZone);
+
     // Хижины: на каждом месте — точка покупки, хижина появится на её месте.
     for (const spot of HUT_SPOTS) {
       this.huts.push(new Hut(this, spot.x, spot.y));
@@ -380,7 +397,16 @@ export class GameScene extends Phaser.Scene {
   // Покупка на точке zone готова: сцена решает, что купили.
   // Оружие: следующее — в руку; если есть ещё лучше — точка предлагает его, иначе закрывается.
   // Хижина: точка закрывается, на её месте вырастает хижина.
+  // Частокол: вырастает вокруг лагеря; волки, оказавшиеся внутри, удирают.
   private onPurchase(zone: BuyZone): void {
+    if (zone === this.fenceZone) {
+      zone.close();
+      this.fence.build();
+      for (const wolf of this.wolves) {
+        if (wolf.canBeHit() && this.fence.isInside(wolf.x, wolf.y)) wolf.giveUp();
+      }
+    }
+
     const hutIndex = this.hutZones.indexOf(zone);
     if (hutIndex >= 0) {
       zone.close();
@@ -396,6 +422,16 @@ export class GameScene extends Phaser.Scene {
       }
     }
   }
+
+  // ===== Частокол =====
+
+  // Можно ли вождю или кролику шагнуть из точки в точку: сквозь стену — нет, в калитку — да.
+  private canWalk: CanStep = (fromX, fromY, toX, toY) => this.fence.allows(fromX, fromY, toX, toY, true);
+
+  // Можно ли волку шагнуть: ни сквозь стену, ни в калитку. Волк, оказавшийся во дворе
+  // (частокол вырос вокруг него), может выбежать наружу прямо сквозь стену.
+  private canWolfStep: CanStep = (fromX, fromY, toX, toY) =>
+    this.fence.isInside(fromX, fromY) || this.fence.allows(fromX, fromY, toX, toY, false);
 
   // ===== Пауза =====
 
