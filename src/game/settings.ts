@@ -104,7 +104,7 @@ export const FIRE_START_HEAT = 100;
 
 // За сколько мс полный костёр прогорает до нуля, если в него ничего не подкидывать.
 // Меньше — огонь прожорливее, бегать за хворостом надо чаще.
-export const FIRE_BURN_TIME = 10000;
+export const FIRE_BURN_TIME = 20000;
 
 // Сколько жара (%) даёт одна связка хвороста.
 export const HEAT_PER_BUNDLE = 25;
