@@ -30,6 +30,7 @@ import { StoneTable } from '../objects/StoneTable';
 import { Traveler } from '../objects/Traveler';
 import { Campfire } from '../objects/Campfire';
 import { BuyZone } from '../objects/BuyZone';
+import { Hut } from '../objects/Hut';
 import { Hud } from '../objects/Hud';
 import { CycleEvent, DayNightCycle } from '../objects/DayNightCycle';
 import { NightOverlay } from '../objects/NightOverlay';
@@ -39,7 +40,7 @@ import { updateCooking } from '../systems/Cooking';
 import { updateTable, updateTravelers, updateTusks } from '../systems/Serving';
 import { updateFire } from '../systems/Fire';
 import { updatePurchases } from '../systems/Purchases';
-import { WEAPONS, WEAPON_SPOT } from '../data/upgrades';
+import { HUT_PRICE, HUT_SPOTS, WEAPONS, WEAPON_SPOT } from '../data/upgrades';
 import { LevelStats, PauseSource, track } from '../analytics';
 import { ReadyData } from './ReadyScene';
 import { PauseData } from './PauseScene';
@@ -167,6 +168,9 @@ export class GameScene extends Phaser.Scene {
   // Точки покупки: клыки из счётчика → покупка. Оружие продаётся на одной точке.
   private buyZones: BuyZone[] = [];
   private weaponZone!: BuyZone;
+  // Хижины и их точки покупки (одинаковый порядок: hutZones[i] строит huts[i]).
+  private huts: Hut[] = [];
+  private hutZones: BuyZone[] = [];
   // Интерфейс: сколько осталось до конца дня или ночи, кнопка паузы.
   private hud!: Hud;
   // Смена дня и ночи: фаза, номер суток, сколько осталось до конца фазы.
@@ -197,6 +201,8 @@ export class GameScene extends Phaser.Scene {
     this.rabbits = [];
     this.travelers = [];
     this.buyZones = [];
+    this.huts = [];
+    this.hutZones = [];
     this.mode = 'ready';
     this.stats = { fed: 0, hungry: 0, tusksEarned: 0, playTime: 0, wolvesDriven: 0, itemsStolen: 0 };
 
@@ -298,7 +304,7 @@ export class GameScene extends Phaser.Scene {
     for (const traveler of this.travelers) {
       traveler.update(delta);
     }
-    updateTravelers(this.table, this.travelers, this.stats, delta);
+    updateTravelers(this.table, this.travelers, this.huts, this.stats, delta);
     updateTusks(this.player, this.table, this.hud, this.stats, this.cameras.main);
     const purchase = updatePurchases(this.player, this.buyZones, this.hud, this.cameras.main, delta);
     if (purchase) this.onPurchase(purchase);
@@ -349,11 +355,24 @@ export class GameScene extends Phaser.Scene {
     const firstWeapon = WEAPONS[1];
     this.weaponZone = new BuyZone(this, WEAPON_SPOT.x, WEAPON_SPOT.y, firstWeapon.price, firstWeapon.icon);
     this.buyZones.push(this.weaponZone);
+
+    // Хижины: на каждом месте — точка покупки, хижина появится на её месте.
+    for (const spot of HUT_SPOTS) {
+      this.huts.push(new Hut(this, spot.x, spot.y));
+      this.hutZones.push(new BuyZone(this, spot.x, spot.y, HUT_PRICE, TEXTURES.hut));
+    }
+    this.buyZones.push(...this.hutZones);
   }
 
   // Покупка на точке zone готова: сцена решает, что купили.
   // Оружие: следующее — в руку; если есть ещё лучше — точка предлагает его, иначе закрывается.
+  // Хижина: точка закрывается, на её месте вырастает хижина.
   private onPurchase(zone: BuyZone): void {
+    const hutIndex = this.hutZones.indexOf(zone);
+    if (hutIndex >= 0) {
+      zone.close();
+      this.huts[hutIndex].build();
+    }
     if (zone === this.weaponZone) {
       this.player.upgradeWeapon();
       const next = WEAPONS[this.player.weaponLevel + 1];

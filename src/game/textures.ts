@@ -55,6 +55,7 @@ export const TEXTURES = {
   snowflake: 'snowflake', // снежинка: падающий снег и снег из куста
   chip: 'chip', // щепка, летит из куста при ударе
   dropZone: 'drop-zone', // площадка кучи у костра: светлая рамка (иконку ставит ItemPile)
+  hut: 'hut', // хижина-шалаш из шкур на жердях, со снегом; точка опоры — низ
   buyZone: 'buy-zone', // круг точки покупки на снегу (кольцо оплаты и цену рисует BuyZone)
   firePit: 'fire-pit', // кострище: камни и поленья
   spit: 'spit', // вертел над костром: две рогатины и палка; точка опоры — низ
@@ -128,6 +129,7 @@ const SNOWFLAKE_SIZE: Size = { w: 12, h: 12 };
 const CHIP_SIZE: Size = { w: 12, h: 9 };
 const DROP_ZONE_SIZE: Size = { w: 220, h: 132 };
 const BUY_ZONE_SIZE: Size = { w: 180, h: 110 };
+const HUT_SIZE: Size = { w: 170, h: 160 };
 const FIRE_PIT_SIZE: Size = { w: 110, h: 64 };
 const SPIT_SIZE: Size = { w: 170, h: 96 };
 const STONE_TABLE_SIZE: Size = { w: 240, h: 150 };
@@ -223,6 +225,7 @@ export function createTextures(scene: Phaser.Scene): void {
   bake(scene, TEXTURES.chip, CHIP_SIZE, drawChip);
   bake(scene, TEXTURES.dropZone, DROP_ZONE_SIZE, drawDropZone);
   bake(scene, TEXTURES.buyZone, BUY_ZONE_SIZE, drawBuyZone);
+  bake(scene, TEXTURES.hut, HUT_SIZE, drawHut);
   bake(scene, TEXTURES.firePit, FIRE_PIT_SIZE, drawFirePit);
   bake(scene, TEXTURES.spit, SPIT_SIZE, drawSpit);
   bake(scene, TEXTURES.stoneTable, STONE_TABLE_SIZE, drawStoneTable);
@@ -1665,6 +1668,83 @@ function drawBuyZone(g: Graphics): void {
     const to = from + (Math.PI * 2) / dashes / 2;
     g.strokePoints(toPoints(ellipsePoints(cx, cy, rx, ry, from, to)), false);
   }
+}
+
+// ===== Хижина =====
+
+// Хижина-шалаш: жерди, сходящиеся наверху, обтянуты шкурами со швами.
+// Внизу — тёмный вход с закатанным пологом, сверху — снежная шапка,
+// у подножия — сугробы. Точка опоры — середина нижнего края.
+function drawHut(g: Graphics): void {
+  const { w, h } = HUT_SIZE;
+  const cx = w / 2;
+  const top = 34;
+  const base = h - 14;
+
+  // Голубая тень на снегу под хижиной.
+  g.fillStyle(COLORS.snowShade, 1);
+  g.fillEllipse(cx, base + 2, w - 14, 22);
+
+  // Концы жердей торчат над шалашом и перекрещиваются.
+  limb(g, cx - 2, top + 8, cx - 20, 10, 5, COLORS.woodDark);
+  limb(g, cx + 2, top + 8, cx + 19, 9, 5, COLORS.wood);
+  limb(g, cx, top + 8, cx + 3, 6, 5, COLORS.woodLight);
+
+  // Конус из шкур: стороны чуть выпуклые, низ — дуга (мы смотрим сверху под углом).
+  const cone = [
+    cx - 9, top, cx - 40, 70, cx - 64, 118, cx - 74, base - 6,
+    cx - 50, base + 2, cx, base + 6, cx + 50, base + 2, cx + 74, base - 6,
+    cx + 64, 118, cx + 40, 70, cx + 9, top,
+  ];
+  fillPolygon(g, cone, COLORS.fur);
+  // Правая сторона в тени, по левому краю — светлая полоса: так шалаш круглый.
+  fillPolygon(g, [cx + 6, top + 2, cx + 9, top, cx + 40, 70, cx + 64, 118, cx + 74, base - 6, cx + 50, base + 2, cx + 22, base + 5], COLORS.furShade);
+  fillPolygon(g, [cx - 9, top, cx - 40, 70, cx - 64, 118, cx - 74, base - 6, cx - 64, base - 2, cx - 52, 116, cx - 30, 72, cx - 6, top + 4], COLORS.furLight);
+  // Пятна на шкурах.
+  g.fillStyle(COLORS.furSpot, 0.8);
+  for (const [x, y, rx, ry] of [[-34, 104, 7, 5], [-18, 80, 5, 4], [22, 96, 6, 4], [44, 122, 7, 5], [-52, 128, 6, 4]]) {
+    g.fillEllipse(cx + x, y, rx * 2, ry * 2);
+  }
+  // Швы между шкурами — от вершины вниз, с поперечными стежками.
+  for (const [x1, x2] of [[-4, -38], [5, 30]]) {
+    g.lineStyle(2, COLORS.furDark, 1);
+    g.lineBetween(cx + x1, top + 6, cx + x2, base + 2);
+    for (let t = 0.15; t < 0.95; t += 0.13) {
+      const x = Phaser.Math.Linear(cx + x1, cx + x2, t);
+      const y = Phaser.Math.Linear(top + 6, base + 2, t);
+      g.lineBetween(x - 3, y - 1, x + 3, y + 1);
+    }
+  }
+  strokePolygon(g, cone);
+
+  // Вход: тёмная арка и закатанный над ней полог из светлого меха.
+  const door = [cx - 20, base + 4, cx - 18, 100, cx - 9, 86, cx + 5, 84, cx + 16, 96, cx + 20, base + 4];
+  fillPolygon(g, door, COLORS.charcoal);
+  strokePolygon(g, door);
+  limb(g, cx - 22, 88, cx + 20, 84, 9, COLORS.furLight);
+  // Отогнутый край полога сбоку от входа.
+  const flap = [cx + 20, 92, cx + 32, 112, cx + 24, base + 2, cx + 18, base + 2];
+  fillPolygon(g, flap, COLORS.furLight);
+  strokePolygon(g, flap);
+
+  // Снежная шапка на вершине: голубая тень и белый снег с волнистым краем.
+  const cap = (shift: number): number[] => [
+    cx - 10, top - 2, cx - 26, 52 + shift, cx - 18, 58 + shift, cx - 8, 54 + shift,
+    cx + 2, 60 + shift, cx + 12, 54 + shift, cx + 22, 58 + shift, cx + 28, 50 + shift, cx + 10, top - 2,
+  ];
+  fillPolygon(g, cap(4), COLORS.snowDeep);
+  fillPolygon(g, cap(0), COLORS.snowLight);
+  g.lineStyle(THIN_OUTLINE_WIDTH, COLORS.outline, 0.6);
+  g.strokePoints(toPoints(cap(4)), true, true);
+
+  // Сугробы у подножия, по бокам от входа.
+  g.fillStyle(COLORS.snowDeep, 1);
+  g.fillEllipse(cx - 50, base + 2, 44, 16);
+  g.fillEllipse(cx + 54, base + 1, 40, 14);
+  g.fillStyle(COLORS.snowLight, 1);
+  g.fillEllipse(cx - 52, base, 40, 13);
+  g.fillEllipse(cx + 55, base - 1, 34, 11);
+  g.fillCircle(cx - 38, base - 3, 5);
 }
 
 // Точки дуги эллипса [x1, y1, …]: центр (cx, cy), полуоси rx и ry, от угла from до to.

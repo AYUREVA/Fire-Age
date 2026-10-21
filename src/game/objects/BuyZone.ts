@@ -26,7 +26,8 @@ const ZONE_TWEEN_TIME = 160;
 
 // Картинка покупки парит над серединой круга и покачивается вверх-вниз.
 const ICON_LIFT = 22;
-const ICON_SCALE = 1;
+// Картинки покупок разного размера (топор, копьё, хижина) вписываются в эту высоту.
+const ICON_HEIGHT = 80;
 // Тень под парящей картинкой — на снегу посередине круга.
 const ICON_SHADOW_WIDTH = 46;
 const ICON_SHADOW_ALPHA = 0.6;
@@ -94,7 +95,8 @@ export class BuyZone {
     shadow.setScale(ICON_SHADOW_WIDTH / shadow.width);
     this.iconShadow = shadow;
     // Картинка покупки стоит в круге: глубина как у стоящих предметов (по низу).
-    this.icon = scene.add.image(x, y - ICON_LIFT, icon).setOrigin(0.5, 1).setScale(ICON_SCALE).setDepth(y);
+    this.icon = scene.add.image(x, y - ICON_LIFT, icon).setOrigin(0.5, 1).setDepth(y);
+    this.setIcon(icon);
     scene.tweens.add({
       targets: this.icon,
       y: y - ICON_LIFT - ICON_BOB,
@@ -181,9 +183,9 @@ export class BuyZone {
     this.paid = 0;
     this.landed = 0;
     this.payTimer = 0;
-    this.icon.setTexture(icon);
+    this.setIcon(icon);
     this.showProgress();
-    pop(this.scene, this.icon, ICON_SCALE);
+    pop(this.scene, this.icon, this.icon.scale);
   }
 
   // Закрыть точку: всё купили. Круг, картинка и цена тают.
@@ -199,6 +201,12 @@ export class BuyZone {
         }
       },
     });
+  }
+
+  // Поставить картинку покупки и вписать её в высоту ICON_HEIGHT (крупные — уменьшаются).
+  private setIcon(icon: string): void {
+    this.icon.setTexture(icon);
+    this.icon.setScale(Math.min(1, ICON_HEIGHT / this.icon.height));
   }
 
   // Все картинки точки — чтобы спрятать их разом.
