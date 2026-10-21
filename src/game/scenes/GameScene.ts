@@ -37,7 +37,18 @@ import { updateDropping, updateGathering, updateHunting, updatePickup } from '..
 import { updateCooking } from '../systems/Cooking';
 import { updateTable, updateTravelers, updateTusks } from '../systems/Serving';
 import { updateFire } from '../systems/Fire';
+import { ReadyData } from './ReadyScene';
+import { PauseData } from './PauseScene';
 import { ResultData } from './ResultScene';
+
+// ===== Режим игры =====
+
+// Режим игры — автомат из четырёх состояний (раздел 9 плана, правило 11):
+// 'ready'   — мир построен и стоит, поверх табличка «Нажми, чтобы начать»;
+// 'playing' — игра идёт;
+// 'paused'  — пауза, поверх табличка «ПАУЗА»;
+// 'result'  — победа или поражение, поверх табличка итога.
+type GameMode = 'ready' | 'playing' | 'paused' | 'result';
 
 // ===== Слои отрисовки (depth) =====
 // Порядок снизу вверх во всей игре:
@@ -154,8 +165,8 @@ export class GameScene extends Phaser.Scene {
   private nightOverlay!: NightOverlay;
   // Уведомление о смене дня и ночи: табличка сверху экрана.
   private phaseBanner!: PhaseBanner;
-  // Игра окончена (победа или поражение) — ждём рестарта.
-  private isOver = false;
+  // Режим игры. Меняют его только функции переходов (раздел «Режим игры» ниже).
+  private mode: GameMode = 'ready';
 
   constructor() {
     super('GameScene');
@@ -172,7 +183,7 @@ export class GameScene extends Phaser.Scene {
     this.bushes = [];
     this.rabbits = [];
     this.travelers = [];
-    this.isOver = false;
+    this.mode = 'ready';
 
     createTextures(this);
 
@@ -220,6 +231,11 @@ export class GameScene extends Phaser.Scene {
     this.nightOverlay = new NightOverlay(this);
     this.phaseBanner = new PhaseBanner(this);
     this.setupPause();
+
+    // Мир построен — игра в режиме READY: ждём касания, клика или клавиши.
+    // Ставить сцену на паузу внутри самого create() нельзя: после create()
+    // Phaser сам помечает сцену работающей. Поэтому — сразу после create().
+    this.events.once(Phaser.Scenes.Events.CREATE, () => this.showReady());
   }
 
   // Вызывается Phaser каждый кадр. delta — сколько мс прошло с прошлого кадра.
@@ -306,7 +322,7 @@ export class GameScene extends Phaser.Scene {
   // ===== Пауза =====
 
   // Пауза: клавиши P и Esc, кнопка в HUD (её подключает Hud) и автопауза,
-  // когда вкладку свернули.
+  // когда вкладку свернули. Сработает, только если игра идёт (режим PLAYING).
   private setupPause(): void {
     this.input.keyboard?.on('keydown-P', () => this.pauseGame());
     this.input.keyboard?.on('keydown-ESC', () => this.pauseGame());
@@ -319,25 +335,71 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
-  // Игра замирает целиком (update, твины, таймеры, частицы), поверх — табличка «ПАУЗА».
-  private pauseGame(): void {
-    // Игра уже окончена или уже на паузе — ничего не делаем.
-    if (this.isOver || this.scene.isPaused()) return;
+  // ===== Режим игры =====
+  //
+  // Допустимые переходы (раздел 9 плана, правило 11):
+  //   READY → PLAYING, PLAYING → PAUSED, PAUSED → PLAYING,
+  //   PAUSED → READY, PLAYING → RESULT, RESULT → READY.
+  // Каждый переход — одна функция. Первой строкой она проверяет, можно ли
+  // перейти из текущего режима; если нельзя — ничего не делает.
+  // Когда игра не идёт (READY, PAUSED, RESULT), сцена стоит на паузе целиком
+  // (update, твины, таймеры, частицы), а поверх неё — сцена с табличкой.
 
+  // Вход в READY: сцена замирает, поверх — табличка «Нажми, чтобы начать».
+  // Вызывается сразу после create(): при первом запуске и после «Заново».
+  private showReady(): void {
     this.scene.pause();
-    this.scene.launch('PauseScene');
+    const data: ReadyData = { onStart: () => this.startPlaying() };
+    this.scene.launch('ReadyScene', data);
   }
 
-  // ===== Конец игры =====
+  // READY → PLAYING: табличка старта закрылась — игра пошла.
+  private startPlaying(): void {
+    if (this.mode !== 'ready') return;
+    this.mode = 'playing';
 
-  // Игра замирает (пауза сцены), поверх неё — табличка с итогом.
-  // Рестарт запускает ResultScene: GameScene создаётся заново с нуля.
-  private endGame(isWin: boolean): void {
-    if (this.isOver) return;
-    this.isOver = true;
+    this.scene.stop('ReadyScene');
+    this.scene.resume();
+  }
+
+  // PLAYING → PAUSED: игра замирает, поверх — табличка «ПАУЗА».
+  private pauseGame(): void {
+    if (this.mode !== 'playing') return;
+    this.mode = 'paused';
 
     this.scene.pause();
-    const data: ResultData = { isWin };
+    const data: PauseData = { onResume: () => this.resumeGame(), onRestart: () => this.restart() };
+    this.scene.launch('PauseScene', data);
+  }
+
+  // PAUSED → PLAYING: табличка паузы закрылась — игра идёт с того же места.
+  private resumeGame(): void {
+    if (this.mode !== 'paused') return;
+    this.mode = 'playing';
+
+    this.scene.stop('PauseScene');
+    this.scene.resume();
+  }
+
+  // PAUSED → READY и RESULT → READY: «Заново». Табличка паузы или итога
+  // закрывается, игра создаётся с нуля и снова попадает в READY.
+  // Режим меняем сразу: второе «Заново» в том же кадре уже ничего не сделает.
+  private restart(): void {
+    if (this.mode !== 'paused' && this.mode !== 'result') return;
+    const tabletScene = this.mode === 'paused' ? 'PauseScene' : 'ResultScene';
+    this.mode = 'ready';
+
+    this.scene.stop(tabletScene);
+    this.scene.restart();
+  }
+
+  // PLAYING → RESULT: победа или поражение. Игра замирает, поверх — табличка итога.
+  private endGame(isWin: boolean): void {
+    if (this.mode !== 'playing') return;
+    this.mode = 'result';
+
+    this.scene.pause();
+    const data: ResultData = { isWin, onRestart: () => this.restart() };
     this.scene.launch('ResultScene', data);
   }
 

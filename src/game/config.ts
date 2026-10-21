@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { GameScene } from './scenes/GameScene';
+import { ReadyScene } from './scenes/ReadyScene';
 import { PauseScene } from './scenes/PauseScene';
 import { ResultScene } from './scenes/ResultScene';
 
@@ -39,9 +40,9 @@ export function createGame(parent: string): Phaser.Game {
     width: size.width,
     height: size.height,
     backgroundColor: '#0f172a',
-    // Первая сцена в списке запускается сама. PauseScene и ResultScene
-    // рисуются поверх GameScene: пауза и итог ночи.
-    scene: [GameScene, PauseScene, ResultScene],
+    // Первая сцена в списке запускается сама. ReadyScene, PauseScene и ResultScene
+    // рисуются поверх GameScene: экран старта, пауза и итог ночи.
+    scene: [GameScene, ReadyScene, PauseScene, ResultScene],
     // Долгое нажатие или правый клик не открывают меню браузера (требование 1.6.1.8).
     disableContextMenu: true,
     // По умолчанию Phaser первые 120 кадров после старта считает каждый кадр
