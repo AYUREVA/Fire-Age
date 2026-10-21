@@ -18,6 +18,11 @@ import { COLORS } from '../palette';
 import { TEXTURES } from '../textures';
 import { Point, pop } from '../fx';
 
+// ===== Прогулка =====
+
+// Дошёл до точки прогулки, если ближе этого (пиксели).
+const ARRIVE_DISTANCE = 4;
+
 // ===== Вид =====
 
 // Прыжки: высота подскока (пиксели) и скорость (радиан за мс).
@@ -168,7 +173,7 @@ export class Rabbit {
   // Бродит: скачет к точке рядом с домом, сидит, выбирает новую. Вернёт true, если двигался.
   private wander(delta: number, speedMultiplier: number): boolean {
     const distance = Phaser.Math.Distance.Between(this.x, this.y, this.target.x, this.target.y);
-    if (distance < 4) {
+    if (distance < ARRIVE_DISTANCE) {
       this.sitTime -= delta;
       if (this.sitTime > 0) return false;
 

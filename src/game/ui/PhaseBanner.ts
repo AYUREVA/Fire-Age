@@ -47,6 +47,8 @@ const SWIRL_TIME = 900;
 const SWIRL_Y = 0.45;
 const SWIRL_AMPLITUDE = 70;
 const SWIRL_WAVES = 2;
+// Вихрь начинается и кончается за краями экрана на столько пикселей.
+const SWIRL_MARGIN = 40;
 // Сколько снежинок вылетает за кадр.
 const SWIRL_PER_FRAME = 3;
 const SWIRL: Phaser.Types.GameObjects.Particles.ParticleEmitterConfig = {
@@ -177,7 +179,7 @@ export class PhaseBanner {
       ease: 'Sine.easeInOut',
       onUpdate: (tween) => {
         const t = tween.getValue() ?? 0;
-        const x = Phaser.Math.Linear(-40, width + 40, t);
+        const x = Phaser.Math.Linear(-SWIRL_MARGIN, width + SWIRL_MARGIN, t);
         const y = height * SWIRL_Y + Math.sin(t * Math.PI * 2 * SWIRL_WAVES) * SWIRL_AMPLITUDE;
         this.swirl.emitParticleAt(x, y, SWIRL_PER_FRAME);
       },

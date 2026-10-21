@@ -90,6 +90,9 @@ const GROUND_DECOR_TEXTURES = [
 const FOREST_STEP = 70;
 // Насколько дерево может сдвинуться от ровной линии, чтобы лес не стоял «по линейке».
 const FOREST_JITTER = 26;
+// Два ряда леса вдоль края: ближний к полю и дальний — на такой доле ширины полосы леса.
+const FOREST_NEAR_SHARE = 0.8;
+const FOREST_FAR_SHARE = 0.3;
 // Доля скал среди деревьев (0.15 — примерно каждая седьмая).
 const FOREST_ROCK_CHANCE = 0.15;
 // Разброс размера деревьев и скал.
@@ -450,8 +453,8 @@ export class GameScene extends Phaser.Scene {
   // Сажает ели и ставит скалы полосой по краям мира, чтобы за краем не было пустоты.
   // Вдоль каждого края — два ряда: дальний и ближний к полю.
   private createBorderForest(rng: Phaser.Math.RandomDataGenerator): void {
-    const near = WORLD_EDGE * 0.8;
-    const far = WORLD_EDGE * 0.3;
+    const near = WORLD_EDGE * FOREST_NEAR_SHARE;
+    const far = WORLD_EDGE * FOREST_FAR_SHARE;
 
     // Верхний край: стволы у верхней границы, кроны уходят за край мира.
     this.plantForestRow(rng, 0, far, WORLD_WIDTH, far);
