@@ -167,6 +167,14 @@ export class Hud {
     tusk.setDepth(HUD_DEPTH + 1);
   }
 
+  // Клык уходит из счётчика на покупку: счётчик сразу показывает total
+  // (сколько клыков осталось у вождя). Вернёт точку экрана, откуда клык вылетает.
+  spendTusk(total: number): { x: number; y: number } {
+    this.tuskText.setText(String(total));
+    pop(this.scene, this.tuskIcon);
+    return { x: this.tuskIcon.x, y: this.tuskIcon.y };
+  }
+
   // Плашка модификатора: иконка и множитель, например «×2». (x, y) — середина плашки.
   private createModifier(
     x: number,

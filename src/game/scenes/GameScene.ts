@@ -29,6 +29,7 @@ import { Spit } from '../objects/Spit';
 import { StoneTable } from '../objects/StoneTable';
 import { Traveler } from '../objects/Traveler';
 import { Campfire } from '../objects/Campfire';
+import { BuyZone } from '../objects/BuyZone';
 import { Hud } from '../objects/Hud';
 import { CycleEvent, DayNightCycle } from '../objects/DayNightCycle';
 import { NightOverlay } from '../objects/NightOverlay';
@@ -37,6 +38,8 @@ import { updateDropping, updateGathering, updateHunting, updatePickup } from '..
 import { updateCooking } from '../systems/Cooking';
 import { updateTable, updateTravelers, updateTusks } from '../systems/Serving';
 import { updateFire } from '../systems/Fire';
+import { updatePurchases } from '../systems/Purchases';
+import { WEAPONS, WEAPON_SPOT } from '../data/upgrades';
 import { LevelStats, PauseSource, track } from '../analytics';
 import { ReadyData } from './ReadyScene';
 import { PauseData } from './PauseScene';
@@ -161,6 +164,9 @@ export class GameScene extends Phaser.Scene {
   private table!: StoneTable;
   // Путники: созданы заранее (сколько мест в очереди), приходят из леса по очереди.
   private travelers: Traveler[] = [];
+  // Точки покупки: клыки из счётчика → покупка. Оружие продаётся на одной точке.
+  private buyZones: BuyZone[] = [];
+  private weaponZone!: BuyZone;
   // Интерфейс: сколько осталось до конца дня или ночи, кнопка паузы.
   private hud!: Hud;
   // Смена дня и ночи: фаза, номер суток, сколько осталось до конца фазы.
@@ -190,6 +196,7 @@ export class GameScene extends Phaser.Scene {
     this.bushes = [];
     this.rabbits = [];
     this.travelers = [];
+    this.buyZones = [];
     this.mode = 'ready';
     this.stats = { fed: 0, hungry: 0, tusksEarned: 0, playTime: 0, wolvesDriven: 0, itemsStolen: 0 };
 
@@ -227,6 +234,8 @@ export class GameScene extends Phaser.Scene {
     for (let i = 0; i < QUEUE_SIZE; i++) {
       this.travelers.push(new Traveler(this));
     }
+
+    this.createBuyZones();
 
     this.player = new Player(this, PLAYER_START.x, PLAYER_START.y);
     this.backpack = new Backpack(this);
@@ -291,6 +300,8 @@ export class GameScene extends Phaser.Scene {
     }
     updateTravelers(this.table, this.travelers, this.stats, delta);
     updateTusks(this.player, this.table, this.hud, this.stats, this.cameras.main);
+    const purchase = updatePurchases(this.player, this.buyZones, this.hud, this.cameras.main, delta);
+    if (purchase) this.onPurchase(purchase);
 
     const cycleEvent = this.cycle.update(delta);
     this.hud.setTimeLeft(this.cycle.timeLeft);
@@ -328,6 +339,29 @@ export class GameScene extends Phaser.Scene {
       case 'lastDawn':
         this.endGame(true);
         break;
+    }
+  }
+
+  // ===== Покупки =====
+
+  // Точки покупки из data/upgrades.ts. Оружие — с первого, что можно купить (топор).
+  private createBuyZones(): void {
+    const firstWeapon = WEAPONS[1];
+    this.weaponZone = new BuyZone(this, WEAPON_SPOT.x, WEAPON_SPOT.y, firstWeapon.price, firstWeapon.icon);
+    this.buyZones.push(this.weaponZone);
+  }
+
+  // Покупка на точке zone готова: сцена решает, что купили.
+  // Оружие: следующее — в руку; если есть ещё лучше — точка предлагает его, иначе закрывается.
+  private onPurchase(zone: BuyZone): void {
+    if (zone === this.weaponZone) {
+      this.player.upgradeWeapon();
+      const next = WEAPONS[this.player.weaponLevel + 1];
+      if (next) {
+        zone.offer(next.price, next.icon);
+      } else {
+        zone.close();
+      }
     }
   }
 
