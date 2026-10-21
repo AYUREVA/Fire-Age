@@ -37,6 +37,7 @@ import { updateDropping, updateGathering, updateHunting, updatePickup } from '..
 import { updateCooking } from '../systems/Cooking';
 import { updateTable, updateTravelers, updateTusks } from '../systems/Serving';
 import { updateFire } from '../systems/Fire';
+import { LevelStats, PauseSource, track } from '../analytics';
 import { ReadyData } from './ReadyScene';
 import { PauseData } from './PauseScene';
 import { ResultData } from './ResultScene';
@@ -170,6 +171,9 @@ export class GameScene extends Phaser.Scene {
   private phaseBanner!: PhaseBanner;
   // Режим игры. Меняют его только функции переходов (раздел «Режим игры» ниже).
   private mode: GameMode = 'ready';
+  // Статистика уровня: накормлено, ушло голодными, клыки, время игры, волки.
+  // Меняют системы, аналитика читает её в переходах (analytics.ts).
+  private stats!: LevelStats;
 
   constructor() {
     super('GameScene');
@@ -187,6 +191,7 @@ export class GameScene extends Phaser.Scene {
     this.rabbits = [];
     this.travelers = [];
     this.mode = 'ready';
+    this.stats = { fed: 0, hungry: 0, tusksEarned: 0, playTime: 0, wolvesDriven: 0, itemsStolen: 0 };
 
     createTextures(this);
 
@@ -226,7 +231,7 @@ export class GameScene extends Phaser.Scene {
     this.player = new Player(this, PLAYER_START.x, PLAYER_START.y);
     this.backpack = new Backpack(this);
     this.cycle = new DayNightCycle();
-    this.hud = new Hud(this, () => this.pauseGame());
+    this.hud = new Hud(this, () => this.pauseGame('button'));
     this.hud.setTimeLeft(this.cycle.timeLeft);
 
     this.setupCamera();
@@ -248,6 +253,9 @@ export class GameScene extends Phaser.Scene {
     // Параметры текущей фазы суток. Ночью меняются три: скорость вождя,
     // скорость горения костра и скорость кроликов (таблица PHASES в settings.ts).
     const phase = PHASES[this.cycle.phase];
+    // update() работает только в режиме PLAYING (в остальных сцена на паузе) —
+    // здесь копится чистое время игры.
+    this.stats.playTime += delta;
 
     this.player.update(delta, phase.playerSpeedMultiplier);
     // Рюкзаку сообщаем, где спина вождя, как быстро он идёт, его глубину и куда он смотрит.
@@ -281,8 +289,8 @@ export class GameScene extends Phaser.Scene {
     for (const traveler of this.travelers) {
       traveler.update(delta);
     }
-    updateTravelers(this.table, this.travelers, delta);
-    updateTusks(this.player, this.table, this.hud, this.cameras.main);
+    updateTravelers(this.table, this.travelers, this.stats, delta);
+    updateTusks(this.player, this.table, this.hud, this.stats, this.cameras.main);
 
     const cycleEvent = this.cycle.update(delta);
     this.hud.setTimeLeft(this.cycle.timeLeft);
@@ -305,6 +313,7 @@ export class GameScene extends Phaser.Scene {
         this.nightOverlay.startSunset();
         break;
       case 'night':
+        track({ name: 'nightStart', day: this.cycle.dayNumber });
         this.nightOverlay.startNight();
         this.hud.setPhase(true);
         // Когда табличка уедет, ночные модификаторы остаются в HUD до утра.
@@ -326,17 +335,34 @@ export class GameScene extends Phaser.Scene {
 
   // Пауза: клавиши P и Esc, кнопка в HUD (её подключает Hud) и автопауза,
   // когда вкладку свернули. Сработает, только если игра идёт (режим PLAYING).
+  // Ещё здесь — событие аналитики «игрок закрыл вкладку».
   private setupPause(): void {
-    this.input.keyboard?.on('keydown-P', () => this.pauseGame());
-    this.input.keyboard?.on('keydown-ESC', () => this.pauseGame());
+    this.input.keyboard?.on('keydown-P', () => this.pauseGame('key'));
+    this.input.keyboard?.on('keydown-ESC', () => this.pauseGame('key'));
 
-    // Событие «вкладка скрыта» приходит от всей игры, а не от сцены. Поэтому
-    // при выключении сцены (рестарт) подписку снимаем, иначе их станет две.
-    this.game.events.on(Phaser.Core.Events.HIDDEN, this.pauseGame, this);
+    // События «вкладка скрыта» и «страницу закрывают» приходят от всей игры
+    // и от окна браузера, а не от сцены. Поэтому при выключении сцены (рестарт)
+    // подписки снимаем, иначе их станет две.
+    this.game.events.on(Phaser.Core.Events.HIDDEN, this.onTabHidden, this);
+    window.addEventListener('pagehide', this.onPageHide);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
-      this.game.events.off(Phaser.Core.Events.HIDDEN, this.pauseGame, this);
+      this.game.events.off(Phaser.Core.Events.HIDDEN, this.onTabHidden, this);
+      window.removeEventListener('pagehide', this.onPageHide);
     });
   }
+
+  // Вкладку свернули — автопауза.
+  private onTabHidden(): void {
+    this.pauseGame('hidden');
+  }
+
+  // Страницу закрывают. Если уровень был начат (идёт или на паузе) —
+  // сообщаем аналитике, сколько игрок успел поиграть.
+  // Стрелочная функция: её саму передаём окну и потом снимаем той же ссылкой.
+  private onPageHide = (): void => {
+    if (this.mode !== 'playing' && this.mode !== 'paused') return;
+    track({ name: 'tabClosed', playTime: this.stats.playTime });
+  };
 
   // ===== Режим игры =====
   //
@@ -360,15 +386,18 @@ export class GameScene extends Phaser.Scene {
   private startPlaying(): void {
     if (this.mode !== 'ready') return;
     this.mode = 'playing';
+    track({ name: 'levelStart' });
 
     this.scene.stop('ReadyScene');
     this.scene.resume();
   }
 
   // PLAYING → PAUSED: игра замирает, поверх — табличка «ПАУЗА».
-  private pauseGame(): void {
+  // source — откуда пришла пауза: кнопка, клавиша или свёрнутая вкладка.
+  private pauseGame(source: PauseSource): void {
     if (this.mode !== 'playing') return;
     this.mode = 'paused';
+    track({ name: 'pause', source });
 
     this.scene.pause();
     const data: PauseData = { onResume: () => this.resumeGame(), onRestart: () => this.restart() };
@@ -379,6 +408,7 @@ export class GameScene extends Phaser.Scene {
   private resumeGame(): void {
     if (this.mode !== 'paused') return;
     this.mode = 'playing';
+    track({ name: 'resume' });
 
     this.scene.stop('PauseScene');
     this.scene.resume();
@@ -389,8 +419,10 @@ export class GameScene extends Phaser.Scene {
   // Режим меняем сразу: второе «Заново» в том же кадре уже ничего не сделает.
   private restart(): void {
     if (this.mode !== 'paused' && this.mode !== 'result') return;
-    const tabletScene = this.mode === 'paused' ? 'PauseScene' : 'ResultScene';
+    const isFromPause = this.mode === 'paused';
     this.mode = 'ready';
+    track({ name: 'restart', from: isFromPause ? 'pause' : 'result' });
+    const tabletScene = isFromPause ? 'PauseScene' : 'ResultScene';
 
     this.scene.stop(tabletScene);
     this.scene.restart();
@@ -400,6 +432,13 @@ export class GameScene extends Phaser.Scene {
   private endGame(isWin: boolean): void {
     if (this.mode !== 'playing') return;
     this.mode = 'result';
+    track({
+      name: 'levelEnd',
+      isWin,
+      reason: isWin ? 'dawn' : 'fireOut',
+      day: this.cycle.dayNumber,
+      ...this.stats,
+    });
 
     this.scene.pause();
     const data: ResultData = { isWin, onRestart: () => this.restart() };
