@@ -289,6 +289,8 @@ export class GameScene extends Phaser.Scene {
     this.stats.playTime += delta;
 
     this.player.update(delta, phase.playerSpeedMultiplier, this.canWalk);
+    // Калитка, к которой подошёл вождь, распахивается.
+    this.fence.update(delta, this.player.x, this.player.y);
     // Рюкзаку сообщаем, где спина вождя, как быстро он идёт, его глубину и куда он смотрит.
     this.backpack.update(
       delta,
