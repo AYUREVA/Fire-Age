@@ -36,7 +36,12 @@ export const TEXTURES = {
   joystickBase: 'joystick-base', // круг джойстика
   joystickKnob: 'joystick-knob', // ручка джойстика
   rabbit: 'rabbit', // пушистый серо-бурый кролик, смотрит вправо; точка опоры — лапы
-  wolf: 'wolf', // серый волк бежит вправо; точка опоры — лапы
+  // Волк собран из частей, как вождь: все смотрят вправо, точки вращения — в Wolf.ts.
+  wolfBody: 'wolf-body', // поджарое туловище с гривой и шеей
+  wolfHead: 'wolf-head', // голова с оскалом; вращается у шеи
+  wolfTail: 'wolf-tail', // пушистый хвост; вращается у основания (справа)
+  wolfFrontLeg: 'wolf-front-leg', // передняя лапа; вращается у плеча (вверху)
+  wolfBackLeg: 'wolf-back-leg', // задняя лапа со скакательным суставом; вращается у бедра (вверху)
   // Три вида путников. Со спины — идёт к столу и стоит в очереди, спереди — уходит.
   // Точка опоры — ноги.
   hunterBack: 'hunter-back', // охотник: рыжие лохмы, котомка, копьё
@@ -120,10 +125,13 @@ const JOYSTICK_BASE_SIZE: Size = { w: 128, h: 128 };
 const JOYSTICK_KNOB_SIZE: Size = { w: 60, h: 60 };
 const BUSH_SIZE: Size = { w: 124, h: 104 };
 const RABBIT_SIZE: Size = { w: 64, h: 60 };
-const WOLF_SIZE: Size = { w: 136, h: 94 };
-// Рисунок волка сдвинут вправо и вниз: место для хвоста и кончиков ушей.
-const WOLF_SHIFT_X = 4;
-const WOLF_SHIFT_Y = 4;
+const WOLF_BODY_SIZE: Size = { w: 124, h: 72 };
+const WOLF_HEAD_SIZE: Size = { w: 76, h: 52 };
+const WOLF_TAIL_SIZE: Size = { w: 70, h: 34 };
+const WOLF_FRONT_LEG_SIZE: Size = { w: 26, h: 62 };
+const WOLF_BACK_LEG_SIZE: Size = { w: 32, h: 64 };
+// Грива волка рисуется на столько пикселей ниже своих координат (место под острые пряди).
+const MANE_SHIFT_Y = 6;
 const TRAVELER_SIZE: Size = { w: 84, h: 112 };
 const BUBBLE_SIZE: Size = { w: 84, h: 50 };
 const STUMP_SIZE: Size = { w: 80, h: 60 };
@@ -214,7 +222,11 @@ export function createTextures(scene: Phaser.Scene): void {
   bake(scene, TEXTURES.joystickBase, JOYSTICK_BASE_SIZE, drawJoystickBase);
   bake(scene, TEXTURES.joystickKnob, JOYSTICK_KNOB_SIZE, drawJoystickKnob);
   bake(scene, TEXTURES.rabbit, RABBIT_SIZE, drawRabbit);
-  bake(scene, TEXTURES.wolf, WOLF_SIZE, drawWolf);
+  bake(scene, TEXTURES.wolfBody, WOLF_BODY_SIZE, drawWolfBody);
+  bake(scene, TEXTURES.wolfHead, WOLF_HEAD_SIZE, drawWolfHead);
+  bake(scene, TEXTURES.wolfTail, WOLF_TAIL_SIZE, drawWolfTail);
+  bake(scene, TEXTURES.wolfFrontLeg, WOLF_FRONT_LEG_SIZE, drawWolfFrontLeg);
+  bake(scene, TEXTURES.wolfBackLeg, WOLF_BACK_LEG_SIZE, drawWolfBackLeg);
   bake(scene, TEXTURES.hunterBack, TRAVELER_SIZE, (g) => drawHunter(g, false));
   bake(scene, TEXTURES.hunterFront, TRAVELER_SIZE, (g) => drawHunter(g, true));
   bake(scene, TEXTURES.elderBack, TRAVELER_SIZE, (g) => drawElder(g, false));
@@ -1545,81 +1557,131 @@ function drawRabbit(g: Graphics): void {
   g.lineBetween(56, 37, 62, 40);
 }
 
-// Серый волк в беге, смотрит вправо. Сзади — пушистый хвост с белым кончиком,
-// тело — вытянутая шерстяная масса со светлой грудью, впереди — голова
-// с острыми ушами, длинной светлой мордой, жёлтым хитрым глазом и клыком.
-function drawWolf(g: Graphics): void {
-  const { h } = WOLF_SIZE;
-  const ground = h - 5 - WOLF_SHIFT_Y;
-  // Рисунок сдвинут, чтобы кончик хвоста и уши не вылезали за край картинки.
-  g.save();
-  g.translateCanvas(WOLF_SHIFT_X, WOLF_SHIFT_Y);
+// ===== Волк =====
+// Волк — поджарый хищник из частей (как вождь): туловище, голова, хвост и лапы
+// рисуются отдельно, чтобы на бегу лапы шагали, голова кивала, а хвост развевался.
+// Все части смотрят вправо; где они крепятся друг к другу — константы в Wolf.ts.
 
-  // Дальние лапы — темнее (их закрывает тело).
-  limbChain(g, [40, 58, 34, 70, 30, ground - 1], 10, COLORS.wolfDark);
-  limbChain(g, [88, 60, 94, 72, 98, ground - 1], 10, COLORS.wolfDark);
+// Туловище: один плавный контур — бёдра сзади, ровная спина, высокий загривок,
+// шея вверх-вперёд, глубокая грудь и подтянутый живот. По спине — тёмная седловина,
+// на загривке и шее — лохматая тёмная грива, под горлом — светлый воротник.
+function drawWolfBody(g: Graphics): void {
+  const silhouette = [
+    22, 30, 36, 24, 54, 25, 72, 23, 88, 16, 100, 12, 112, 8, 120, 12, 122, 22, 114, 32,
+    108, 44, 100, 60, 86, 66, 72, 60, 60, 52, 48, 54, 40, 60, 28, 62, 16, 52, 14, 40,
+  ];
+  fillPolygon(g, silhouette, COLORS.wolf);
+  // Седловина вдоль спины.
+  fillPolygon(
+    g,
+    [22, 32, 36, 26, 54, 27, 72, 25, 88, 18, 100, 14, 104, 20, 92, 28, 76, 32, 58, 34, 42, 34, 28, 38],
+    COLORS.wolfDark,
+  );
+  // Светлое брюхо под грудью и животом.
+  fillPolygon(g, [104, 50, 100, 60, 86, 66, 72, 60, 62, 53, 74, 56, 88, 60], COLORS.wolfBelly);
+  // Штрихи шерсти на бедре и плече.
+  g.lineStyle(1.5, COLORS.wolfDark, 1);
+  g.lineBetween(22, 48, 28, 54);
+  g.lineBetween(28, 46, 34, 54);
+  g.lineBetween(88, 46, 92, 52);
+  strokePolygon(g, silhouette);
 
-  // Хвост: пушистая дуга вверх-назад с белым кончиком.
-  outlinedBlobs(g, [26, 46, 10, 18, 38, 10, 12, 28, 9, 10, 18, 7], COLORS.wolf);
-  g.fillStyle(COLORS.wolfBelly, 1);
-  g.fillCircle(10, 16, 5);
-  g.fillStyle(COLORS.wolfDark, 1);
-  g.fillEllipse(18, 34, 10, 6);
+  // Грива: короткие тёмные лохмы торчат вверх-назад над загривком и шеей.
+  const mane = [
+    80, 24, 84, 16, 88, 20, 92, 12, 96, 17, 100, 9, 104, 14, 108, 6, 112, 12, 116, 6, 117, 16, 106, 26, 92, 30,
+  ];
+  fillPolygon(g, mane, COLORS.wolfDark);
+  g.lineStyle(OUTLINE_WIDTH, COLORS.outline, 1);
+  g.strokePoints(toPoints(mane.slice(0, 22)), false);
+  // Светлый лохматый воротник под горлом.
+  const ruff = [104, 34, 114, 30, 122, 24, 120, 36, 114, 36, 112, 46, 106, 40, 102, 46, 100, 38];
+  fillPolygon(g, ruff, COLORS.wolfBelly);
+  g.lineStyle(THIN_OUTLINE_WIDTH, COLORS.outline, 1);
+  g.strokePoints(toPoints(ruff.slice(4)), false);
+}
 
-  // Тело: круги с общей обводкой, тёмная спина, блик и светлое брюхо.
-  outlinedBlobs(g, [40, 50, 17, 56, 47, 18, 72, 47, 17, 86, 51, 15, 60, 58, 13], COLORS.wolf);
-  g.fillStyle(COLORS.wolfDark, 1);
-  g.fillEllipse(60, 33, 50, 10);
-  g.fillStyle(COLORS.wolfLight, 1);
-  g.fillEllipse(54, 42, 30, 7);
-  g.fillStyle(COLORS.wolfBelly, 1);
-  g.fillEllipse(66, 64, 30, 8);
-
-  // Ближние лапы: задняя отведена назад, передняя — вперёд (бег). Светлые лапки.
-  limbChain(g, [44, 60, 38, 72, 34, ground], 11, COLORS.wolf);
-  limbChain(g, [90, 62, 100, 72, 106, ground - 1], 11, COLORS.wolf);
-  outlinedEllipse(g, 32, ground, 15, 7, COLORS.wolfBelly);
-  outlinedEllipse(g, 108, ground - 1, 15, 7, COLORS.wolfBelly);
-
-  // Пушистая светлая грудь под головой.
-  outlinedBlobs(g, [93, 54, 9, 96, 61, 7, 90, 62, 6], COLORS.wolfBelly);
-
-  // Уши: дальнее тёмное, ближнее с розовой серединкой.
-  const farEar = [96, 24, 99, 4, 109, 18];
-  fillPolygon(g, farEar, COLORS.wolfDark);
-  strokePolygon(g, farEar);
-  const ear = [104, 20, 113, 1, 119, 21];
-  fillPolygon(g, ear, COLORS.wolf);
-  fillPolygon(g, [108, 18, 113, 8, 116, 19], COLORS.rabbitEar);
+// Голова: узкая длинная морда, уши прижаты назад, оскал с двумя клыками
+// и складкой на носу, жёлтый глаз с узким зрачком под сердитой бровью.
+// Шея — слева (точка вращения).
+function drawWolfHead(g: Graphics): void {
+  // Ухо прижато назад.
+  const ear = [18, 16, 2, 2, 30, 10];
+  fillPolygon(g, ear, COLORS.wolfDark);
+  fillPolygon(g, [17, 13, 8, 6, 24, 10], COLORS.rabbitEarShade);
   strokePolygon(g, ear);
 
-  // Голова, светлые пушистые щёки и длинная светлая морда.
-  outlinedCircle(g, 106, 33, 16, COLORS.wolf);
-  g.fillStyle(COLORS.wolfBelly, 1);
-  g.fillEllipse(101, 41, 14, 9);
-  const muzzle = [110, 30, 127, 35, 126, 43, 108, 45];
-  fillPolygon(g, muzzle, COLORS.wolfBelly);
-  strokePolygon(g, muzzle);
+  // Нижняя челюсть и тёмная щель пасти.
+  const jaw = [34, 33, 58, 32, 54, 39, 37, 40];
+  fillPolygon(g, jaw, COLORS.wolfBelly);
+  strokePolygon(g, jaw);
+
+  // Череп и морда.
+  outlinedBlobs(g, [21, 24, 14], COLORS.wolf);
+  const snout = [26, 12, 46, 15, 64, 21, 70, 26, 67, 31, 52, 32, 36, 34, 24, 32];
+  fillPolygon(g, snout, COLORS.wolf);
+  strokePolygon(g, snout);
+  g.fillStyle(COLORS.wolf, 1);
+  g.fillCircle(21, 24, 11);
+  // Светлый верх морды.
   g.fillStyle(COLORS.wolfLight, 1);
-  g.fillEllipse(102, 23, 14, 5);
-  // Нос, рот и маленький белый клык.
-  g.fillStyle(COLORS.outline, 1);
-  g.fillEllipse(126, 36, 7, 6);
+  g.fillPoints(toPoints([32, 17, 46, 18, 62, 23, 46, 21]), true);
+  // Оскал: тёмная губа, верхний клык вниз, нижний — вверх, складка на носу.
+  g.lineStyle(3, COLORS.wolfMouth, 1);
+  g.lineBetween(36, 34, 62, 31);
+  fillPolygon(g, [53, 31.5, 58, 31, 55.5, 38], COLORS.snowLight);
+  fillPolygon(g, [39, 36, 43, 35.5, 41, 31], COLORS.snowLight);
   g.lineStyle(1.5, COLORS.outline, 1);
-  g.lineBetween(113, 43, 123, 42);
-  fillPolygon(g, [116, 42.5, 119, 42.5, 117.5, 46.5], COLORS.snowLight);
+  g.lineBetween(52, 19, 55, 23);
+  g.lineBetween(56, 20, 59, 24);
+  // Светлая лохматая щека.
+  const cheek = [8, 30, 20, 30, 28, 34, 22, 38, 20, 46, 14, 40, 8, 46, 6, 38];
+  fillPolygon(g, cheek, COLORS.wolfBelly);
+  strokePolygon(g, cheek);
+  // Нос.
+  outlinedEllipse(g, 68, 26, 7, 6, COLORS.outline);
 
-  // Хитрый жёлтый глаз с тёмным зрачком, бликом и сердитой бровью.
+  // Глаз: жёлтый, с узким зрачком, под низкой сердитой бровью.
   g.fillStyle(COLORS.wolfEye, 1);
-  g.fillEllipse(110, 31, 9, 7);
+  g.fillPoints(toPoints([29, 20, 34, 17, 40, 19, 35, 23]), true);
   g.fillStyle(COLORS.outline, 1);
-  g.fillEllipse(111.5, 31.5, 4, 5);
-  g.fillStyle(COLORS.white, 1);
-  g.fillCircle(112.5, 30, 1);
-  g.lineStyle(2.5, COLORS.outline, 1);
-  g.lineBetween(103, 26, 115, 28);
+  g.fillEllipse(35, 20, 2.5, 5);
+  g.lineStyle(3, COLORS.outline, 1);
+  g.lineBetween(26, 14, 42, 19);
+}
 
-  g.restore();
+// Хвост: длинный и пушистый, тёмный сверху и на кончике. Основание — справа.
+function drawWolfTail(g: Graphics): void {
+  // Пушистый посередине, сужается к кончику.
+  outlinedBlobs(g, [62, 12, 7, 51, 14, 9, 39, 16, 9, 27, 18, 7, 17, 19, 5, 9, 20, 3], COLORS.wolf);
+  g.fillStyle(COLORS.wolfDark, 1);
+  g.fillEllipse(42, 11, 34, 5);
+  g.fillCircle(11, 20, 3.5);
+  // Лохматый низ хвоста — острые пряди.
+  const tuft = [24, 23, 28, 30, 33, 24, 38, 30, 42, 24, 47, 28, 50, 21];
+  fillPolygon(g, tuft, COLORS.wolf);
+  g.lineStyle(THIN_OUTLINE_WIDTH, COLORS.outline, 1);
+  g.strokePoints(toPoints(tuft.slice(0, 12)), false);
+}
+
+// Передняя лапа: от плеча прямо вниз, тонкое запястье и лапа с когтями.
+function drawWolfFrontLeg(g: Graphics): void {
+  limbChain(g, [13, 6, 12, 38, 13, 52], 8, COLORS.wolf);
+  limb(g, 13, 4, 12, 24, 12, COLORS.wolf);
+  drawWolfPaw(g, 15, 54);
+}
+
+// Задняя лапа: мощное бедро, колено вперёд, скакательный сустав назад, лапа.
+function drawWolfBackLeg(g: Graphics): void {
+  limbChain(g, [16, 6, 22, 30, 11, 44, 13, 55], 9, COLORS.wolf);
+  limb(g, 16, 4, 21, 24, 15, COLORS.wolf);
+  drawWolfPaw(g, 16, 57);
+}
+
+// Лапа волка: овал с тремя тёмными когтями спереди.
+function drawWolfPaw(g: Graphics, x: number, y: number): void {
+  outlinedEllipse(g, x, y, 15, 7, COLORS.wolf);
+  g.lineStyle(1.5, COLORS.outline, 1);
+  for (const dx of [2, 5, 8]) g.lineBetween(x + dx - 1, y - 1, x + dx + 1, y + 3);
 }
 
 // Ухо кролика: овал цвета fur с розовой серединкой inner, повёрнутый на angle (радианы).

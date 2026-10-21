@@ -15,33 +15,78 @@ import {
 } from '../settings';
 import { TEXTURES } from '../textures';
 import { ItemType } from '../items';
-import { CanStep, flyArc, Point, shake } from '../fx';
+import { CanStep, flyArc, Point } from '../fx';
 
-// ===== Вид =====
+// ===== Части волка =====
+// Волк собран из картинок, как вождь (Player.ts). Все точки — от лап волка,
+// когда он смотрит вправо, в пикселях картинок до уменьшения на WOLF_SCALE.
 
-// Тень под волком.
-const SHADOW_WIDTH = 84;
+// Весь волк чуть меньше своих картинок.
+const WOLF_SCALE = 1;
+// Середина туловища.
+const BODY_X = 0;
+const BODY_Y = -69;
+// Плечо (сюда крепится передняя лапа) и бедро (задняя лапа).
+const SHOULDER = { x: 30, y: -49 };
+const HIP = { x: -30, y: -53 };
+// Дальние лапы чуть впереди и выше ближних — мы видим волка немного сверху.
+const FAR_LEG_SHIFT = { x: 7, y: -2 };
+// Шея (сюда крепится голова) и основание хвоста.
+const NECK = { x: 54, y: -93 };
+const TAIL_BASE = { x: -46, y: -65 };
+// Точки вращения на самих картинках (доли ширины и высоты картинки):
+// голова — у шеи слева, хвост — у основания справа, лапы — вверху.
+const HEAD_ORIGIN = { x: 10 / 76, y: 28 / 52 };
+const TAIL_ORIGIN = { x: 64 / 70, y: 12 / 34 };
+const FRONT_LEG_ORIGIN_Y = 8 / 62;
+const BACK_LEG_ORIGIN_Y = 8 / 64;
+// Пасть — от шеи: туда летит и там висит добыча.
+const MOUTH = { x: 40, y: 10 };
+// Дальние лапы темнее ближних.
+const FAR_LEG_TINT = 0xa9b0bd;
+// Слои: дальние лапы и хвост — дальше всего, ближние лапы — за туловищем
+// (оно закрывает верх лап), голова — перед туловищем.
+const FAR_LEG_DEPTH_SHIFT = -0.06;
+const TAIL_DEPTH_SHIFT = -0.04;
+const NEAR_LEG_DEPTH_SHIFT = -0.02;
+const HEAD_DEPTH_SHIFT = 0.05;
+const LOOT_DEPTH_SHIFT = 0.07;
 const SHADOW_DEPTH_SHIFT = -0.5;
-// Бег вприпрыжку: высота подскока (пиксели), скорость (радиан за мс)
-// и наклон тела вверх-вниз на каждом скачке (градусы).
+// Тень под волком.
+const SHADOW_WIDTH = 116;
+
+// ===== Бег =====
+
+// Длина шага (пиксели пути): за столько пикселей лапы делают полный цикл.
+// Фаза шага растёт от пройденного пути — лапы бегут со скоростью волка
+// и замирают, когда он стоит (например, упёрся в частокол).
+const STRIDE_LENGTH = 64;
+// Стоит на месте — лапы плавно встают ровно: какую долю пути до ровной стойки
+// проходят за кадр.
+const STAND_EASE = 0.2;
+// На сколько градусов лапа отходит вперёд и назад от вертикали.
+const LEG_SWING = 34;
+// Тело на каждом шаге приподнимается (пиксели) и чуть качается (градусы).
 const RUN_BOB_HEIGHT = 4;
-const RUN_BOB_SPEED = 0.02;
-const RUN_TILT = 4;
-// Где пасть волка, когда он смотрит вправо (от лап): туда летит и там висит добыча.
-const MOUTH_X = 50;
-const MOUTH_Y = -42;
-// Добыча в зубах — чуть ближе к нам, чем волк.
-const LOOT_DEPTH_SHIFT = 0.1;
+const RUN_TILT = 2.5;
+// Голова кивает в такт бегу (градусы); с добычей задрана выше.
+const HEAD_NOD = 4;
+const HEAD_LOOT_LIFT = -8;
+// Хвост развевается за спиной (градусы).
+const TAIL_SWAY = 8;
+// Оглушённый волк качается из стороны в сторону (градусы и скорость, радиан за мс),
+// а лапы расставлены (градусы).
+const STUN_WOBBLE = 7;
+const STUN_WOBBLE_SPEED = 0.05;
+const STUN_LEG_SPREAD = 14;
 // Сколько мс добыча летит со спины вождя в пасть и как высоко по дуге.
 const LOOT_FLY_TIME = 220;
 const LOOT_FLY_ARC = 30;
-// Удар: волк трясётся (самый большой наклон, градусы).
-const HIT_SHAKE_ANGLE = 14;
 // Дошёл до точки, если ближе этого (пиксели).
 const ARRIVE_DISTANCE = 6;
 // Морда волка впереди лап на столько пикселей: шаг вбок проверяется по ней,
 // чтобы голова не влезала в частокол.
-const BODY_REACH = 45;
+const BODY_REACH = 100;
 
 // Что сейчас делает волк.
 // 'gone' — в лесу, ждёт, чтобы выйти; 'hunt' — бежит к вождю;
@@ -86,23 +131,40 @@ export class Wolf {
   // Добыча в зубах (если есть) и долетела ли она уже до пасти.
   private loot?: Loot;
   private isLootInMouth = false;
-  // Время бега — из него считаются подскоки.
-  private runTime = 0;
+  // Фаза шага (радианы): из неё считаются лапы, подъём тела, кивок и хвост.
+  private stridePhase = 0;
   // Куда смотрит: 1 — вправо, -1 — влево.
   private facing = 1;
   // Проверка шага на этот кадр (её передаёт update()): частокол волков не пускает.
   private canStep: CanStep = () => true;
 
-  private image: Phaser.GameObjects.Image;
+  // Части волка.
   private shadow: Phaser.GameObjects.Image;
+  private body: Phaser.GameObjects.Image;
+  private head: Phaser.GameObjects.Image;
+  private tail: Phaser.GameObjects.Image;
+  private nearFrontLeg: Phaser.GameObjects.Image;
+  private nearBackLeg: Phaser.GameObjects.Image;
+  private farFrontLeg: Phaser.GameObjects.Image;
+  private farBackLeg: Phaser.GameObjects.Image;
 
   // returnDelay — через сколько мс после начала игры этот волк выйдет впервые.
   constructor(scene: Phaser.Scene, returnDelay = WOLF_FIRST_DELAY) {
     this.scene = scene;
     this.returnTimer = returnDelay;
-    this.shadow = scene.add.image(0, 0, TEXTURES.shadow).setVisible(false);
+    this.shadow = scene.add.image(0, 0, TEXTURES.shadow);
     this.shadow.setScale(SHADOW_WIDTH / this.shadow.width);
-    this.image = scene.add.image(0, 0, TEXTURES.wolf).setOrigin(0.5, 1).setVisible(false);
+    this.farBackLeg = scene.add.image(0, 0, TEXTURES.wolfBackLeg).setOrigin(0.5, BACK_LEG_ORIGIN_Y);
+    this.farFrontLeg = scene.add.image(0, 0, TEXTURES.wolfFrontLeg).setOrigin(0.5, FRONT_LEG_ORIGIN_Y);
+    this.farBackLeg.setTint(FAR_LEG_TINT);
+    this.farFrontLeg.setTint(FAR_LEG_TINT);
+    this.tail = scene.add.image(0, 0, TEXTURES.wolfTail).setOrigin(TAIL_ORIGIN.x, TAIL_ORIGIN.y);
+    this.body = scene.add.image(0, 0, TEXTURES.wolfBody);
+    this.nearBackLeg = scene.add.image(0, 0, TEXTURES.wolfBackLeg).setOrigin(0.5, BACK_LEG_ORIGIN_Y);
+    this.nearFrontLeg = scene.add.image(0, 0, TEXTURES.wolfFrontLeg).setOrigin(0.5, FRONT_LEG_ORIGIN_Y);
+    this.head = scene.add.image(0, 0, TEXTURES.wolfHead).setOrigin(HEAD_ORIGIN.x, HEAD_ORIGIN.y);
+    for (const part of this.getParts()) part.setScale(WOLF_SCALE);
+    this.setVisible(false);
   }
 
   // ===== Состояние (спрашивает и меняет systems/Predators.ts) =====
@@ -129,9 +191,8 @@ export class Wolf {
     this.state = 'hunt';
     this.hp = WOLF_HP;
     this.huntTime = 0;
-    this.image.setVisible(true).setAngle(0);
-    this.shadow.setVisible(true);
-    this.place(0);
+    this.setVisible(true);
+    this.place();
   }
 
   // Схватить добычу: она летит со спины вождя в пасть, волк убегает в лес.
@@ -160,7 +221,6 @@ export class Wolf {
   hit(damage: number, fromX: number, fromY: number): WolfHit {
     this.hp -= damage;
     this.hitFrom = { x: fromX, y: fromY };
-    shake(this.scene, this.image, HIT_SHAKE_ANGLE, WOLF_STUN_TIME);
 
     if (this.hp > 0) {
       this.state = 'stunned';
@@ -187,7 +247,8 @@ export class Wolf {
   update(delta: number, playerX: number, playerY: number, canStep: CanStep): boolean {
     if (this.state === 'gone') return false;
     this.canStep = canStep;
-    this.runTime += delta;
+    const startX = this.x;
+    const startY = this.y;
 
     switch (this.state) {
       case 'hunt':
@@ -205,7 +266,18 @@ export class Wolf {
         break;
     }
 
-    this.place(this.state === 'stunned' ? 0 : delta);
+    // Лапы шагают на столько, сколько волк пробежал (отлетая от удара, не шагают).
+    // Стоит (например, упёрся в частокол) — лапы плавно встают ровно.
+    if (this.state !== 'stunned') {
+      const moved = Phaser.Math.Distance.Between(startX, startY, this.x, this.y);
+      if (moved > 0) {
+        this.stridePhase += (moved / STRIDE_LENGTH) * Math.PI * 2;
+      } else {
+        const standPhase = Math.round(this.stridePhase / Math.PI) * Math.PI;
+        this.stridePhase = Phaser.Math.Linear(this.stridePhase, standPhase, STAND_EASE);
+      }
+    }
+    this.place();
     return false;
   }
 
@@ -260,33 +332,83 @@ export class Wolf {
     this.loot = undefined;
     this.state = 'gone';
     this.returnTimer = Phaser.Math.Between(WOLF_RETURN_TIME_MIN, WOLF_RETURN_TIME_MAX);
-    this.image.setVisible(false);
-    this.shadow.setVisible(false);
+    this.setVisible(false);
     return hadLoot;
   }
 
   // ===== Вид =====
 
-  // Где пасть волка в мире.
-  private getMouthPoint(): Point {
-    return { x: this.x + MOUTH_X * this.facing, y: this.y + MOUTH_Y };
+  // Все части волка (кроме тени).
+  private getParts(): Phaser.GameObjects.Image[] {
+    return [this.farBackLeg, this.farFrontLeg, this.tail, this.body, this.nearBackLeg, this.nearFrontLeg, this.head];
   }
 
-  // Ставит картинку, тень и добычу в зубах. На бегу волк скачет и качается.
-  private place(delta: number): void {
-    const wave = delta > 0 ? Math.sin(this.runTime * RUN_BOB_SPEED) : 0;
-    const bob = Math.abs(wave) * RUN_BOB_HEIGHT;
-    this.image
-      .setPosition(this.x, this.y - bob)
-      .setFlipX(this.facing < 0)
-      .setDepth(this.y);
-    // Наклон на скачке — только на бегу; оглушённого волка качает встряска.
-    if (this.state !== 'stunned') this.image.setAngle(wave * RUN_TILT * this.facing);
+  // Показать или спрятать волка целиком.
+  private setVisible(visible: boolean): void {
+    this.shadow.setVisible(visible);
+    for (const part of this.getParts()) part.setVisible(visible);
+  }
+
+  // Точка части волка в мире. (localX, localY) — от лап, когда волк смотрит вправо;
+  // lift — на сколько тело приподнято, tilt — наклон тела (градусы).
+  // Смотрит влево — всё зеркально.
+  private toWorld(localX: number, localY: number, lift: number, tilt: number): Point {
+    const angle = Phaser.Math.DegToRad(tilt);
+    const x = localX * Math.cos(angle) - localY * Math.sin(angle);
+    const y = localX * Math.sin(angle) + localY * Math.cos(angle);
+    return { x: this.x + x * WOLF_SCALE * this.facing, y: this.y + (y - lift) * WOLF_SCALE };
+  }
+
+  // Где пасть волка в мире: от шеи, с кивком головы.
+  private getMouthPoint(): Point {
+    const neck = this.toWorld(NECK.x, NECK.y, 0, 0);
+    return { x: neck.x + MOUTH.x * WOLF_SCALE * this.facing, y: neck.y + MOUTH.y * WOLF_SCALE };
+  }
+
+  // Ставит все части волка вокруг точки лап. На бегу лапы шагают по диагонали
+  // (ближняя передняя — с дальней задней), тело приподнимается и качается,
+  // голова кивает, хвост развевается. Оглушённый — качается, лапы расставлены.
+  private place(): void {
+    const isLeft = this.facing < 0;
+    const swing = Math.sin(this.stridePhase);
+    const isStunned = this.state === 'stunned';
+
+    const lift = isStunned ? 0 : Math.abs(Math.cos(this.stridePhase)) * RUN_BOB_HEIGHT;
+    const tilt = isStunned
+      ? Math.sin(this.stunTime * STUN_WOBBLE_SPEED) * STUN_WOBBLE * (this.stunTime / WOLF_STUN_TIME)
+      : swing * RUN_TILT;
+    // Минус поворачивает лапу против часовой: при взгляде вправо ступня уходит вперёд.
+    const pairA = isStunned ? -STUN_LEG_SPREAD : -swing * LEG_SWING;
+    const pairB = isStunned ? STUN_LEG_SPREAD : swing * LEG_SWING;
+
+    const setPart = (part: Phaser.GameObjects.Image, local: Point, angle: number, depthShift: number): void => {
+      const point = this.toWorld(local.x, local.y, lift, tilt);
+      part
+        .setPosition(point.x, point.y)
+        .setAngle((angle + tilt) * this.facing)
+        .setFlipX(isLeft)
+        .setDepth(this.y + depthShift);
+    };
+    const far = (point: Point): Point => ({ x: point.x + FAR_LEG_SHIFT.x, y: point.y + FAR_LEG_SHIFT.y });
+
+    // Phaser отражает картинку внутри её рамки, а точку вращения не трогает.
+    // У головы и хвоста она сбоку — при взгляде влево отражаем её сами.
+    this.head.setOrigin(isLeft ? 1 - HEAD_ORIGIN.x : HEAD_ORIGIN.x, HEAD_ORIGIN.y);
+    this.tail.setOrigin(isLeft ? 1 - TAIL_ORIGIN.x : TAIL_ORIGIN.x, TAIL_ORIGIN.y);
+
+    setPart(this.farFrontLeg, far(SHOULDER), pairB, FAR_LEG_DEPTH_SHIFT);
+    setPart(this.farBackLeg, far(HIP), pairA, FAR_LEG_DEPTH_SHIFT);
+    setPart(this.tail, TAIL_BASE, swing * TAIL_SWAY, TAIL_DEPTH_SHIFT);
+    setPart(this.body, { x: BODY_X, y: BODY_Y }, 0, 0);
+    setPart(this.nearFrontLeg, SHOULDER, pairA, NEAR_LEG_DEPTH_SHIFT);
+    setPart(this.nearBackLeg, HIP, pairB, NEAR_LEG_DEPTH_SHIFT);
+    const headAngle = Math.sin(this.stridePhase * 2) * HEAD_NOD + (this.loot ? HEAD_LOOT_LIFT : 0);
+    setPart(this.head, NECK, headAngle, HEAD_DEPTH_SHIFT);
     this.shadow.setPosition(this.x, this.y).setDepth(this.y + SHADOW_DEPTH_SHIFT);
 
     if (this.loot && this.isLootInMouth) {
       const mouth = this.getMouthPoint();
-      this.loot.image.setPosition(mouth.x, mouth.y - bob).setDepth(this.y + LOOT_DEPTH_SHIFT);
+      this.loot.image.setPosition(mouth.x, mouth.y - lift * WOLF_SCALE).setDepth(this.y + LOOT_DEPTH_SHIFT);
     }
   }
 }
