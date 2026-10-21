@@ -1,6 +1,8 @@
 import Phaser from 'phaser';
+import { CanStep, pop } from '../fx';
 import { JOYSTICK_RADIUS, PLAYER_SPEED, WORLD_EDGE, WORLD_HEIGHT, WORLD_WIDTH } from '../settings';
-import { TEXTURES } from '../textures';
+import { TEXTURES, WEAPON_GRIP_FROM_BOTTOM } from '../textures';
+import { WEAPONS, Weapon } from '../data/upgrades';
 
 // ===== Слои вождя =====
 
@@ -28,9 +30,6 @@ const RING_PULSE_TIME = 700;
 // Где кулак с дубиной относительно ног (когда вождь смотрит вправо).
 const HAND_OFFSET_X = 40;
 const HAND_OFFSET_Y = -29;
-// Дубина вращается вокруг кулака. На картинке дубины кулак внизу:
-// его центр на этой доле высоты картинки (0 — верх, 1 — низ).
-const CLUB_GRIP_Y = 0.86;
 // Угол дубины в покое: наклонена вперёд, от лица (0° — дубина стоит вертикально).
 const CLUB_REST_ANGLE = 65;
 
@@ -42,7 +41,7 @@ const CLUB_WINDUP_ANGLE = -50;
 const CLUB_STRIKE_ANGLE = 45;
 // Какую долю всего взмаха занимает каждая фаза (в сумме 1):
 // неспешный замах, резкий удар, возврат в покой с пружинкой.
-// Весь взмах длится столько, сколько передали в swing() (сцена передаёт HIT_INTERVAL),
+// Весь взмах длится столько, сколько передали в swing() (интервал удара оружия),
 // поэтому попадание (замах + удар = половина взмаха) всегда раньше следующего удара.
 const SWING_WINDUP_SHARE = 0.3;
 const SWING_STRIKE_SHARE = 0.2;
@@ -111,12 +110,15 @@ export class Player {
   // Текущая скорость, пикселей в секунду. Сцена передаёт её стопке, чтобы та отставала.
   velocityX = 0;
   velocityY = 0;
-  // Сколько мс вождь уже стоит у куста. Набралось HIT_INTERVAL — удар.
+  // Сколько мс вождь уже стоит у куста. Набрался интервал удара оружия — удар.
   // Меняет его systems/Gathering.ts.
   hitTimer = 0;
   // Сколько клыков собрал вождь (валюта; в уровне 1 — просто счёт).
   // Меняет systems/Serving.ts, HUD только показывает это число.
   tusks = 0;
+  // Уровень оружия — номер в WEAPONS (data/upgrades.ts): 0 — дубина, 1 — топор, 2 — копьё.
+  // Меняет upgradeWeapon(), его зовёт GameScene при покупке.
+  weaponLevel = 0;
 
   // Куда смотрит вождь: 1 — вправо, -1 — влево.
   // Сцена передаёт это рюкзаку: колонки за спиной уходят в обратную сторону.
@@ -147,6 +149,7 @@ export class Player {
   private bodyImage: Phaser.GameObjects.Image;
   private legs: Phaser.GameObjects.Image[];
   private freeArm: Phaser.GameObjects.Image;
+  // Оружие в руке: дубина, топор или копьё (картинка с кулаком внизу).
   private club: Phaser.GameObjects.Image;
 
   // Джойстик: круг-основа и ручка. Видны, только пока зажата мышь или палец.
@@ -184,7 +187,8 @@ export class Player {
       scene.add.image(x, y, TEXTURES.leg).setOrigin(0.5, LEG_HIP_Y),
     ];
     this.freeArm = scene.add.image(x, y, TEXTURES.arm).setOrigin(0.5, ARM_SHOULDER_Y);
-    this.club = scene.add.image(x, y, TEXTURES.club).setOrigin(0.5, CLUB_GRIP_Y);
+    this.club = scene.add.image(x, y, TEXTURES.club);
+    this.setGripOrigin();
 
     // Джойстик живёт в координатах экрана: scrollFactor 0 — не едет вместе с камерой.
     this.joystickBase = this.createJoystickPart(TEXTURES.joystickBase);
@@ -206,11 +210,12 @@ export class Player {
 
   // Вызывается сценой каждый кадр. delta — сколько мс прошло с прошлого кадра.
   // speedMultiplier — во сколько раз меняется скорость (ночью вождь идёт медленнее).
-  update(delta: number, speedMultiplier: number): void {
+  // canStep — можно ли шагнуть из точки в точку (сцена не пускает сквозь частокол).
+  update(delta: number, speedMultiplier: number, canStep: CanStep): void {
     const direction = this.readInput();
     const isMoving = direction.length() > 0;
 
-    this.move(direction, delta, speedMultiplier);
+    this.move(direction, delta, speedMultiplier, canStep);
     this.animate(delta, isMoving);
     this.place();
   }
@@ -242,6 +247,26 @@ export class Player {
         { clubSwing: 0, duration: duration * SWING_RECOVER_SHARE, ease: 'Back.easeOut' },
       ],
     });
+  }
+
+  // Оружие, которое сейчас в руке: скорость удара и урон.
+  getWeapon(): Weapon {
+    return WEAPONS[this.weaponLevel];
+  }
+
+  // Купили следующее оружие: оно появляется в руке с «пружинкой».
+  upgradeWeapon(): void {
+    if (this.weaponLevel >= WEAPONS.length - 1) return;
+    this.weaponLevel += 1;
+    this.club.setTexture(this.getWeapon().texture);
+    this.setGripOrigin();
+    pop(this.scene, this.club);
+  }
+
+  // Точка вращения оружия — центр кулака. У всего оружия кулак на одной высоте
+  // от низа картинки, а картинки разной длины — долю считаем по высоте картинки.
+  private setGripOrigin(): void {
+    this.club.setOrigin(0.5, 1 - WEAPON_GRIP_FROM_BOTTOM / this.club.height);
   }
 
   // Идёт ли сейчас взмах дубиной (тогда новый взмах оборвал бы удар).
@@ -310,15 +335,18 @@ export class Player {
   // ===== Движение и анимация =====
 
   // Двигает вождя: скорость = направление × PLAYER_SPEED × множитель фазы суток.
-  private move(direction: Phaser.Math.Vector2, delta: number, speedMultiplier: number): void {
+  // Шаг по x и по y проверяется отдельно: упёрся в стену — скользит вдоль неё.
+  private move(direction: Phaser.Math.Vector2, delta: number, speedMultiplier: number, canStep: CanStep): void {
     const seconds = delta / 1000;
     const speed = PLAYER_SPEED * speedMultiplier;
     this.velocityX = direction.x * speed;
     this.velocityY = direction.y * speed;
 
     // Вождь не уходит в лес по краям мира.
-    this.x = Phaser.Math.Clamp(this.x + this.velocityX * seconds, WORLD_EDGE, WORLD_WIDTH - WORLD_EDGE);
-    this.y = Phaser.Math.Clamp(this.y + this.velocityY * seconds, WORLD_EDGE, WORLD_HEIGHT - WORLD_EDGE);
+    const nextX = Phaser.Math.Clamp(this.x + this.velocityX * seconds, WORLD_EDGE, WORLD_WIDTH - WORLD_EDGE);
+    if (canStep(this.x, this.y, nextX, this.y)) this.x = nextX;
+    const nextY = Phaser.Math.Clamp(this.y + this.velocityY * seconds, WORLD_EDGE, WORLD_HEIGHT - WORLD_EDGE);
+    if (canStep(this.x, this.y, this.x, nextY)) this.y = nextY;
 
     // Разворот: смотрим туда, куда идём по горизонтали.
     if (this.velocityX > 0) this.facing = 1;
