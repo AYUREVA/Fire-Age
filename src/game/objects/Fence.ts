@@ -38,37 +38,48 @@ const BUILD_STAGGER = 8;
 const BUILD_GROW_TIME = 260;
 
 // ===== Ворота калитки =====
-// Ворота рисуются кодом как настоящие объёмные брусья: так створки видны
-// и спереди (в верхней и нижней стене), и сбоку (в левой и правой).
+// Калитка — часть частокола: по краям проёма стоят такие же колья, сверху их
+// связывает бревно, между ними — две деревянные створки с распоркой «Z».
+// Наклона нет: всё стоит прямо, как колья боковых стен.
 
-// Столбы ворот: толщина (сторона квадрата у земли) и высота (пиксели).
-const POST_SIZE = 18;
-const POST_HEIGHT = 104;
-// Перекладина сверху: на какой высоте, толщина и высота бруса.
-const LINTEL_BASE = 92;
-const LINTEL_SIZE = 14;
-// Створка: толщина досок, высота, сколько досок в створке. В боковых стенах
-// мы видим створки сбоку — там они толще, чтобы калитку было видно издалека.
-const LEAF_THICKNESS = 12;
-const SIDE_LEAF_THICKNESS = 14;
-const SIDE_POST_SIZE = 20;
-// Боковые стены мы видим чуть сбоку: верх ворот в них отклоняется наружу
-// на столько пикселей на пиксель высоты — так видна внутренняя сторона створок.
-const SIDE_GATE_SKEW = 0.4;
-const LEAF_HEIGHT = 74;
+// Половина ширины кола (textures.ts): на таком расстоянии от середины столба
+// висит створка.
+const POST_HALF_WIDTH = 9;
+// Столбы калитки — самые высокие колья частокола (как STAKE_SCALE_MAX).
+const POST_SCALE = STAKE_SCALE_MAX;
+// В стене колья не ставим ещё столько пикселей за краем проёма — там стоит столб.
+const POST_CLEARANCE = 8;
+// Бревно сверху: на какой высоте его середина и его радиус (пиксели).
+// Колья частокола — около 70 пикселей в высоту: бревно не выше них.
+const LINTEL_HEIGHT = 60;
+const LINTEL_RADIUS = 7;
+// Толщина снега на бревне (пиксели).
+const LINTEL_SNOW = 4;
+// Створка: толщина, высота и сколько досок в створке. Верх створки (с толщиной)
+// не заходит на бревно — между ними щель в 2 пикселя.
+const LEAF_THICKNESS = 14;
+const LEAF_HEIGHT = LINTEL_HEIGHT - LINTEL_RADIUS - LEAF_THICKNESS / 2 - 2;
 const LEAF_PLANKS = 4;
+// Ширина закрытой створки боковой стены на экране — чуть шире кола.
+const SIDE_LEAF_WIDTH = 24;
+// Светлый торец сверху у створки боковой стены (пиксели).
+const LEAF_TOP = 4;
 // Поперечные планки створки — на этих долях высоты; между ними — диагональная распорка.
+// Вместе они — буква «Z».
 const BRACE_LOW = 0.2;
 const BRACE_HIGH = 0.8;
-// Глубина ворот: чуть впереди своей линии на земле, чтобы снег шапок не прятался.
+// Глубина ворот: чуть впереди своей линии на земле. Столбы — ещё впереди:
+// бревно и створки заходят за них, как будто привязаны к столбам.
 const GATE_DEPTH_SHIFT = 0.2;
+const POST_DEPTH_SHIFT = 0.4;
 
 // Сторона стены, в которой стоит калитка.
 type GateSide = 'left' | 'right' | 'top' | 'bottom';
 
 // Калитка: середина проёма на земле, вдоль какой линии идёт стена (along),
 // куда наружу (outward), проём для столкновений, насколько открыта (0 — закрыта,
-// 1 — настежь), сколько мс ещё держаться открытой без вождя и её картинки.
+// 1 — настежь), сколько мс ещё держаться открытой без вождя и её картинки:
+// бревно сверху и две створки. Столбы — колья частокола (в списке stakes).
 type Gate = {
   isSideWall: boolean;
   center: Point;
@@ -77,7 +88,7 @@ type Gate = {
   rect: Phaser.Geom.Rectangle;
   openness: number;
   holdTime: number;
-  frame: Phaser.GameObjects.Graphics[];
+  lintel: Phaser.GameObjects.Graphics;
   leaves: Phaser.GameObjects.Graphics[];
 };
 
@@ -88,7 +99,7 @@ type Gate = {
  * Нижняя стена проходит по каменному столу: стол — часть стены.
  * Столкновения — простая проверка прямоугольников стен, без физики:
  * allows() отвечает, можно ли шагнуть из точки в точку.
- * Калитка — деревянные ворота: два столба, перекладина со снегом и две створки
+ * Калитка — часть частокола: два кола-столба, бревно сверху и две створки
  * из досок. Вождь подходит — створки расходятся от середины наружу, отошёл —
  * закрываются. Через открытую калитку проходят вождь и кролики, волки — никогда.
  * Про тех, кто ходит, частокол знает только точку вождя.
@@ -169,9 +180,9 @@ export class Fence {
       });
     });
     for (const gate of this.gates) {
-      this.drawFrame(gate);
+      this.drawLintel(gate);
       this.drawLeaves(gate);
-      for (const part of [...gate.frame, ...gate.leaves]) {
+      for (const part of [gate.lintel, ...gate.leaves]) {
         part.setAlpha(0);
         this.scene.tweens.add({ targets: part, alpha: 1, delay: this.stakes.length * BUILD_STAGGER, duration: BUILD_GROW_TIME });
       }
@@ -234,36 +245,21 @@ export class Fence {
       rect,
       openness: 0,
       holdTime: 0,
-      frame: [graphics(), graphics(), graphics()],
+      lintel: graphics(),
       leaves: [graphics(), graphics()],
     };
   }
 
-  // Столбы по краям проёма и перекладина сверху со снегом. Каждый столб — своя
-  // картинка со своей глубиной: в боковой стене один столб впереди вождя, другой — позади.
-  private drawFrame(gate: Gate): void {
+  // Бревно сверху: лежит на кольях-столбах от одного края проёма до другого.
+  // По глубине — вместе с дальним столбом, чтобы вождь проходил под ним.
+  private drawLintel(gate: Gate): void {
     const gap = FENCE_GATE_WIDTH / 2;
-    const postSize = gate.isSideWall ? SIDE_POST_SIZE : POST_SIZE;
-    const skew = this.getSkew(gate);
     const ends = [-1, 1].map((sign) => ({
       x: gate.center.x + gate.along.x * gap * sign,
       y: gate.center.y + gate.along.y * gap * sign,
     }));
-    const [postA, postB, lintel] = gate.frame;
-
-    ends.forEach((end, index) => {
-      const post = index === 0 ? postA : postB;
-      post.clear().setVisible(true).setDepth(end.y + GATE_DEPTH_SHIFT);
-      const a = { x: end.x - gate.along.x * (postSize / 2), y: end.y - gate.along.y * (postSize / 2) };
-      const b = { x: end.x + gate.along.x * (postSize / 2), y: end.y + gate.along.y * (postSize / 2) };
-      drawBox(post, a, b, postSize, 0, POST_HEIGHT, false, skew, COLORS.snowLight);
-    });
-
-    // Перекладина — по глубине вместе с дальним столбом, чтобы вождь проходил под ней.
-    lintel.clear().setVisible(true).setDepth(Math.min(ends[0].y, ends[1].y) + GATE_DEPTH_SHIFT);
-    // В боковых стенах верх перекладины виден сбоку длинной полосой — там он деревянный.
-    const lintelTop = gate.isSideWall ? COLORS.woodLight : COLORS.snowLight;
-    drawBox(lintel, ends[0], ends[1], LINTEL_SIZE, LINTEL_BASE, LINTEL_SIZE, false, skew, lintelTop);
+    gate.lintel.clear().setVisible(true).setDepth(ends[0].y + GATE_DEPTH_SHIFT);
+    drawLog(gate.lintel, ends[0], ends[1], LINTEL_HEIGHT, LINTEL_RADIUS);
   }
 
   // Две створки: каждая крепится к своему столбу и тянется к середине проёма.
@@ -272,15 +268,15 @@ export class Fence {
   private drawLeaves(gate: Gate): void {
     const gap = FENCE_GATE_WIDTH / 2;
     const angle = Phaser.Math.Easing.Sine.InOut(gate.openness) * (Math.PI / 2);
-    const length = gap - POST_SIZE / 2;
+    const length = gap - POST_HALF_WIDTH;
 
     [-1, 1].forEach((sign, index) => {
       const leaf = gate.leaves[index];
       // Петля — у столба; створка смотрит к середине (−sign вдоль стены) и при открытии
       // поворачивается наружу.
       const hinge = {
-        x: gate.center.x + gate.along.x * (gap - POST_SIZE / 2) * sign,
-        y: gate.center.y + gate.along.y * (gap - POST_SIZE / 2) * sign,
+        x: gate.center.x + gate.along.x * length * sign,
+        y: gate.center.y + gate.along.y * length * sign,
       };
       const dir = {
         x: -gate.along.x * sign * Math.cos(angle) + gate.outward.x * Math.sin(angle),
@@ -288,14 +284,33 @@ export class Fence {
       };
       const free = { x: hinge.x + dir.x * length, y: hinge.y + dir.y * length };
       leaf.clear().setVisible(true).setDepth(Math.max(hinge.y, free.y) + GATE_DEPTH_SHIFT);
-      const thickness = gate.isSideWall ? SIDE_LEAF_THICKNESS : LEAF_THICKNESS;
-      drawBox(leaf, hinge, free, thickness, 0, LEAF_HEIGHT, true, this.getSkew(gate), COLORS.woodLight);
+      if (gate.isSideWall) {
+        this.drawSideLeaf(gate, leaf, hinge, free, angle / (Math.PI / 2));
+      } else {
+        drawLeaf(leaf, hinge, free);
+      }
     });
   }
 
-  // Наклон верха ворот: в боковых стенах — наружу, в верхней и нижней — без наклона.
-  private getSkew(gate: Gate): number {
-    return gate.isSideWall ? gate.outward.x * SIDE_GATE_SKEW : 0;
+  // Створка боковой стены. Закрытая — узкая дверца с «Z», повёрнутая к нам, прямо
+  // в линии кольев (так же каждый кол боковой стены виден спереди). Открываясь
+  // (turn от 0 до 1), она поворачивается наружу и становится настоящей створкой
+  // от петли hinge до края free.
+  private drawSideLeaf(gate: Gate, leaf: Phaser.GameObjects.Graphics, hinge: Point, free: Point, turn: number): void {
+    // Закрытые дверцы стоят одна над другой вплотную, стык — на середине проёма.
+    // Край у петли — со стороны двора, свободный край — снаружи: туда створка и откроется.
+    const closedY = gate.center.y + Math.sign(hinge.y - gate.center.y) * (LEAF_HEIGHT / 2);
+    const half = (SIDE_LEAF_WIDTH / 2) * gate.outward.x;
+    const lerp = (a: Point, b: Point): Point => ({ x: Phaser.Math.Linear(a.x, b.x, turn), y: Phaser.Math.Linear(a.y, b.y, turn) });
+    const p = lerp({ x: gate.center.x - half, y: closedY }, hinge);
+    const q = lerp({ x: gate.center.x + half, y: closedY }, free);
+
+    // Закрытые дверцы — впереди ближнего столба, иначе он их закроет.
+    // Калитка открыта — глубина обычная, чтобы вождь проходил между створками.
+    if (gate.openness < GATE_PASS_SHARE) {
+      leaf.setDepth(gate.center.y + FENCE_GATE_WIDTH / 2 + POST_DEPTH_SHIFT + GATE_DEPTH_SHIFT);
+    }
+    drawFlatLeaf(leaf, p, q);
   }
 
   // ===== Колья =====
@@ -303,13 +318,14 @@ export class Fence {
   // Расставляет колья по периметру (спрятанными) — по кругу, чтобы при постройке
   // забор вырастал «волной»: верх слева направо, правый бок вниз, низ справа налево,
   // левый бок вверх. В проёмах калиток и на месте стола кольев нет.
+  // Последними вырастают столбы калиток — вместе с бревном и створками.
   private createStakes(): void {
     const { left, top, right, bottom } = FENCE_RECT;
     const rng = new Phaser.Math.RandomDataGenerator([STAKES_SEED]);
     const [leftGate, rightGate, topGate, bottomGate] = this.gates;
     // Кол не ставим в проёме калитки и вплотную к её столбам.
     const isInGate = (value: number, gateCenter: number): boolean =>
-      Math.abs(value - gateCenter) < FENCE_GATE_WIDTH / 2 + POST_SIZE;
+      Math.abs(value - gateCenter) < FENCE_GATE_WIDTH / 2 + POST_CLEARANCE;
 
     for (let x = left; x <= right; x += STAKE_STEP_X) {
       if (!isInGate(x, topGate.center.x)) this.addStake(rng, x, top);
@@ -324,6 +340,15 @@ export class Fence {
     for (let y = bottom - STAKE_STEP_Y; y > top; y -= STAKE_STEP_Y) {
       if (!isInGate(y, leftGate.center.y)) this.addSideStake(rng, left, y);
     }
+
+    // Столбы калиток — по колу на каждом краю проёма.
+    for (const gate of this.gates) {
+      for (const sign of [-1, 1]) {
+        const gap = (FENCE_GATE_WIDTH / 2) * sign;
+        const y = gate.center.y + gate.along.y * gap;
+        this.addStake(rng, gate.center.x + gate.along.x * gap, y, POST_SCALE).setDepth(y + POST_DEPTH_SHIFT);
+      }
+    }
   }
 
   // Кол боковой стены: чуть в сторону от линии и через один темнее.
@@ -333,9 +358,13 @@ export class Fence {
     if (side < 0) image.setTint(SIDE_SHADE_TINT);
   }
 
-  // Один кол в точке (x, y): глубина = y, чуть случайный размер, через один отражён.
-  private addStake(rng: Phaser.Math.RandomDataGenerator, x: number, y: number): Phaser.GameObjects.Image {
-    const scale = rng.realInRange(STAKE_SCALE_MIN, STAKE_SCALE_MAX);
+  // Один кол в точке (x, y): глубина = y, чуть случайный размер (или scale), через один отражён.
+  private addStake(
+    rng: Phaser.Math.RandomDataGenerator,
+    x: number,
+    y: number,
+    scale = rng.realInRange(STAKE_SCALE_MIN, STAKE_SCALE_MAX),
+  ): Phaser.GameObjects.Image {
     const image = this.scene.add
       .image(x, y, TEXTURES.fenceStake)
       .setOrigin(0.5, 1)
@@ -347,66 +376,130 @@ export class Fence {
   }
 }
 
-// ===== Рисование брусьев =====
+// ===== Рисование ворот =====
 
-// Деревянный брус на земле: от точки a до точки b, толщиной thickness (поперёк),
-// от высоты base до base + height. Мы смотрим сверху под углом: высота уходит
-// вверх по экрану (и на skew пикселей вбок на пиксель высоты).
-// Рисуются только стороны, повёрнутые к нам, и верх цвета topColor (снег или дерево).
-// isLeaf — это створка: на широкой стороне доски, поперечные планки и распорка,
-// сверху — торцы досок.
-function drawBox(
-  g: Phaser.GameObjects.Graphics,
-  a: Point,
-  b: Point,
-  thickness: number,
-  base: number,
-  height: number,
-  isLeaf: boolean,
-  skew: number,
-  topColor: number,
-): void {
-  const length = Phaser.Math.Distance.Between(a.x, a.y, b.x, b.y);
+// Бревно на высоте height над линией от a до b (линия идёт вдоль x или вдоль y).
+// Мы смотрим сверху под углом: высота уходит вверх по экрану.
+// Бревно вдоль x видно спереди — снизу тень, сверху снег; бревно вдоль y видно
+// сверху — правая сторона в тени, как у кольев, ближний торец — спил.
+// По краям бревно привязано к столбам верёвкой.
+function drawLog(g: Phaser.GameObjects.Graphics, a: Point, b: Point, height: number, radius: number): void {
+  const isAlongX = a.y === b.y;
+  const left = Math.min(a.x, b.x) - radius;
+  const top = Math.min(a.y, b.y) - height - radius;
+  const width = Math.abs(b.x - a.x) + radius * 2;
+  const length = Math.abs(b.y - a.y) + radius * 2;
+
+  g.fillStyle(COLORS.wood, 1);
+  g.fillRoundedRect(left, top, width, length, radius);
+  g.fillStyle(COLORS.woodDark, 1);
+  if (isAlongX) {
+    g.fillRoundedRect(left, top + radius, width, radius, { tl: 0, tr: 0, bl: radius, br: radius });
+  } else {
+    g.fillRoundedRect(left + radius, top, radius, length, { tl: 0, tr: radius, bl: 0, br: radius });
+  }
+  // Полоски коры вдоль бревна.
+  g.lineStyle(1.5, COLORS.woodDark, 1);
+  if (isAlongX) {
+    for (const t of [0.3, 0.62]) g.lineBetween(left + width * t, top + radius - 2, left + width * (t + 0.14), top + radius - 1);
+  } else {
+    for (const t of [0.3, 0.62]) g.lineBetween(left + radius - 3, top + length * t, left + radius - 2, top + length * (t + 0.14));
+  }
+  // Снег по верху бревна вдоль x. Бревно вдоль y без снега: сверху оно — длинная
+  // полоса, и белое прятало бы дерево.
+  if (isAlongX) {
+    g.fillStyle(COLORS.snowLight, 1);
+    g.fillRoundedRect(left + radius, top - 1, width - radius * 2, LINTEL_SNOW, LINTEL_SNOW / 2);
+  }
+  g.lineStyle(2.5, COLORS.outline, 1);
+  g.strokeRoundedRect(left, top, width, length, radius);
+
+  // Ближний торец бревна вдоль y — свежий спил.
+  if (!isAlongX) {
+    const endY = top + length - radius;
+    g.fillStyle(COLORS.woodEnd, 1);
+    g.fillCircle(left + radius, endY, radius - 1);
+    g.lineStyle(1.5, COLORS.woodDark, 1);
+    g.strokeCircle(left + radius, endY, radius / 2.5);
+    g.lineStyle(2.5, COLORS.outline, 1);
+    g.strokeCircle(left + radius, endY, radius);
+  }
+
+  // Верёвка у каждого столба: две петли поперёк бревна сразу за столбом.
+  for (const [end, other] of [[a, b], [b, a]]) {
+    const toOther = Math.sign(other.x - end.x + other.y - end.y) * (POST_HALF_WIDTH + 4);
+    const x = end.x + (isAlongX ? toOther : 0);
+    const y = end.y - height + (isAlongX ? 0 : toOther);
+    for (const shift of [-2, 2]) {
+      if (isAlongX) {
+        ropeLoop(g, x + shift, y - radius, x + shift - 2, y + radius);
+      } else {
+        ropeLoop(g, x - radius, y + shift, x + radius, y + shift + 2);
+      }
+    }
+  }
+}
+
+// Петля верёвки: тёмная обводка и светлая верёвка поверх.
+function ropeLoop(g: Phaser.GameObjects.Graphics, x1: number, y1: number, x2: number, y2: number): void {
+  g.lineStyle(4.5, COLORS.outline, 1);
+  g.lineBetween(x1, y1, x2, y2);
+  g.lineStyle(2.5, COLORS.rope, 1);
+  g.lineBetween(x1, y1, x2, y2);
+}
+
+// Створка — доска на земле от петли hinge до свободного края free толщиной
+// LEAF_THICKNESS и высотой LEAF_HEIGHT. Мы смотрим сверху под углом: высота
+// уходит прямо вверх по экрану. Рисуются только стороны, повёрнутые к нам:
+// на широкой стороне доски, поперечные планки и распорка «Z», сверху — светлый торец.
+// Закрытую створку боковой стены видно с ребра (как колья боковой стены),
+// а открываясь, она поворачивается к нам широкой стороной.
+function drawLeaf(g: Phaser.GameObjects.Graphics, hinge: Point, free: Point): void {
+  const length = Phaser.Math.Distance.Between(hinge.x, hinge.y, free.x, free.y);
   if (length < 0.01) return;
-  const dir = { x: (b.x - a.x) / length, y: (b.y - a.y) / length };
-  const side = { x: -dir.y * (thickness / 2), y: dir.x * (thickness / 2) };
-  // Четыре угла бруса на земле: по кругу.
+  const dir = { x: (free.x - hinge.x) / length, y: (free.y - hinge.y) / length };
+  const side = { x: -dir.y * (LEAF_THICKNESS / 2), y: dir.x * (LEAF_THICKNESS / 2) };
+  // Четыре угла доски на земле: по кругу.
   const corners = [
-    { x: a.x + side.x, y: a.y + side.y },
-    { x: b.x + side.x, y: b.y + side.y },
-    { x: b.x - side.x, y: b.y - side.y },
-    { x: a.x - side.x, y: a.y - side.y },
+    { x: hinge.x + side.x, y: hinge.y + side.y },
+    { x: free.x + side.x, y: free.y + side.y },
+    { x: free.x - side.x, y: free.y - side.y },
+    { x: hinge.x - side.x, y: hinge.y - side.y },
   ];
-  const up = (point: Point, h: number): Point => ({ x: point.x + skew * h, y: point.y - h });
+  const up = (point: Point, h: number): Point => ({ x: point.x, y: point.y - h });
 
   // Стороны: видна та, что повёрнута к нам. Её углы на экране идут против
   // часовой стрелки — площадь со знаком меньше нуля (у задней — больше, у ребра — ноль).
   for (let i = 0; i < 4; i++) {
     const p = corners[i];
     const q = corners[(i + 1) % 4];
-    const face = [up(p, base), up(q, base), up(q, base + height), up(p, base + height)];
+    const face = [p, q, up(q, LEAF_HEIGHT), up(p, LEAF_HEIGHT)];
     if (signedArea(face) > -0.5) continue;
 
-    // Широкая сторона створки — светлое дерево с досками, узкие торцы — в тени.
+    // Широкая сторона — дерево с досками, узкие торцы — в тени.
     const isWide = i === 0 || i === 2;
     fillFace(g, face, isWide ? COLORS.wood : COLORS.woodDark);
-    if (isLeaf && isWide) drawPlanks(g, up(p, base), up(q, base), up(p, base + height), up(q, base + height));
+    if (isWide) drawPlanks(g, p, q, up(p, LEAF_HEIGHT), up(q, LEAF_HEIGHT));
     strokeFace(g, face);
   }
 
-  // Верх: снег или дерево; у створки на нём видны торцы досок.
-  const topFace = corners.map((corner) => up(corner, base + height));
-  fillFace(g, topFace, topColor);
-  if (isLeaf) {
-    g.lineStyle(1.5, COLORS.woodDark, 1);
-    for (let i = 1; i < LEAF_PLANKS; i++) {
-      const t = i / LEAF_PLANKS;
-      const from = { x: Phaser.Math.Linear(topFace[0].x, topFace[1].x, t), y: Phaser.Math.Linear(topFace[0].y, topFace[1].y, t) };
-      const to = { x: Phaser.Math.Linear(topFace[3].x, topFace[2].x, t), y: Phaser.Math.Linear(topFace[3].y, topFace[2].y, t) };
-      g.lineBetween(from.x, from.y, to.x, to.y);
-    }
-  }
+  // Верх — светлое дерево.
+  const topFace = corners.map((corner) => up(corner, LEAF_HEIGHT));
+  fillFace(g, topFace, COLORS.woodLight);
   strokeFace(g, topFace);
+}
+
+// Створка без толщины — одна широкая сторона от низа p–q вверх на LEAF_HEIGHT:
+// доски, поперечные планки и «Z», сверху — светлый торец.
+function drawFlatLeaf(g: Phaser.GameObjects.Graphics, p: Point, q: Point): void {
+  const up = (point: Point, h: number): Point => ({ x: point.x, y: point.y - h });
+  const face = [p, q, up(q, LEAF_HEIGHT), up(p, LEAF_HEIGHT)];
+  fillFace(g, face, COLORS.wood);
+  drawPlanks(g, p, q, up(p, LEAF_HEIGHT), up(q, LEAF_HEIGHT));
+  strokeFace(g, face);
+  const top = [up(p, LEAF_HEIGHT), up(q, LEAF_HEIGHT), up(q, LEAF_HEIGHT + LEAF_TOP), up(p, LEAF_HEIGHT + LEAF_TOP)];
+  fillFace(g, top, COLORS.woodLight);
+  strokeFace(g, top);
 }
 
 // Доски створки на её широкой стороне: углы стороны на экране — низ p0–q0
@@ -450,13 +543,13 @@ function signedArea(points: Point[]): number {
   return area / 2;
 }
 
-// Закрасить грань бруса.
+// Закрасить грань доски.
 function fillFace(g: Phaser.GameObjects.Graphics, face: Point[], color: number): void {
   g.fillStyle(color, 1);
   g.fillPoints(face.map((point) => new Phaser.Math.Vector2(point.x, point.y)), true);
 }
 
-// Обвести грань бруса тёмной обводкой.
+// Обвести грань доски тёмной обводкой.
 function strokeFace(g: Phaser.GameObjects.Graphics, face: Point[]): void {
   g.lineStyle(2.5, COLORS.outline, 1);
   g.strokePoints(face.map((point) => new Phaser.Math.Vector2(point.x, point.y)), true, true);
