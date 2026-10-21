@@ -10,6 +10,10 @@ import {
   WOODPILE_POSITION,
   WOODPILE_CAPACITY,
   RABBIT_COUNT,
+  WOLF_COUNT,
+  WOLF_FIRST_DELAY,
+  WOLF_RETURN_TIME_MAX,
+  WOLF_RETURN_TIME_MIN,
   RAW_MEAT_PILE_POSITION,
   RAW_MEAT_PILE_CAPACITY,
   COOKED_MEAT_PILE_POSITION,
@@ -25,6 +29,7 @@ import { Backpack } from '../objects/Backpack';
 import { ResourceNode } from '../objects/ResourceNode';
 import { ItemPile } from '../objects/ItemPile';
 import { Rabbit } from '../objects/Rabbit';
+import { Wolf } from '../objects/Wolf';
 import { Spit } from '../objects/Spit';
 import { StoneTable } from '../objects/StoneTable';
 import { Traveler } from '../objects/Traveler';
@@ -40,6 +45,7 @@ import { updateCooking } from '../systems/Cooking';
 import { updateTable, updateTravelers, updateTusks } from '../systems/Serving';
 import { updateFire } from '../systems/Fire';
 import { updatePurchases } from '../systems/Purchases';
+import { updateWolfFight, updateWolves } from '../systems/Predators';
 import { HUT_PRICE, HUT_SPOTS, WEAPONS, WEAPON_SPOT } from '../data/upgrades';
 import { LevelStats, PauseSource, track } from '../analytics';
 import { ReadyData } from './ReadyScene';
@@ -153,6 +159,8 @@ export class GameScene extends Phaser.Scene {
   private bushes: ResourceNode[] = [];
   // Кролики на поле.
   private rabbits: Rabbit[] = [];
+  // Волки: созданы заранее (сколько может быть на поле ночью), выходят из леса по одному.
+  private wolves: Wolf[] = [];
   // Поленница у костра — сюда сдаётся хворост, из неё кормится огонь.
   private woodpile!: ItemPile;
   // Костёр в лагере.
@@ -199,6 +207,7 @@ export class GameScene extends Phaser.Scene {
     // сохраняют старые значения, поэтому сбрасываем их здесь.
     this.bushes = [];
     this.rabbits = [];
+    this.wolves = [];
     this.travelers = [];
     this.buyZones = [];
     this.huts = [];
@@ -218,6 +227,7 @@ export class GameScene extends Phaser.Scene {
     for (let i = 0; i < RABBIT_COUNT; i++) {
       this.rabbits.push(new Rabbit(this));
     }
+    this.createWolves();
     // Сначала костёр: его свет лежит на земле под краем площадки поленницы.
     this.campfire = new Campfire(this, CAMPFIRE_POSITION.x, CAMPFIRE_POSITION.y);
     this.woodpile = new ItemPile(this, WOODPILE_POSITION.x, WOODPILE_POSITION.y, 'wood', WOODPILE_CAPACITY);
@@ -290,6 +300,9 @@ export class GameScene extends Phaser.Scene {
       rabbit.update(delta, this.player.x, this.player.y, phase.rabbitSpeedMultiplier);
     }
 
+    // Сначала волки: вождь бьёт волка раньше, чем куст.
+    updateWolves(this.wolves, this.player, this.backpack, this.stats, WOLF_COUNT[this.cycle.phase], delta);
+    updateWolfFight(this.player, this.backpack, this.wolves, this.stats);
     updateGathering(this.player, this.backpack, this.bushes, delta);
     updateHunting(this.player, this.backpack, this.rabbits);
     updateDropping(this.player, this.backpack, [this.woodpile, this.rawMeatPile], delta);
@@ -533,6 +546,17 @@ export class GameScene extends Phaser.Scene {
       (bush) => Phaser.Math.Distance.Between(x, y, bush.x, bush.y) < BUSH_CLEAR_RADIUS,
     );
     return nearCamp || nearBush;
+  }
+
+  // Волков столько, сколько их может быть на поле ночью. Первый выходит через
+  // WOLF_FIRST_DELAY, остальные — каждый на случайное время позже предыдущего.
+  private createWolves(): void {
+    const count = Math.max(WOLF_COUNT.day, WOLF_COUNT.night);
+    let delay = WOLF_FIRST_DELAY;
+    for (let i = 0; i < count; i++) {
+      this.wolves.push(new Wolf(this, delay));
+      delay += Phaser.Math.Between(WOLF_RETURN_TIME_MIN, WOLF_RETURN_TIME_MAX);
+    }
   }
 
   // Сажает кусты хвороста в точки из settings.ts.

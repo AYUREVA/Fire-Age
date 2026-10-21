@@ -36,6 +36,7 @@ export const TEXTURES = {
   joystickBase: 'joystick-base', // круг джойстика
   joystickKnob: 'joystick-knob', // ручка джойстика
   rabbit: 'rabbit', // пушистый серо-бурый кролик, смотрит вправо; точка опоры — лапы
+  wolf: 'wolf', // серый волк бежит вправо; точка опоры — лапы
   // Три вида путников. Со спины — идёт к столу и стоит в очереди, спереди — уходит.
   // Точка опоры — ноги.
   hunterBack: 'hunter-back', // охотник: рыжие лохмы, котомка, копьё
@@ -117,6 +118,10 @@ const JOYSTICK_BASE_SIZE: Size = { w: 128, h: 128 };
 const JOYSTICK_KNOB_SIZE: Size = { w: 60, h: 60 };
 const BUSH_SIZE: Size = { w: 124, h: 104 };
 const RABBIT_SIZE: Size = { w: 64, h: 60 };
+const WOLF_SIZE: Size = { w: 136, h: 94 };
+// Рисунок волка сдвинут вправо и вниз: место для хвоста и кончиков ушей.
+const WOLF_SHIFT_X = 4;
+const WOLF_SHIFT_Y = 4;
 const TRAVELER_SIZE: Size = { w: 84, h: 112 };
 const BUBBLE_SIZE: Size = { w: 84, h: 50 };
 const STUMP_SIZE: Size = { w: 80, h: 60 };
@@ -205,6 +210,7 @@ export function createTextures(scene: Phaser.Scene): void {
   bake(scene, TEXTURES.joystickBase, JOYSTICK_BASE_SIZE, drawJoystickBase);
   bake(scene, TEXTURES.joystickKnob, JOYSTICK_KNOB_SIZE, drawJoystickKnob);
   bake(scene, TEXTURES.rabbit, RABBIT_SIZE, drawRabbit);
+  bake(scene, TEXTURES.wolf, WOLF_SIZE, drawWolf);
   bake(scene, TEXTURES.hunterBack, TRAVELER_SIZE, (g) => drawHunter(g, false));
   bake(scene, TEXTURES.hunterFront, TRAVELER_SIZE, (g) => drawHunter(g, true));
   bake(scene, TEXTURES.elderBack, TRAVELER_SIZE, (g) => drawElder(g, false));
@@ -1531,6 +1537,83 @@ function drawRabbit(g: Graphics): void {
   g.lineStyle(1, COLORS.outline, 0.45);
   g.lineBetween(56, 36, 63, 35);
   g.lineBetween(56, 37, 62, 40);
+}
+
+// Серый волк в беге, смотрит вправо. Сзади — пушистый хвост с белым кончиком,
+// тело — вытянутая шерстяная масса со светлой грудью, впереди — голова
+// с острыми ушами, длинной светлой мордой, жёлтым хитрым глазом и клыком.
+function drawWolf(g: Graphics): void {
+  const { h } = WOLF_SIZE;
+  const ground = h - 5 - WOLF_SHIFT_Y;
+  // Рисунок сдвинут, чтобы кончик хвоста и уши не вылезали за край картинки.
+  g.save();
+  g.translateCanvas(WOLF_SHIFT_X, WOLF_SHIFT_Y);
+
+  // Дальние лапы — темнее (их закрывает тело).
+  limbChain(g, [40, 58, 34, 70, 30, ground - 1], 10, COLORS.wolfDark);
+  limbChain(g, [88, 60, 94, 72, 98, ground - 1], 10, COLORS.wolfDark);
+
+  // Хвост: пушистая дуга вверх-назад с белым кончиком.
+  outlinedBlobs(g, [26, 46, 10, 18, 38, 10, 12, 28, 9, 10, 18, 7], COLORS.wolf);
+  g.fillStyle(COLORS.wolfBelly, 1);
+  g.fillCircle(10, 16, 5);
+  g.fillStyle(COLORS.wolfDark, 1);
+  g.fillEllipse(18, 34, 10, 6);
+
+  // Тело: круги с общей обводкой, тёмная спина, блик и светлое брюхо.
+  outlinedBlobs(g, [40, 50, 17, 56, 47, 18, 72, 47, 17, 86, 51, 15, 60, 58, 13], COLORS.wolf);
+  g.fillStyle(COLORS.wolfDark, 1);
+  g.fillEllipse(60, 33, 50, 10);
+  g.fillStyle(COLORS.wolfLight, 1);
+  g.fillEllipse(54, 42, 30, 7);
+  g.fillStyle(COLORS.wolfBelly, 1);
+  g.fillEllipse(66, 64, 30, 8);
+
+  // Ближние лапы: задняя отведена назад, передняя — вперёд (бег). Светлые лапки.
+  limbChain(g, [44, 60, 38, 72, 34, ground], 11, COLORS.wolf);
+  limbChain(g, [90, 62, 100, 72, 106, ground - 1], 11, COLORS.wolf);
+  outlinedEllipse(g, 32, ground, 15, 7, COLORS.wolfBelly);
+  outlinedEllipse(g, 108, ground - 1, 15, 7, COLORS.wolfBelly);
+
+  // Пушистая светлая грудь под головой.
+  outlinedBlobs(g, [93, 54, 9, 96, 61, 7, 90, 62, 6], COLORS.wolfBelly);
+
+  // Уши: дальнее тёмное, ближнее с розовой серединкой.
+  const farEar = [96, 24, 99, 4, 109, 18];
+  fillPolygon(g, farEar, COLORS.wolfDark);
+  strokePolygon(g, farEar);
+  const ear = [104, 20, 113, 1, 119, 21];
+  fillPolygon(g, ear, COLORS.wolf);
+  fillPolygon(g, [108, 18, 113, 8, 116, 19], COLORS.rabbitEar);
+  strokePolygon(g, ear);
+
+  // Голова, светлые пушистые щёки и длинная светлая морда.
+  outlinedCircle(g, 106, 33, 16, COLORS.wolf);
+  g.fillStyle(COLORS.wolfBelly, 1);
+  g.fillEllipse(101, 41, 14, 9);
+  const muzzle = [110, 30, 127, 35, 126, 43, 108, 45];
+  fillPolygon(g, muzzle, COLORS.wolfBelly);
+  strokePolygon(g, muzzle);
+  g.fillStyle(COLORS.wolfLight, 1);
+  g.fillEllipse(102, 23, 14, 5);
+  // Нос, рот и маленький белый клык.
+  g.fillStyle(COLORS.outline, 1);
+  g.fillEllipse(126, 36, 7, 6);
+  g.lineStyle(1.5, COLORS.outline, 1);
+  g.lineBetween(113, 43, 123, 42);
+  fillPolygon(g, [116, 42.5, 119, 42.5, 117.5, 46.5], COLORS.snowLight);
+
+  // Хитрый жёлтый глаз с тёмным зрачком, бликом и сердитой бровью.
+  g.fillStyle(COLORS.wolfEye, 1);
+  g.fillEllipse(110, 31, 9, 7);
+  g.fillStyle(COLORS.outline, 1);
+  g.fillEllipse(111.5, 31.5, 4, 5);
+  g.fillStyle(COLORS.white, 1);
+  g.fillCircle(112.5, 30, 1);
+  g.lineStyle(2.5, COLORS.outline, 1);
+  g.lineBetween(103, 26, 115, 28);
+
+  g.restore();
 }
 
 // Ухо кролика: овал цвета fur с розовой серединкой inner, повёрнутый на angle (радианы).

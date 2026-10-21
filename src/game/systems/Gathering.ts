@@ -31,6 +31,11 @@ export function updateGathering(player: Player, backpack: Backpack, bushes: Reso
   const hitInterval = player.getWeapon().hitInterval;
   player.hitTimer += delta;
   if (player.hitTimer < hitInterval) return;
+  // Вождь ещё машет (например, бьёт волка) — по кусту ударит, как только закончит.
+  if (player.isSwinging()) {
+    player.hitTimer = hitInterval;
+    return;
+  }
   player.hitTimer -= hitInterval;
 
   // Удар засчитывается, когда оружие долетает до куста, а не в начале замаха.

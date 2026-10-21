@@ -87,6 +87,13 @@ export const COLORS = {
   rabbitEye: 0x35261f, // глаз
   rabbitNose: 0xe77f8f, // нос
 
+  // Волк: серо-голубой, со светлой грудью и мордой.
+  wolf: 0x7f8a9c, // шерсть
+  wolfDark: 0x5b6577, // шерсть в тени, дальние лапы, спина
+  wolfLight: 0xa7b1c1, // светлая шерсть на свету
+  wolfBelly: 0xe9edf3, // грудь, морда, кончик хвоста
+  wolfEye: 0xffd23f, // жёлтый глаз
+
   // ===== Мясо =====
   rawMeat: 0xf08b8b, // сырое мясо
   rawMeatShade: 0xd2646f, // сырое мясо в тени
