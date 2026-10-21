@@ -1,9 +1,14 @@
 import Phaser from 'phaser';
 import {
   CAMPFIRE_POSITION,
+  RABBIT_CALM_DOWN_SHARE,
+  RABBIT_CAMP_CLEAR_RADIUS,
   RABBIT_FLEE_RADIUS,
   RABBIT_FLEE_SPEED,
   RABBIT_RESPAWN_TIME,
+  RABBIT_SIT_TIME_MAX,
+  RABBIT_SIT_TIME_MIN,
+  RABBIT_WANDER_RADIUS,
   RABBIT_WANDER_SPEED,
   WORLD_EDGE,
   WORLD_HEIGHT,
@@ -12,18 +17,6 @@ import {
 import { COLORS } from '../palette';
 import { TEXTURES } from '../textures';
 import { Point, pop } from '../fx';
-
-// ===== Прогулка =====
-
-// Кролик бродит в этом радиусе вокруг своего места (пиксели).
-const WANDER_RADIUS = 160;
-// Дойдя до точки, кролик сидит и принюхивается столько мс (от и до).
-const SIT_TIME_MIN = 600;
-const SIT_TIME_MAX = 1800;
-// Убежав так далеко от вождя (доля радиуса испуга), кролик успокаивается.
-const CALM_DOWN_SHARE = 1.4;
-// Новые кролики появляются не ближе этого расстояния к костру — лагерь не их место.
-const CAMP_CLEAR_RADIUS = 320;
 
 // ===== Вид =====
 
@@ -158,7 +151,7 @@ export class Rabbit {
     const distance = Phaser.Math.Distance.Between(this.x, this.y, playerX, playerY);
     if (distance < RABBIT_FLEE_RADIUS) {
       this.state = 'flee';
-    } else if (this.state === 'flee' && distance > RABBIT_FLEE_RADIUS * CALM_DOWN_SHARE) {
+    } else if (this.state === 'flee' && distance > RABBIT_FLEE_RADIUS * RABBIT_CALM_DOWN_SHARE) {
       // Убежал далеко — успокоился и бродит уже здесь.
       this.state = 'wander';
       this.home = { x: this.x, y: this.y };
@@ -180,10 +173,10 @@ export class Rabbit {
       if (this.sitTime > 0) return false;
 
       // Насиделся — выбирает новую точку рядом с домом.
-      this.sitTime = Phaser.Math.Between(SIT_TIME_MIN, SIT_TIME_MAX);
+      this.sitTime = Phaser.Math.Between(RABBIT_SIT_TIME_MIN, RABBIT_SIT_TIME_MAX);
       this.target = clampToField({
-        x: this.home.x + Phaser.Math.Between(-WANDER_RADIUS, WANDER_RADIUS),
-        y: this.home.y + Phaser.Math.Between(-WANDER_RADIUS, WANDER_RADIUS),
+        x: this.home.x + Phaser.Math.Between(-RABBIT_WANDER_RADIUS, RABBIT_WANDER_RADIUS),
+        y: this.home.y + Phaser.Math.Between(-RABBIT_WANDER_RADIUS, RABBIT_WANDER_RADIUS),
       });
       return false;
     }
@@ -282,6 +275,6 @@ function randomFieldPoint(): Point {
       y: Phaser.Math.Between(WORLD_EDGE, WORLD_HEIGHT - WORLD_EDGE),
     };
     const toCamp = Phaser.Math.Distance.Between(point.x, point.y, CAMPFIRE_POSITION.x, CAMPFIRE_POSITION.y);
-    if (toCamp > CAMP_CLEAR_RADIUS) return point;
+    if (toCamp > RABBIT_CAMP_CLEAR_RADIUS) return point;
   }
 }
