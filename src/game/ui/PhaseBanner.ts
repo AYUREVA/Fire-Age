@@ -47,6 +47,8 @@ const SWIRL_TIME = 900;
 const SWIRL_Y = 0.45;
 const SWIRL_AMPLITUDE = 70;
 const SWIRL_WAVES = 2;
+// Вихрь начинается и кончается за краями экрана на столько пикселей.
+const SWIRL_MARGIN = 40;
 // Сколько снежинок вылетает за кадр.
 const SWIRL_PER_FRAME = 3;
 const SWIRL: Phaser.Types.GameObjects.Particles.ParticleEmitterConfig = {
@@ -113,7 +115,9 @@ export class PhaseBanner {
 
   // Каменная табличка с иконкой и «высеченной» надписью. Сначала — за верхним краем экрана.
   private createBanner(icon: string, title: string): Phaser.GameObjects.Container {
-    // Прошлая табличка ещё не уехала — убираем её сразу.
+    // Прошлая табличка ещё не уехала — убираем её сразу вместе с её твинами:
+    // иначе в конце старого твина сработал бы его onDone (ночные модификаторы утром).
+    if (this.banner) this.scene.tweens.killTweensOf(this.banner);
     this.banner?.destroy();
 
     const banner = this.scene.add.container(this.scene.scale.width / 2, BANNER_HIDDEN_Y, [
@@ -175,7 +179,7 @@ export class PhaseBanner {
       ease: 'Sine.easeInOut',
       onUpdate: (tween) => {
         const t = tween.getValue() ?? 0;
-        const x = Phaser.Math.Linear(-40, width + 40, t);
+        const x = Phaser.Math.Linear(-SWIRL_MARGIN, width + SWIRL_MARGIN, t);
         const y = height * SWIRL_Y + Math.sin(t * Math.PI * 2 * SWIRL_WAVES) * SWIRL_AMPLITUDE;
         this.swirl.emitParticleAt(x, y, SWIRL_PER_FRAME);
       },
