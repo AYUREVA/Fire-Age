@@ -5,6 +5,7 @@ import { Backpack } from '../objects/Backpack';
 import { ResourceNode } from '../objects/ResourceNode';
 import { ItemPile } from '../objects/ItemPile';
 import { Rabbit } from '../objects/Rabbit';
+import { LevelStats } from '../analytics';
 
 // =====================================================================
 //  Добыча (кусты, кролики), сдача в кучи у костра и жареное мясо на спину.
@@ -19,7 +20,14 @@ import { Rabbit } from '../objects/Rabbit';
 
 // Вождь рядом с кустом — бьёт его раз в интервал удара своего оружия
 // (дубина — HIT_INTERVAL, топор и копьё чаще), и связка хвороста летит из куста на стопку.
-export function updateGathering(player: Player, backpack: Backpack, bushes: ResourceNode[], delta: number): void {
+// stats — статистика уровня: сюда считаются добытые связки.
+export function updateGathering(
+  player: Player,
+  backpack: Backpack,
+  bushes: ResourceNode[],
+  stats: LevelStats,
+  delta: number,
+): void {
   const bush = findBushNear(player, bushes);
 
   // Рядом нет куста с хворостом или колонка хвороста полная — удары не копятся.
@@ -43,6 +51,7 @@ export function updateGathering(player: Player, backpack: Backpack, bushes: Reso
   player.swing(bush.x, hitInterval, () => {
     bush.hit();
     backpack.add('wood', bush.getLootPoint());
+    stats.woodGathered += 1;
   });
 }
 

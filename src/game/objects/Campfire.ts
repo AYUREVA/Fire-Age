@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { FIRE_MAX_HEAT, FIRE_START_HEAT } from '../settings';
+import { FIRE_MAX_HEAT, FIRE_START_HEAT, STAR_HEAT_MARK } from '../settings';
 import { COLORS } from '../palette';
 import { TEXTURES } from '../textures';
 import { flyArc, Point } from '../fx';
@@ -72,6 +72,9 @@ const HEAT_BAR_OFFSET_Y = 150;
 const HEAT_BAR_DEPTH = 9000;
 // Заливка начинается на столько пикселей левее середины шкалы.
 const HEAT_FILL_LEFT = 52;
+// Засечка второй звезды: тонкая черта поперёк шкалы, чуть выше и ниже заливки.
+const HEAT_MARK_WIDTH = 3;
+const HEAT_MARK_HEIGHT = 18;
 // Пока костёр в углях, шкала мигает: самая низкая прозрачность и время мигания.
 const HEAT_BAR_BLINK_ALPHA = 0.3;
 const HEAT_BAR_BLINK_TIME = 250;
@@ -107,6 +110,9 @@ export class Campfire {
   emberTime = 0;
   // Сколько мс прошло с прошлой связки из поленницы. Меняет systems/Fire.ts.
   feedTimer = 0;
+  // Жар хоть раз опускался ниже засечки STAR_HEAT_MARK — вторая звезда потеряна.
+  // Ставит сам костёр в update(), читает GameScene в конце уровня.
+  wasBelowMark = false;
 
   private scene: Phaser.Scene;
   // Сколько мс горит костёр — из этого считаются мерцание и пульсация.
@@ -121,6 +127,8 @@ export class Campfire {
   // Шкала жара: подложка и заливка, которая укорачивается вместе с жаром.
   private heatBarBack: Phaser.GameObjects.Image;
   private heatBarFill: Phaser.GameObjects.Image;
+  // Засечка второй звезды на шкале.
+  private heatMark: Phaser.GameObjects.Rectangle;
 
   constructor(scene: Phaser.Scene, x: number, y: number) {
     this.scene = scene;
@@ -152,6 +160,11 @@ export class Campfire {
       .image(x - HEAT_FILL_LEFT, barY, TEXTURES.heatBarFill)
       .setOrigin(0, 0.5)
       .setTint(COLORS.heatBar)
+      .setDepth(HEAT_BAR_DEPTH);
+    // Засечка стоит там, где кончается заливка при жаре STAR_HEAT_MARK.
+    const markX = x - HEAT_FILL_LEFT + (this.heatBarFill.width * STAR_HEAT_MARK) / FIRE_MAX_HEAT;
+    this.heatMark = scene.add
+      .rectangle(markX, barY, HEAT_MARK_WIDTH, HEAT_MARK_HEIGHT, COLORS.heatMark)
       .setDepth(HEAT_BAR_DEPTH);
 
     this.update(0);
@@ -200,6 +213,11 @@ export class Campfire {
     if (!isEmbers && !this.sparks.emitting) this.sparks.start();
 
     this.heatBarFill.setScale(heatShare, 1);
+    // Жар упал ниже засечки — она темнеет до конца уровня: вторая звезда потеряна.
+    if (!this.wasBelowMark && this.heat < STAR_HEAT_MARK) {
+      this.wasBelowMark = true;
+      this.heatMark.setFillStyle(COLORS.heatMarkLost);
+    }
     // В углях шкала мигает — «спаси огонь!».
     const blink = isEmbers ? wave(this.time, HEAT_BAR_BLINK_TIME) : 0;
     this.heatBarBack.setAlpha(1 - (1 - HEAT_BAR_BLINK_ALPHA) * blink);

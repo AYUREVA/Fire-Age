@@ -232,7 +232,16 @@ export class GameScene extends Phaser.Scene {
     this.weaponZone = undefined;
     this.fenceZone = undefined;
     this.mode = 'ready';
-    this.stats = { fed: 0, hungry: 0, tusksEarned: 0, playTime: 0, wolvesDriven: 0, itemsStolen: 0 };
+    this.stats = {
+      fed: 0,
+      hungry: 0,
+      tusksEarned: 0,
+      playTime: 0,
+      wolvesDriven: 0,
+      itemsStolen: 0,
+      woodGathered: 0,
+      meatCooked: 0,
+    };
 
     createTextures(this);
 
@@ -333,13 +342,13 @@ export class GameScene extends Phaser.Scene {
       delta,
     );
     updateWolfFight(this.player, this.backpack, this.wolves, this.stats);
-    updateGathering(this.player, this.backpack, this.bushes, delta);
+    updateGathering(this.player, this.backpack, this.bushes, this.stats, delta);
     updateHunting(this.player, this.backpack, this.rabbits);
     updateDropping(this.player, this.backpack, [this.woodpile, this.rawMeatPile], delta);
     updatePickup(this.player, this.backpack, this.cookedMeatPile, delta);
     const isFireOut = updateFire(this.campfire, this.woodpile, delta, phase.fireBurnMultiplier);
     this.campfire.update(delta);
-    updateCooking(this.campfire, this.rawMeatPile, this.spit, this.cookedMeatPile, delta);
+    updateCooking(this.campfire, this.rawMeatPile, this.spit, this.cookedMeatPile, this.stats, delta);
     this.spit.update(delta);
     this.nightOverlay.update(this.campfire.x, this.campfire.y, this.campfire.heat / FIRE_MAX_HEAT);
 

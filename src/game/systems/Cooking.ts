@@ -2,6 +2,7 @@ import { COOK_TIME } from '../settings';
 import { Campfire } from '../objects/Campfire';
 import { ItemPile } from '../objects/ItemPile';
 import { Spit } from '../objects/Spit';
+import { LevelStats } from '../analytics';
 
 // =====================================================================
 //  Кухня у костра: куча сырого мяса → вертел → куча жареного мяса.
@@ -13,7 +14,15 @@ import { Spit } from '../objects/Spit';
 
 // Мясо жарится по одному и только пока огонь горит (в углях — нет).
 // Готовый кусок падает в кучу жареного; если она полная — вертел ждёт.
-export function updateCooking(fire: Campfire, rawPile: ItemPile, spit: Spit, cookedPile: ItemPile, delta: number): void {
+// stats — статистика уровня: сюда считаются пожаренные куски.
+export function updateCooking(
+  fire: Campfire,
+  rawPile: ItemPile,
+  spit: Spit,
+  cookedPile: ItemPile,
+  stats: LevelStats,
+  delta: number,
+): void {
   // Огонь в углях — ничего не жарится и на вертел не кладём.
   if (fire.isEmbers()) return;
 
@@ -32,5 +41,7 @@ export function updateCooking(fire: Campfire, rawPile: ItemPile, spit: Spit, coo
   if (spit.cookTime < COOK_TIME || cookedPile.isFull()) return;
 
   const cooked = spit.takeCooked();
-  if (cooked) cookedPile.receive(cooked);
+  if (!cooked) return;
+  cookedPile.receive(cooked);
+  stats.meatCooked += 1;
 }
