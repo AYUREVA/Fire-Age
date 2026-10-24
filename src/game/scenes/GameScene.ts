@@ -49,6 +49,7 @@ import { updateWolfFight, updateWolves } from '../systems/Predators';
 import { WEAPONS } from '../data/upgrades';
 import { LEVELS, LevelData } from '../data/levels';
 import { LevelStats, PauseSource, track } from '../analytics';
+import { recordLevel } from '../save';
 import { ReadyData } from './ReadyScene';
 import { PauseData } from './PauseScene';
 import { ResultData } from './ResultScene';
@@ -504,7 +505,8 @@ export class GameScene extends Phaser.Scene {
   // Допустимые переходы (раздел 9 плана, правило 11):
   //   READY → PLAYING, PLAYING → PAUSED, PAUSED → PLAYING,
   //   PAUSED → READY, PLAYING → RESULT, RESULT → READY,
-  //   PAUSED → меню, RESULT → меню. Из меню сцена запускается в READY выбранного уровня.
+  //   PAUSED → меню, RESULT → меню, RESULT → READY следующего уровня.
+  //   Из меню сцена запускается в READY выбранного уровня.
   // Каждый переход — одна функция. Первой строкой она проверяет, можно ли
   // перейти из текущего режима; если нельзя — ничего не делает.
   // Когда игра не идёт (READY, PAUSED, RESULT), сцена стоит на паузе целиком
@@ -582,22 +584,59 @@ export class GameScene extends Phaser.Scene {
     this.scene.start('MenuScene');
   }
 
+  // RESULT → READY следующего уровня: «Дальше» на итогах. Табличка закрывается,
+  // строится следующий уровень и ждёт старта. Следующего уровня нет — ничего не делает.
+  private nextLevel(): void {
+    if (this.mode !== 'result' || this.levelIndex + 1 >= LEVELS.length) return;
+    this.mode = 'ready';
+
+    this.scene.stop('ResultScene');
+    const data: GameData = { levelIndex: this.levelIndex + 1 };
+    this.scene.restart(data);
+  }
+
   // PLAYING → RESULT: победа или поражение. Игра замирает, поверх — табличка итога.
+  // Звёзды сразу сохраняются (save.ts хранит лучший результат уровня).
   private endGame(isWin: boolean): void {
     if (this.mode !== 'playing') return;
     this.mode = 'result';
+    const stars = this.countStars(isWin);
+    recordLevel(this.levelIndex, stars);
     track({
       name: 'levelEnd',
       level: this.levelIndex + 1,
       isWin,
       reason: isWin ? 'dawn' : 'fireOut',
       day: this.cycle.dayNumber,
+      stars,
       ...this.stats,
     });
 
     this.scene.pause();
-    const data: ResultData = { isWin, onRestart: () => this.restart() };
+    const hasNext = isWin && this.levelIndex + 1 < LEVELS.length;
+    const data: ResultData = {
+      isWin,
+      stars,
+      stats: this.stats,
+      // Пережиты все сутки уровня — или те, что успели закончиться до поражения.
+      days: isWin ? this.level.dayCount : this.cycle.dayNumber - 1,
+      hasWolves: this.level.wolves !== undefined,
+      onRestart: () => this.restart(),
+      onMenu: () => this.quitToMenu(),
+      onNext: hasNext ? () => this.nextLevel() : undefined,
+    };
     this.scene.launch('ResultScene', data);
+  }
+
+  // Сколько звёзд за уровень (раздел 5 плана). Проиграл — ни одной. Победа — звезда,
+  // ещё одна, если жар ни разу не падал ниже засечки, и ещё одна, если накормлено
+  // не меньше starFed путников (порог из данных уровня). Условия независимы.
+  private countStars(isWin: boolean): number {
+    if (!isWin) return 0;
+    let stars = 1;
+    if (!this.campfire.wasBelowMark) stars += 1;
+    if (this.stats.fed >= this.level.starFed) stars += 1;
+    return stars;
   }
 
   // ===== Мир =====

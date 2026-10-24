@@ -18,6 +18,7 @@ const BUTTONS_Y = 62;
 // На большой табличке (меню, итоги) заголовок наверху, кнопки внизу,
 // а между ними место для того, что кладёт сцена (add()).
 const LARGE_TITLE_Y = -200;
+const LARGE_SUBTITLE_Y = -146;
 const LARGE_BUTTONS_Y = 212;
 // Расстояние между серединами соседних кнопок.
 const BUTTON_STEP = 228;
@@ -137,7 +138,7 @@ export class StoneTablet {
     const isLarge = content.isLarge === true;
     this.container.add(scene.add.image(0, 0, isLarge ? TEXTURES.stoneTabletLarge : TEXTURES.stoneTablet));
     this.container.add(addCarvedTitle(scene, 0, isLarge ? LARGE_TITLE_Y : TITLE_Y, content.title, TITLE_FONT_SIZE));
-    if (content.subtitle) this.addSubtitle(content.subtitle);
+    if (content.subtitle) this.addSubtitle(content.subtitle, isLarge ? LARGE_SUBTITLE_Y : SUBTITLE_Y);
     const isThree = content.buttons.length >= 3;
     const step = isThree ? THREE_BUTTONS_STEP : BUTTON_STEP;
     const scale = isThree ? THREE_BUTTONS_SCALE : 1;
@@ -200,9 +201,9 @@ export class StoneTablet {
   // ===== Надписи =====
 
   // Строка под заголовком — обычным шрифтом, светлая.
-  private addSubtitle(text: string): void {
+  private addSubtitle(text: string, y: number): void {
     const subtitle = this.scene.add
-      .text(0, SUBTITLE_Y, text, {
+      .text(0, y, text, {
         fontFamily: FONT_FAMILY,
         fontSize: '24px',
         fontStyle: 'bold',

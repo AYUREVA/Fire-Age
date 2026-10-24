@@ -35,7 +35,8 @@ export type AnalyticsEvent =
   | { name: 'quitToMenu'; from: 'pause' | 'result' } // «В меню»: из паузы или с итогов
   | { name: 'nightStart'; day: number } // наступила ночь номер day: игрок дожил до метели
   // Конец уровня (PLAYING → RESULT): номер уровня, победа или поражение, причина, номер суток и статистика.
-  | ({ name: 'levelEnd'; level: number; isWin: boolean; reason: 'dawn' | 'fireOut'; day: number } & LevelStats)
+  // stars — сколько звёзд получено (0–3).
+  | ({ name: 'levelEnd'; level: number; isWin: boolean; reason: 'dawn' | 'fireOut'; day: number; stars: number } & LevelStats)
   // Игрок закрыл вкладку во время игры или паузы: сколько мс успел поиграть.
   | { name: 'tabClosed'; playTime: number };
 
