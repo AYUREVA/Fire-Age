@@ -23,6 +23,7 @@ import {
   STACK_CAPACITY,
 } from '../settings';
 import { TEXTURES, createTextures, loadFonts } from '../textures';
+import { createSounds } from '../sounds';
 import { Player } from '../objects/Player';
 import { Backpack } from '../objects/Backpack';
 import { ResourceNode } from '../objects/ResourceNode';
@@ -253,6 +254,9 @@ export class GameScene extends Phaser.Scene {
     };
 
     createTextures(this);
+    createSounds(this);
+    // Уровень выключается («Заново», «Дальше», «В меню») — его звуки замолкают.
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.sound.stopAll());
 
     // Одинаковый seed — одинаковый декор при каждом запуске.
     const rng = new Phaser.Math.RandomDataGenerator([DECOR_SEED]);
@@ -549,6 +553,8 @@ export class GameScene extends Phaser.Scene {
   // Вызывается сразу после create(): при первом запуске и после «Заново».
   private showReady(): void {
     this.scene.pause();
+    // Пока игра стоит, стоят и звуки (треск костра, ветер).
+    this.sound.pauseAll();
     const data: ReadyData = { title: this.level.name, onStart: () => this.startPlaying() };
     this.scene.launch('ReadyScene', data);
   }
@@ -561,6 +567,7 @@ export class GameScene extends Phaser.Scene {
 
     this.scene.stop('ReadyScene');
     this.scene.resume();
+    this.sound.resumeAll();
   }
 
   // PLAYING → PAUSED: игра замирает, поверх — табличка «ПАУЗА».
@@ -571,6 +578,7 @@ export class GameScene extends Phaser.Scene {
     track({ name: 'pause', source });
 
     this.scene.pause();
+    this.sound.pauseAll();
     const data: PauseData = {
       onResume: () => this.resumeGame(),
       onRestart: () => this.restart(),
@@ -587,6 +595,7 @@ export class GameScene extends Phaser.Scene {
 
     this.scene.stop('PauseScene');
     this.scene.resume();
+    this.sound.resumeAll();
   }
 
   // PAUSED → READY и RESULT → READY: «Заново». Табличка паузы или итога
@@ -646,6 +655,7 @@ export class GameScene extends Phaser.Scene {
     });
 
     this.scene.pause();
+    this.sound.pauseAll();
     const hasNext = isWin && this.levelIndex + 1 < LEVELS.length;
     const data: ResultData = {
       isWin,

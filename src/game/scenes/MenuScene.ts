@@ -6,6 +6,7 @@ import { buyMetaUpgrade, getProgress, getTotalStars, getAvailableStars, isLevelO
 import { META_UPGRADES, MetaUpgrade } from '../data/metaUpgrades';
 import { StoneTablet } from '../ui/StoneTablet';
 import { pop, shake } from '../fx';
+import { createSounds, toggleMute } from '../sounds';
 import { GameData } from './GameScene';
 
 // ===== Раскладка карты (от середины большой таблички, пиксели) =====
@@ -39,6 +40,9 @@ const TOTAL_STAR_SHIFT = 14;
 // Закрытый уровень или эпоха при нажатии качается: угол (градусы) и время (мс).
 const LOCKED_SHAKE_ANGLE = 8;
 const LOCKED_SHAKE_TIME = 400;
+
+// Кнопка звука — в правом верхнем углу экрана, с таким отступом от краёв.
+const SOUND_BUTTON_MARGIN = 16;
 
 // ===== Раскладка таблички «Улучшения» =====
 
@@ -101,6 +105,8 @@ export class MenuScene extends Phaser.Scene {
   private tablet!: StoneTablet;
   // Снежная земля на весь экран под табличкой.
   private background!: Phaser.GameObjects.TileSprite;
+  // Кнопка звука в правом верхнем углу (как в игре).
+  private soundButton!: Phaser.GameObjects.Image;
   // Уровень уже выбран, табличка закрывается — повторные нажатия не считаем.
   private isClosing = false;
   // Какую табличку показать: карту или улучшения.
@@ -130,12 +136,16 @@ export class MenuScene extends Phaser.Scene {
     this.availableText = undefined;
     // Картинки общие для всей игры: если меню открылось первым, рисуем их здесь.
     createTextures(this);
+    createSounds(this);
 
     this.background = this.add.tileSprite(0, 0, this.scale.width, this.scale.height, TEXTURES.snowTile).setOrigin(0, 0);
     this.scale.on(Phaser.Scale.Events.RESIZE, this.layout, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off(Phaser.Scale.Events.RESIZE, this.layout, this);
     });
+
+    this.addSoundButton();
+    this.layout();
 
     if (this.view === 'upgrades') {
       this.showUpgrades();
@@ -168,9 +178,29 @@ export class MenuScene extends Phaser.Scene {
     this.tablet.close(() => this.scene.restart(data));
   }
 
-  // Экран поменял размер — снег снова на весь экран (табличку переставляет она сама).
+  // Экран поменял размер — снег снова на весь экран, кнопка звука — в правом верхнем углу
+  // (табличку переставляет она сама).
   private layout(): void {
     this.background.setSize(this.scale.width, this.scale.height);
+    this.soundButton.setPosition(
+      this.scale.width - SOUND_BUTTON_MARGIN - this.soundButton.width / 2,
+      SOUND_BUTTON_MARGIN + this.soundButton.height / 2,
+    );
+  }
+
+  // Кнопка звука: выключить или включить звук во всей игре (запоминается в сохранении).
+  // Она поверх затемнения таблички — её можно нажать, пока открыта карта.
+  private addSoundButton(): void {
+    const button = this.add
+      .image(0, 0, getProgress().isMuted ? TEXTURES.soundOffButton : TEXTURES.soundOnButton)
+      .setDepth(1)
+      .setInteractive({ useHandCursor: true });
+    button.on('pointerdown', () => {
+      const isMuted = toggleMute(this);
+      button.setTexture(isMuted ? TEXTURES.soundOffButton : TEXTURES.soundOnButton);
+      pop(this, button);
+    });
+    this.soundButton = button;
   }
 
   // ===== Эпохи =====

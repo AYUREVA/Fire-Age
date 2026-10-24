@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { SOUNDS, SOUND_VOLUMES, playSound } from '../sounds';
 import { COLORS, toCss } from '../palette';
 import { FONT_FAMILY } from '../textures';
 import { flyArc, pop, Point } from '../fx';
@@ -186,6 +187,7 @@ export class CarryStack {
   private land(item: Phaser.GameObjects.Image): void {
     this.flyingItems.delete(item);
     pop(this.scene, item);
+    playSound(this.scene, SOUNDS.pickup, SOUND_VOLUMES.pickup);
   }
 
   // Пружина наклона: верх стопки отстаёт от вождя и покачивается после остановки.

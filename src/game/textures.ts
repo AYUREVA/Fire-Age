@@ -93,6 +93,8 @@ export const TEXTURES = {
   stoneBanner: 'stone-banner', // широкая низкая табличка: уведомление о смене дня и ночи
   stoneButton: 'stone-button', // каменная кнопка на табличке
   pauseButton: 'pause-button', // круглая каменная кнопка паузы в углу экрана
+  soundOnButton: 'sound-on-button', // круглая каменная кнопка звука: динамик со звуковыми волнами
+  soundOffButton: 'sound-off-button', // та же кнопка, звук выключен: динамик перечёркнут
 } as const;
 
 // Шрифт всех надписей. Это тоже «ассет»: свой шрифт подключается здесь.
@@ -285,6 +287,8 @@ export function createTextures(scene: Phaser.Scene): void {
   bake(scene, TEXTURES.stoneBanner, STONE_BANNER_SIZE, (g) => drawStoneSlab(g, STONE_BANNER_SIZE));
   bake(scene, TEXTURES.stoneButton, STONE_BUTTON_SIZE, drawStoneButton);
   bake(scene, TEXTURES.pauseButton, PAUSE_BUTTON_SIZE, drawPauseButton);
+  bake(scene, TEXTURES.soundOnButton, PAUSE_BUTTON_SIZE, (g) => drawSoundButton(g, true));
+  bake(scene, TEXTURES.soundOffButton, PAUSE_BUTTON_SIZE, (g) => drawSoundButton(g, false));
   bake(scene, TEXTURES.stoneTabletLarge, STONE_TABLET_LARGE_SIZE, (g) => drawStoneSlab(g, STONE_TABLET_LARGE_SIZE));
   bake(scene, TEXTURES.roundStone, ROUND_STONE_SIZE, drawRoundStone);
   bake(scene, TEXTURES.lock, LOCK_SIZE, drawLock);
@@ -2645,6 +2649,52 @@ function drawTutorialArrow(g: Graphics): void {
   fillPolygon(g, arrow, COLORS.titleAmber);
   fillPolygon(g, [cx - 5, 8, cx - 1, 8, cx - 1, 30, cx - 5, 30], COLORS.titleHighlight);
   strokePolygon(g, arrow);
+}
+
+// Кнопка звука: такой же круглый камень, как кнопка паузы, на нём динамик.
+// isOn — звук включён (рядом волны) или выключен (динамик перечёркнут).
+function drawSoundButton(g: Graphics, isOn: boolean): void {
+  const { w } = PAUSE_BUTTON_SIZE;
+  const cx = w / 2;
+  const radius = cx - OUTLINE_WIDTH;
+  const lip = 4;
+
+  // Торец снизу и лицевая сторона.
+  outlinedCircle(g, cx, cx + lip / 2, radius - lip / 2, COLORS.tabletDark);
+  g.fillStyle(COLORS.tablet, 1);
+  g.fillCircle(cx, cx - lip / 2, radius - lip);
+
+  // Динамик: коробочка и раструб.
+  const speaker = [cx - 15, cx - 8, cx - 8, cx - 8, cx + 1, cx - 15, cx + 1, cx + 11, cx - 8, cx + 4, cx - 15, cx + 4];
+  fillPolygon(g, speaker, COLORS.hudText);
+  strokePolygon(g, speaker);
+
+  if (isOn) {
+    // Две звуковые волны справа от динамика: тёмная обводка, поверх светлая дуга.
+    for (const [width, color] of [
+      [6, COLORS.outline],
+      [3, COLORS.hudText],
+    ]) {
+      g.lineStyle(width, color, 1);
+      g.beginPath();
+      g.arc(cx + 2, cx - 2, 8, -0.8, 0.8);
+      g.strokePath();
+      g.beginPath();
+      g.arc(cx + 2, cx - 2, 14, -0.8, 0.8);
+      g.strokePath();
+    }
+    return;
+  }
+
+  // Звук выключен: красный крестик справа от динамика.
+  for (const [width, color] of [
+    [7, COLORS.outline],
+    [4, COLORS.maxText],
+  ]) {
+    g.lineStyle(width, color, 1);
+    g.lineBetween(cx + 6, cx - 9, cx + 17, cx + 4);
+    g.lineBetween(cx + 17, cx - 9, cx + 6, cx + 4);
+  }
 }
 
 // ===== Помощники рисования =====

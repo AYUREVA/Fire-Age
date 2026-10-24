@@ -3,6 +3,7 @@ import { FIRE_MAX_HEAT, FIRE_START_HEAT, STAR_HEAT_MARK } from '../settings';
 import { COLORS } from '../palette';
 import { TEXTURES } from '../textures';
 import { flyArc, Point } from '../fx';
+import { LoopSound, SOUNDS, SOUND_VOLUMES, addLoop } from '../sounds';
 
 // ===== Костёр =====
 
@@ -62,6 +63,12 @@ const EMBER_GLOW_SIZE = 0.3;
 const EMBER_PULSE_TIME = 600;
 const EMBER_MIN_ALPHA = 0.25;
 const EMBER_MAX_ALPHA = 0.7;
+
+// ===== Треск =====
+
+// Громкость треска — доля от SOUND_VOLUMES.crackle: при слабом огне и в углях тише.
+const CRACKLE_MIN_SHARE = 0.4;
+const CRACKLE_EMBER_SHARE = 0.2;
 
 // ===== Шкала жара =====
 
@@ -129,6 +136,8 @@ export class Campfire {
   private heatBarFill: Phaser.GameObjects.Image;
   // Засечка второй звезды на шкале.
   private heatMark: Phaser.GameObjects.Rectangle;
+  // Треск костра: звучит по кругу всё время (нет Web Audio — undefined).
+  private crackle?: LoopSound;
 
   constructor(scene: Phaser.Scene, x: number, y: number) {
     this.scene = scene;
@@ -166,6 +175,10 @@ export class Campfire {
     this.heatMark = scene.add
       .rectangle(markX, barY, HEAT_MARK_WIDTH, HEAT_MARK_HEIGHT, COLORS.heatMark)
       .setDepth(HEAT_BAR_DEPTH);
+
+    // Треск звучит с самого начала. Пока игра стоит (старт, пауза, итоги), GameScene ставит звуки на паузу.
+    this.crackle = addLoop(scene, SOUNDS.crackle, SOUND_VOLUMES.crackle);
+    this.crackle?.play();
 
     this.update(0);
   }
@@ -213,6 +226,9 @@ export class Campfire {
     if (!isEmbers && !this.sparks.emitting) this.sparks.start();
 
     this.heatBarFill.setScale(heatShare, 1);
+    // Чем меньше жара, тем тише треск; в углях — едва слышно.
+    const crackleShare = isEmbers ? CRACKLE_EMBER_SHARE : Phaser.Math.Linear(CRACKLE_MIN_SHARE, 1, heatShare);
+    this.crackle?.setVolume(SOUND_VOLUMES.crackle * crackleShare);
     // Жар упал ниже засечки — она темнеет до конца уровня: вторая звезда потеряна.
     if (!this.wasBelowMark && this.heat < STAR_HEAT_MARK) {
       this.wasBelowMark = true;

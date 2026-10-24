@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { SOUNDS, SOUND_VOLUMES, playSound } from '../sounds';
 import {
   WOLF_CARRY_SPEED,
   WOLF_FLEE_SPEED,
@@ -192,6 +193,8 @@ export class Wolf {
     this.huntTime = 0;
     this.setVisible(true);
     this.place();
+    // Волк выходит из леса — слышен вой.
+    playSound(this.scene, SOUNDS.howl, SOUND_VOLUMES.howl);
   }
 
   // Схватить добычу: она летит со спины вождя в пасть, волк убегает в лес.

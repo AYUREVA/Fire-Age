@@ -4,6 +4,7 @@ import { FONT_FAMILY, TEXTURES } from '../textures';
 import { LevelStats } from '../analytics';
 import { StoneTablet, TabletButton } from '../ui/StoneTablet';
 import { pop } from '../fx';
+import { SOUNDS, SOUND_VOLUMES, playSound } from '../sounds';
 
 // Надписи на табличке (раздел 5 плана).
 const WIN_TITLE = 'РАССВЕТ!';
@@ -114,7 +115,11 @@ export class ResultScene extends Phaser.Scene {
         delay: STAR_FIRST_DELAY + i * STAR_STAMP_STEP,
         duration: STAR_STAMP_TIME,
         ease: 'Quad.easeIn',
-        onComplete: () => pop(this, star, STAR_SCALE),
+        // Звезда впечаталась: «пружинка» и звон.
+        onComplete: () => {
+          pop(this, star, STAR_SCALE);
+          playSound(this, SOUNDS.star, SOUND_VOLUMES.star);
+        },
       });
     }
   }
