@@ -89,6 +89,7 @@ export const TEXTURES = {
   epochSteam: 'epoch-steam', // эпоха пара: паровоз
   epochPolar: 'epoch-polar', // полярная станция: домик с антенной
   epochFuture: 'epoch-future', // будущее: купол колонии
+  tutorialArrow: 'tutorial-arrow', // стрелка обучения: смотрит вниз, на цель
   stoneBanner: 'stone-banner', // широкая низкая табличка: уведомление о смене дня и ночи
   stoneButton: 'stone-button', // каменная кнопка на табличке
   pauseButton: 'pause-button', // круглая каменная кнопка паузы в углу экрана
@@ -177,6 +178,7 @@ const ROUND_STONE_SIZE: Size = { w: 84, h: 84 };
 const LOCK_SIZE: Size = { w: 30, h: 36 };
 const STAR_SIZE: Size = { w: 36, h: 36 };
 const EPOCH_ICON_SIZE: Size = { w: 64, h: 64 };
+const TUTORIAL_ARROW_SIZE: Size = { w: 48, h: 56 };
 const STONE_BANNER_SIZE: Size = { w: 520, h: 170 };
 const STONE_BUTTON_SIZE: Size = { w: 210, h: 66 };
 const PAUSE_BUTTON_SIZE: Size = { w: 60, h: 60 };
@@ -293,6 +295,7 @@ export function createTextures(scene: Phaser.Scene): void {
   bake(scene, TEXTURES.epochSteam, EPOCH_ICON_SIZE, drawEpochSteam);
   bake(scene, TEXTURES.epochPolar, EPOCH_ICON_SIZE, drawEpochPolar);
   bake(scene, TEXTURES.epochFuture, EPOCH_ICON_SIZE, drawEpochFuture);
+  bake(scene, TEXTURES.tutorialArrow, TUTORIAL_ARROW_SIZE, drawTutorialArrow);
 }
 
 // Рисует картинку на временном Graphics и сохраняет её как текстуру под ключом key.
@@ -2630,6 +2633,18 @@ function drawEpochFuture(g: Graphics): void {
   g.fillCircle(20, 51, 2);
   g.fillCircle(32, 51, 2);
   g.fillCircle(44, 51, 2);
+}
+
+// ===== Обучение =====
+
+// Стрелка обучения: толстая янтарная стрелка остриём вниз, со светлым бликом.
+function drawTutorialArrow(g: Graphics): void {
+  const { w, h } = TUTORIAL_ARROW_SIZE;
+  const cx = w / 2;
+  const arrow = [cx - 9, 4, cx + 9, 4, cx + 9, 26, w - 4, 26, cx, h - 4, 4, 26, cx - 9, 26];
+  fillPolygon(g, arrow, COLORS.titleAmber);
+  fillPolygon(g, [cx - 5, 8, cx - 1, 8, cx - 1, 30, cx - 5, 30], COLORS.titleHighlight);
+  strokePolygon(g, arrow);
 }
 
 // ===== Помощники рисования =====

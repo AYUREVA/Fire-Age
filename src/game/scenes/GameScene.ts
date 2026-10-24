@@ -41,6 +41,8 @@ import { Hud } from '../objects/Hud';
 import { CycleEvent, DayNightCycle } from '../objects/DayNightCycle';
 import { NightOverlay } from '../objects/NightOverlay';
 import { PhaseBanner } from '../ui/PhaseBanner';
+import { TutorialHint } from '../ui/TutorialHint';
+import { updateTutorial } from '../systems/Tutorial';
 import { updateDropping, updateGathering, updateHunting, updatePickup } from '../systems/Gathering';
 import { updateCooking } from '../systems/Cooking';
 import { updateTable, updateTravelers, updateTusks } from '../systems/Serving';
@@ -201,6 +203,8 @@ export class GameScene extends Phaser.Scene {
   private nightOverlay!: NightOverlay;
   // Уведомление о смене дня и ночи: табличка сверху экрана.
   private phaseBanner!: PhaseBanner;
+  // Обучение стрелками-подсказками — только на уровне с обучением (иначе undefined).
+  private tutorial?: TutorialHint;
   // Режим игры. Меняют его только функции переходов (раздел «Режим игры» ниже).
   private mode: GameMode = 'ready';
   // Во сколько раз вождь быстрее благодаря мета-улучшению «Быстрые ноги» (1 — не куплено).
@@ -303,6 +307,7 @@ export class GameScene extends Phaser.Scene {
     this.createSnowfall();
     this.nightOverlay = new NightOverlay(this);
     this.phaseBanner = new PhaseBanner(this);
+    this.tutorial = this.level.hasTutorial ? new TutorialHint(this) : undefined;
     this.setupPause();
 
     // Мир построен — игра в режиме READY: ждём касания, клика или клавиши.
@@ -371,6 +376,24 @@ export class GameScene extends Phaser.Scene {
     updateTusks(this.player, this.table, this.hud, this.stats, this.cameras.main);
     const purchase = updatePurchases(this.player, this.buyZones, this.hud, this.cameras.main, delta);
     if (purchase) this.onPurchase(purchase);
+
+    if (this.tutorial) {
+      updateTutorial(
+        this.tutorial,
+        {
+          player: this.player,
+          backpack: this.backpack,
+          bushes: this.bushes,
+          rabbits: this.rabbits,
+          woodpile: this.woodpile,
+          rawMeatPile: this.rawMeatPile,
+          cookedMeatPile: this.cookedMeatPile,
+          table: this.table,
+          stats: this.stats,
+        },
+        delta,
+      );
+    }
 
     const cycleEvent = this.cycle.update(delta);
     this.hud.setTimeLeft(this.cycle.timeLeft);
