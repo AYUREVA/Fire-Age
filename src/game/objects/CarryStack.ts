@@ -1,5 +1,4 @@
 import Phaser from 'phaser';
-import { STACK_CAPACITY } from '../settings';
 import { COLORS, toCss } from '../palette';
 import { FONT_FAMILY } from '../textures';
 import { flyArc, pop, Point } from '../fx';
@@ -62,7 +61,7 @@ const MAX_LABEL_DEPTH = 10500;
  * - takeTop()  — отдать верхний предмет (например, куче у костра);
  * - isEmpty() / isFull() — пустая ли стопка / полная ли;
  * - update()   — каждый кадр разложить предметы над спиной, качнуть их
- *                и показать «МАКС», если стопка полная (STACK_CAPACITY).
+ *                и показать «МАКС», если стопка полная (capacity).
  *
  * Про вождя стопка ничего не знает: рюкзак каждый кадр сообщает ей
  * точку на спине, скорость вождя и глубину.
@@ -71,6 +70,8 @@ export class CarryStack {
   private scene: Phaser.Scene;
   // Картинка ресурса этой стопки.
   private texture: string;
+  // Сколько предметов помещается в стопку: STACK_CAPACITY и прибавка мета-улучшения.
+  private capacity: number;
   // Связки в стопке. [0] — нижняя, последняя — верхняя.
   private items: Phaser.GameObjects.Image[] = [];
   // Связки, которые ещё летят на своё место. Их двигает полёт, а не раскладка.
@@ -91,10 +92,12 @@ export class CarryStack {
   // Надпись «МАКС» над полной стопкой.
   private maxLabel: Phaser.GameObjects.Text;
 
-  // texture — картинка ресурса этой стопки (у каждого типа своя стопка).
-  constructor(scene: Phaser.Scene, texture: string) {
+  // texture — картинка ресурса этой стопки (у каждого типа своя стопка),
+  // capacity — сколько предметов в неё помещается.
+  constructor(scene: Phaser.Scene, texture: string, capacity: number) {
     this.scene = scene;
     this.texture = texture;
+    this.capacity = capacity;
 
     this.maxLabel = scene.add
       .text(0, 0, 'МАКС', {
@@ -123,7 +126,7 @@ export class CarryStack {
 
   // Стопка полная: больше предметов не взять.
   isFull(): boolean {
-    return this.items.length >= STACK_CAPACITY;
+    return this.items.length >= this.capacity;
   }
 
   // В стопке нет ни одной связки.
@@ -216,7 +219,7 @@ export class CarryStack {
   // Где должна стоять связка номер index (0 — нижняя). Возвращает точку низа связки.
   private getSlotPosition(index: number): Point {
     // Высота ячейки как доля: 0 у нижней связки, 1 у самой верхней возможной.
-    const height = index / Math.max(1, STACK_CAPACITY - 1);
+    const height = index / Math.max(1, this.capacity - 1);
 
     // Наклон растёт как квадрат высоты: низ почти не сдвигается,
     // верх сдвигается сильнее всего — стопка гнётся дугой, как удочка.
@@ -239,7 +242,7 @@ export class CarryStack {
     if (!isFull) return;
 
     // Ячейка над самым верхним предметом — там и ставим надпись.
-    const top = this.getSlotPosition(STACK_CAPACITY);
+    const top = this.getSlotPosition(this.capacity);
     this.maxLabel.setPosition(top.x, top.y - MAX_LABEL_GAP);
   }
 }

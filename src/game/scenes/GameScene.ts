@@ -20,6 +20,7 @@ import {
   COOKED_MEAT_PILE_CAPACITY,
   PHASES,
   FIRE_MAX_HEAT,
+  STACK_CAPACITY,
 } from '../settings';
 import { TEXTURES, createTextures, loadFonts } from '../textures';
 import { Player } from '../objects/Player';
@@ -49,7 +50,8 @@ import { updateWolfFight, updateWolves } from '../systems/Predators';
 import { WEAPONS } from '../data/upgrades';
 import { LEVELS, LevelData } from '../data/levels';
 import { LevelStats, PauseSource, track } from '../analytics';
-import { recordLevel } from '../save';
+import { getProgress, recordLevel } from '../save';
+import { metaBonus } from '../data/metaUpgrades';
 import { ReadyData } from './ReadyScene';
 import { PauseData } from './PauseScene';
 import { ResultData } from './ResultScene';
@@ -201,6 +203,8 @@ export class GameScene extends Phaser.Scene {
   private phaseBanner!: PhaseBanner;
   // Режим игры. Меняют его только функции переходов (раздел «Режим игры» ниже).
   private mode: GameMode = 'ready';
+  // Во сколько раз вождь быстрее благодаря мета-улучшению «Быстрые ноги» (1 — не куплено).
+  private speedBonus = 1;
   // Статистика уровня: накормлено, ушло голодными, клыки, время игры, волки.
   // Меняют системы, аналитика читает её в переходах (analytics.ts).
   private stats!: LevelStats;
@@ -283,8 +287,14 @@ export class GameScene extends Phaser.Scene {
 
     this.createBuyZones();
 
+    // Мета-улучшения за звёзды (save.ts хранит, сколько раз куплено, metaUpgrades.ts — что дают):
+    // скорость вождя, вместимость колонок за спиной, стартовый хворост в поленнице.
+    const meta = getProgress().meta;
+    this.speedBonus = 1 + metaBonus('speed', meta.speed);
+    this.woodpile.fill(metaBonus('startWood', meta.startWood));
+
     this.player = new Player(this, PLAYER_START.x, PLAYER_START.y);
-    this.backpack = new Backpack(this);
+    this.backpack = new Backpack(this, STACK_CAPACITY + metaBonus('capacity', meta.capacity));
     this.cycle = new DayNightCycle(this.level.dayCount);
     this.hud = new Hud(this, () => this.pauseGame('button'));
     this.hud.setTimeLeft(this.cycle.timeLeft);
@@ -312,7 +322,7 @@ export class GameScene extends Phaser.Scene {
     // здесь копится чистое время игры.
     this.stats.playTime += delta;
 
-    this.player.update(delta, phase.playerSpeedMultiplier, this.canWalk);
+    this.player.update(delta, phase.playerSpeedMultiplier * this.speedBonus, this.canWalk);
     // Калитка, к которой подошёл вождь, распахивается.
     this.fence.update(delta, this.player.x, this.player.y);
     // Рюкзаку сообщаем, где спина вождя, как быстро он идёт, его глубину и куда он смотрит.
