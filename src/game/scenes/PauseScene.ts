@@ -2,18 +2,17 @@ import Phaser from 'phaser';
 import { StoneTablet } from '../ui/StoneTablet';
 
 // С какими данными GameScene запускает эту сцену — её переходы:
-// onResume — PAUSED → PLAYING, onRestart — PAUSED → READY.
-export type PauseData = { onResume: () => void; onRestart: () => void };
+// onResume — PAUSED → PLAYING, onRestart — PAUSED → READY, onMenu — PAUSED → меню.
+export type PauseData = { onResume: () => void; onRestart: () => void; onMenu: () => void };
 
 /**
- * Пауза: табличка «ПАУЗА» с кнопками «Продолжить» и «Заново».
+ * Пауза: табличка «ПАУЗА» с кнопками «Продолжить», «Заново» и «В меню».
  *
  * GameScene ставит себя на паузу и запускает эту сцену поверх.
  * На паузе в GameScene стоит всё: вождь, жар, таймер, твины и частицы.
  * «Продолжить» (или P / Esc) — табличка закрывается, и игра идёт дальше
- * с того же места. «Заново» — игра создаётся с нуля.
+ * с того же места. «Заново» — уровень создаётся с нуля. «В меню» — выход на карту уровней.
  * Режим игры эта сцена не хранит и не меняет: она только зовёт переходы GameScene.
- * Кнопка «В меню» появится в 0.7 вместе с меню.
  */
 export class PauseScene extends Phaser.Scene {
   // Табличка «ПАУЗА».
@@ -34,6 +33,7 @@ export class PauseScene extends Phaser.Scene {
       buttons: [
         { label: 'Продолжить', onClick: () => this.resumeGame(data.onResume) },
         { label: 'Заново', onClick: data.onRestart },
+        { label: 'В меню', onClick: data.onMenu },
       ],
     });
 

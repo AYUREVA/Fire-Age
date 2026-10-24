@@ -503,7 +503,8 @@ export class GameScene extends Phaser.Scene {
   //
   // Допустимые переходы (раздел 9 плана, правило 11):
   //   READY → PLAYING, PLAYING → PAUSED, PAUSED → PLAYING,
-  //   PAUSED → READY, PLAYING → RESULT, RESULT → READY.
+  //   PAUSED → READY, PLAYING → RESULT, RESULT → READY,
+  //   PAUSED → меню, RESULT → меню. Из меню сцена запускается в READY выбранного уровня.
   // Каждый переход — одна функция. Первой строкой она проверяет, можно ли
   // перейти из текущего режима; если нельзя — ничего не делает.
   // Когда игра не идёт (READY, PAUSED, RESULT), сцена стоит на паузе целиком
@@ -513,7 +514,7 @@ export class GameScene extends Phaser.Scene {
   // Вызывается сразу после create(): при первом запуске и после «Заново».
   private showReady(): void {
     this.scene.pause();
-    const data: ReadyData = { onStart: () => this.startPlaying() };
+    const data: ReadyData = { title: this.level.name, onStart: () => this.startPlaying() };
     this.scene.launch('ReadyScene', data);
   }
 
@@ -535,7 +536,11 @@ export class GameScene extends Phaser.Scene {
     track({ name: 'pause', source });
 
     this.scene.pause();
-    const data: PauseData = { onResume: () => this.resumeGame(), onRestart: () => this.restart() };
+    const data: PauseData = {
+      onResume: () => this.resumeGame(),
+      onRestart: () => this.restart(),
+      onMenu: () => this.quitToMenu(),
+    };
     this.scene.launch('PauseScene', data);
   }
 
@@ -562,6 +567,19 @@ export class GameScene extends Phaser.Scene {
     this.scene.stop(tabletScene);
     const data: GameData = { levelIndex: this.levelIndex };
     this.scene.restart(data);
+  }
+
+  // PAUSED → меню и RESULT → меню: «В меню». Табличка закрывается, уровень
+  // выключается, открывается карта уровней (MenuScene).
+  // Режим меняем сразу: второе нажатие в том же кадре уже ничего не сделает.
+  private quitToMenu(): void {
+    if (this.mode !== 'paused' && this.mode !== 'result') return;
+    const isFromPause = this.mode === 'paused';
+    this.mode = 'ready';
+    track({ name: 'quitToMenu', from: isFromPause ? 'pause' : 'result' });
+
+    this.scene.stop(isFromPause ? 'PauseScene' : 'ResultScene');
+    this.scene.start('MenuScene');
   }
 
   // PLAYING → RESULT: победа или поражение. Игра замирает, поверх — табличка итога.

@@ -15,8 +15,15 @@ const OVERLAY_FADE_TIME = 250;
 const TITLE_Y = -60;
 const SUBTITLE_Y = -2;
 const BUTTONS_Y = 62;
+// На большой табличке (меню, итоги) заголовок наверху, кнопки внизу,
+// а между ними место для того, что кладёт сцена (add()).
+const LARGE_TITLE_Y = -200;
+const LARGE_BUTTONS_Y = 212;
 // Расстояние между серединами соседних кнопок.
 const BUTTON_STEP = 228;
+// Три кнопки в ряд не помещаются на табличку — они меньше и стоят теснее.
+const THREE_BUTTONS_STEP = 186;
+const THREE_BUTTONS_SCALE = 0.82;
 // Блик над заголовком и тень под ним сдвинуты на столько пикселей.
 const TITLE_HIGHLIGHT_SHIFT = 2;
 const TITLE_SHADOW_SHIFT = 4;
@@ -53,7 +60,8 @@ export type TabletButton = { label: string; onClick: () => void };
 export type TabletContent = {
   title: string; // крупный «высеченный» заголовок
   subtitle?: string; // строка под заголовком (может не быть)
-  buttons: TabletButton[]; // кнопки в ряд внизу
+  buttons: TabletButton[]; // кнопки в ряд внизу (не больше трёх)
+  isLarge?: boolean; // большая табличка: меню и итоги
 };
 
 // «Высеченный» заголовок — один стиль для всех табличек (пауза, итоги, баннеры фаз):
@@ -92,7 +100,7 @@ export function addCarvedTitle(
 }
 
 /**
- * Каменная табличка — общее окно игры (пауза, итоги).
+ * Каменная табличка — общее окно игры (старт уровня, пауза, итоги, меню).
  *
  * Затемняет экран и мягко «выпрыгивает» в середине: вырастает
  * с маленьким перелётом. close() — сжимается и тает. Заголовок «высечен» в камне:
@@ -108,8 +116,9 @@ export class StoneTablet {
   private overlay: Phaser.GameObjects.Rectangle;
   // Всё, что лежит на табличке: камень, надписи, кнопки. Двигаются вместе.
   private container: Phaser.GameObjects.Container;
-  // Кнопки таблички — при закрытии их выключаем, чтобы не нажать дважды.
-  private buttons: Phaser.GameObjects.Image[] = [];
+  // Кнопки таблички и всё, что можно нажать на ней (add()), — при закрытии
+  // их выключаем, чтобы не нажать дважды.
+  private buttons: Phaser.GameObjects.GameObject[] = [];
 
   constructor(scene: Phaser.Scene, content: TabletContent) {
     this.scene = scene;
@@ -125,13 +134,17 @@ export class StoneTablet {
       .container(width / 2, height / 2)
       .setScale(SHOW_START_SCALE)
       .setAlpha(0);
-    this.container.add(scene.add.image(0, 0, TEXTURES.stoneTablet));
-    this.container.add(addCarvedTitle(scene, 0, TITLE_Y, content.title, TITLE_FONT_SIZE));
+    const isLarge = content.isLarge === true;
+    this.container.add(scene.add.image(0, 0, isLarge ? TEXTURES.stoneTabletLarge : TEXTURES.stoneTablet));
+    this.container.add(addCarvedTitle(scene, 0, isLarge ? LARGE_TITLE_Y : TITLE_Y, content.title, TITLE_FONT_SIZE));
     if (content.subtitle) this.addSubtitle(content.subtitle);
+    const isThree = content.buttons.length >= 3;
+    const step = isThree ? THREE_BUTTONS_STEP : BUTTON_STEP;
+    const scale = isThree ? THREE_BUTTONS_SCALE : 1;
     content.buttons.forEach((button, index) => {
       // Кнопки стоят в ряд по центру: для двух кнопок — по половине шага влево и вправо.
-      const x = (index - (content.buttons.length - 1) / 2) * BUTTON_STEP;
-      this.addButton(x, BUTTONS_Y, button);
+      const x = (index - (content.buttons.length - 1) / 2) * step;
+      this.addButton(x, isLarge ? LARGE_BUTTONS_Y : BUTTONS_Y, button, scale);
     });
 
     // Мягкий «поп»: табличка вырастает до полного размера и проявляется.
@@ -156,6 +169,14 @@ export class StoneTablet {
     const { width, height } = this.scene.scale;
     this.overlay.setSize(width, height);
     this.container.setPosition(width / 2, height / 2);
+  }
+
+  // Положить на табличку свои картинки и надписи (меню, итоги). Координаты —
+  // от середины таблички; они двигаются и масштабируются вместе с ней.
+  // Если среди них есть кнопки (setInteractive), при закрытии они выключатся.
+  add(objects: Phaser.GameObjects.GameObject[]): void {
+    this.container.add(objects);
+    this.buttons.push(...objects.filter((object) => object.input !== null));
   }
 
   // Закрыть табличку: она сжимается и тает вместе с затемнением,
@@ -198,8 +219,9 @@ export class StoneTablet {
 
   // Каменная кнопка с надписью. onClick сработает, только если кнопку нажали
   // и отпустили на ней: просто отпущенная над кнопкой мышь её не нажимает.
-  private addButton(x: number, y: number, button: TabletButton): void {
-    const image = this.scene.add.image(x, y, TEXTURES.stoneButton).setTint(BUTTON_IDLE_TINT);
+  // baseScale — размер кнопки (три кнопки в ряд меньше).
+  private addButton(x: number, y: number, button: TabletButton, baseScale: number): void {
+    const image = this.scene.add.image(x, y, TEXTURES.stoneButton).setTint(BUTTON_IDLE_TINT).setScale(baseScale);
     const label = this.scene.add
       .text(x, y + BUTTON_LABEL_Y, button.label, {
         fontFamily: TITLE_FONT,
@@ -209,7 +231,8 @@ export class StoneTablet {
         strokeThickness: 5,
         resolution: 2,
       })
-      .setOrigin(0.5);
+      .setOrigin(0.5)
+      .setScale(baseScale);
     this.container.add([image, label]);
     this.buttons.push(image);
 
@@ -218,7 +241,7 @@ export class StoneTablet {
     // Показать кнопку нажатой или отпущенной: и картинка, и надпись двигаются вместе.
     const setPressed = (pressed: boolean): void => {
       isPressed = pressed;
-      const scale = pressed ? BUTTON_PRESS_SCALE : 1;
+      const scale = baseScale * (pressed ? BUTTON_PRESS_SCALE : 1);
       const shift = pressed ? BUTTON_PRESS_SHIFT : 0;
       image.setScale(scale).setY(y + shift);
       label.setScale(scale).setY(y + BUTTON_LABEL_Y + shift);

@@ -32,6 +32,7 @@ export type AnalyticsEvent =
   | { name: 'pause'; source: PauseSource } // PLAYING → PAUSED
   | { name: 'resume' } // PAUSED → PLAYING
   | { name: 'restart'; from: 'pause' | 'result' } // «Заново»: из паузы или с итогов
+  | { name: 'quitToMenu'; from: 'pause' | 'result' } // «В меню»: из паузы или с итогов
   | { name: 'nightStart'; day: number } // наступила ночь номер day: игрок дожил до метели
   // Конец уровня (PLAYING → RESULT): номер уровня, победа или поражение, причина, номер суток и статистика.
   | ({ name: 'levelEnd'; level: number; isWin: boolean; reason: 'dawn' | 'fireOut'; day: number } & LevelStats)

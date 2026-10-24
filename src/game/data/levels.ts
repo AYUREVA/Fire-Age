@@ -1,4 +1,5 @@
 import { Point } from '../fx';
+import { TEXTURES } from '../textures';
 
 // =====================================================================
 //  Уровни каменного века. Это данные для гейм-дизайнера, как settings.ts:
@@ -82,4 +83,21 @@ export const LEVELS: LevelData[] = [
     starFed: 8,
     hasTutorial: false,
   },
+];
+
+// ===== Эпохи на карте =====
+
+// Сколько уровней в каждой эпохе (раздел 2 плана).
+export const LEVELS_PER_EPOCH = 5;
+
+// Эпохи по порядку: название и иконка на карте (раздел 3 плана).
+// Пока открыт только каменный век — его уровни выше, в LEVELS.
+// Остальные эпохи на карте закрыты: видны название и тёмный силуэт иконки.
+export const EPOCHS = [
+  { name: 'Каменный век', icon: TEXTURES.epochStone },
+  { name: 'Бронзовый век', icon: TEXTURES.epochBronze },
+  { name: 'Средневековье', icon: TEXTURES.epochMedieval },
+  { name: 'Эпоха пара', icon: TEXTURES.epochSteam },
+  { name: 'Полярная станция', icon: TEXTURES.epochPolar },
+  { name: 'Будущее', icon: TEXTURES.epochFuture },
 ];
