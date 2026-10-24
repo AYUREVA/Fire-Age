@@ -1,4 +1,4 @@
-import { DAY_COUNT, DAY_DURATION, NIGHT_DURATION, SUNSET_TIME } from '../settings';
+import { DAY_DURATION, NIGHT_DURATION, SUNSET_TIME } from '../settings';
 
 // Фаза суток: день (фаза 1) или ночь с метелью (фаза 2).
 export type Phase = 'day' | 'night';
@@ -31,6 +31,12 @@ export class DayNightCycle {
   timeLeft = DAY_DURATION;
   // Закат этого дня уже начался (событие 'sunset' уже было).
   private isSunsetStarted = false;
+  // Сколько суток в уровне (data/levels.ts).
+  private dayCount: number;
+
+  constructor(dayCount: number) {
+    this.dayCount = dayCount;
+  }
 
   // Вызывается сценой каждый кадр. Вернёт событие, если фаза сменилась, иначе undefined.
   update(delta: number): CycleEvent | undefined {
@@ -82,7 +88,7 @@ export class DayNightCycle {
 
   // Утро: после последней ночи — победа, иначе новый день.
   private startMorning(): CycleEvent {
-    if (this.dayNumber >= DAY_COUNT) return 'lastDawn';
+    if (this.dayNumber >= this.dayCount) return 'lastDawn';
 
     this.dayNumber += 1;
     this.phase = 'day';

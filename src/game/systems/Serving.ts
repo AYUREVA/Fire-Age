@@ -3,10 +3,8 @@ import {
   TABLE_DROP_INTERVAL,
   HUT_SPAWN_FACTOR,
   TRAVELER_EAT_TIME,
-  TRAVELER_FIRST_DELAY,
   TRAVELER_ORDER_MAX,
   TRAVELER_ORDER_MIN,
-  TRAVELER_SPAWN_INTERVAL,
   TRAVELER_TAKE_DELAY,
   TUSKS_PER_FOOD,
 } from '../settings';
@@ -17,6 +15,7 @@ import { Hud } from '../objects/Hud';
 import { Traveler } from '../objects/Traveler';
 import { Hut } from '../objects/Hut';
 import { LevelStats } from '../analytics';
+import { LevelData } from '../data/levels';
 
 // =====================================================================
 //  Стол и путники: вождь выкладывает еду на стол, путники едят
@@ -64,9 +63,10 @@ export function updateTravelers(
   travelers: Traveler[],
   huts: Hut[],
   stats: LevelStats,
+  frequency: LevelData['travelers'],
   delta: number,
 ): void {
-  callTraveler(table, travelers, huts, delta);
+  callTraveler(table, travelers, huts, frequency, delta);
 
   // Очередь — путники по порядку талонов: кто пришёл раньше, тот ближе к столу.
   const queue = travelers.filter((traveler) => traveler.isInQueue()).sort((a, b) => a.ticket - b.ticket);
@@ -79,13 +79,19 @@ export function updateTravelers(
   if (queue.length > 0) serveFirst(table, queue[0], stats, delta);
 }
 
-// Раз в TRAVELER_SPAWN_INTERVAL (первый — через TRAVELER_FIRST_DELAY) из леса выходит
+// Раз в frequency.interval (первый — через frequency.firstDelay; числа уровня) из леса выходит
 // новый путник, если в очереди есть место. Путники созданы заранее — зовём свободного.
 // Каждая построенная хижина умножает интервал на HUT_SPAWN_FACTOR — путники приходят чаще.
-function callTraveler(table: StoneTable, travelers: Traveler[], huts: Hut[], delta: number): void {
+function callTraveler(
+  table: StoneTable,
+  travelers: Traveler[],
+  huts: Hut[],
+  frequency: LevelData['travelers'],
+  delta: number,
+): void {
   const builtHuts = huts.filter((hut) => hut.isBuilt()).length;
-  const spawnInterval = TRAVELER_SPAWN_INTERVAL * Math.pow(HUT_SPAWN_FACTOR, builtHuts);
-  const interval = table.nextTicket === 1 ? TRAVELER_FIRST_DELAY : spawnInterval;
+  const spawnInterval = frequency.interval * Math.pow(HUT_SPAWN_FACTOR, builtHuts);
+  const interval = table.nextTicket === 1 ? frequency.firstDelay : spawnInterval;
   // Очередь полная — таймер не копится дальше: путник придёт сразу, как освободится место.
   table.spawnTimer = Math.min(table.spawnTimer + delta, interval);
   if (table.spawnTimer < interval) return;

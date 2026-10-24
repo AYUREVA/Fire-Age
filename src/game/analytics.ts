@@ -26,13 +26,13 @@ export type PauseSource = 'button' | 'key' | 'hidden';
 
 // Все события игры и их поля.
 export type AnalyticsEvent =
-  | { name: 'levelStart' } // игрок начал уровень (READY → PLAYING)
+  | { name: 'levelStart'; level: number } // игрок начал уровень номер level (READY → PLAYING)
   | { name: 'pause'; source: PauseSource } // PLAYING → PAUSED
   | { name: 'resume' } // PAUSED → PLAYING
   | { name: 'restart'; from: 'pause' | 'result' } // «Заново»: из паузы или с итогов
   | { name: 'nightStart'; day: number } // наступила ночь номер day: игрок дожил до метели
-  // Конец уровня (PLAYING → RESULT): победа или поражение, причина, номер суток и статистика.
-  | ({ name: 'levelEnd'; isWin: boolean; reason: 'dawn' | 'fireOut'; day: number } & LevelStats)
+  // Конец уровня (PLAYING → RESULT): номер уровня, победа или поражение, причина, номер суток и статистика.
+  | ({ name: 'levelEnd'; level: number; isWin: boolean; reason: 'dawn' | 'fireOut'; day: number } & LevelStats)
   // Игрок закрыл вкладку во время игры или паузы: сколько мс успел поиграть.
   | { name: 'tabClosed'; playTime: number };
 

@@ -1,7 +1,6 @@
 import Phaser from 'phaser';
 import {
   WOLF_CARRY_SPEED,
-  WOLF_FIRST_DELAY,
   WOLF_FLEE_SPEED,
   WOLF_HP,
   WOLF_KNOCKBACK,
@@ -149,7 +148,7 @@ export class Wolf {
   private farBackLeg: Phaser.GameObjects.Image;
 
   // returnDelay — через сколько мс после начала игры этот волк выйдет впервые.
-  constructor(scene: Phaser.Scene, returnDelay = WOLF_FIRST_DELAY) {
+  constructor(scene: Phaser.Scene, returnDelay: number) {
     this.scene = scene;
     this.returnTimer = returnDelay;
     this.shadow = scene.add.image(0, 0, TEXTURES.shadow);

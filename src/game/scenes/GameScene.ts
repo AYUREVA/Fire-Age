@@ -10,8 +10,6 @@ import {
   WOODPILE_POSITION,
   WOODPILE_CAPACITY,
   RABBIT_COUNT,
-  WOLF_COUNT,
-  WOLF_FIRST_DELAY,
   WOLF_RETURN_TIME_MAX,
   WOLF_RETURN_TIME_MIN,
   RAW_MEAT_PILE_POSITION,
@@ -48,7 +46,8 @@ import { updateTable, updateTravelers, updateTusks } from '../systems/Serving';
 import { updateFire } from '../systems/Fire';
 import { updatePurchases } from '../systems/Purchases';
 import { updateWolfFight, updateWolves } from '../systems/Predators';
-import { FENCE_PRICE, FENCE_SPOT, HUT_PRICE, HUT_SPOTS, WEAPONS, WEAPON_SPOT } from '../data/upgrades';
+import { WEAPONS } from '../data/upgrades';
+import { LEVELS, LevelData } from '../data/levels';
 import { LevelStats, PauseSource, track } from '../analytics';
 import { ReadyData } from './ReadyScene';
 import { PauseData } from './PauseScene';
@@ -62,6 +61,9 @@ import { ResultData } from './ResultScene';
 // 'paused'  — пауза, поверх табличка «ПАУЗА»;
 // 'result'  — победа или поражение, поверх табличка итога.
 type GameMode = 'ready' | 'playing' | 'paused' | 'result';
+
+// С какими данными запускается сцена: какой уровень играем (номер в LEVELS, с нуля).
+export type GameData = { levelIndex?: number };
 
 // ===== Слои отрисовки (depth) =====
 // Порядок снизу вверх во всей игре:
@@ -153,6 +155,9 @@ const CAMERA_OFFSET_Y = 60;
  * Только сцена знает обо всех объектах — сами объекты друг о друге не знают.
  */
 export class GameScene extends Phaser.Scene {
+  // Какой уровень играем: номер в LEVELS (с нуля) и его данные (data/levels.ts).
+  private levelIndex = 0;
+  private level!: LevelData;
   // Вождь — его водит игрок.
   private player!: Player;
   // Всё, что вождь несёт за спиной: колонки хвороста и мяса.
@@ -176,14 +181,15 @@ export class GameScene extends Phaser.Scene {
   // Путники: созданы заранее (сколько мест в очереди), приходят из леса по очереди.
   private travelers: Traveler[] = [];
   // Точки покупки: клыки из счётчика → покупка. Оружие продаётся на одной точке.
+  // Каких точек нет на уровне — того поля нет (undefined).
   private buyZones: BuyZone[] = [];
-  private weaponZone!: BuyZone;
+  private weaponZone?: BuyZone;
   // Хижины и их точки покупки (одинаковый порядок: hutZones[i] строит huts[i]).
   private huts: Hut[] = [];
   private hutZones: BuyZone[] = [];
   // Частокол вокруг лагеря и его точка покупки.
   private fence!: Fence;
-  private fenceZone!: BuyZone;
+  private fenceZone?: BuyZone;
   // Интерфейс: сколько осталось до конца дня или ночи, кнопка паузы.
   private hud!: Hud;
   // Смена дня и ночи: фаза, номер суток, сколько осталось до конца фазы.
@@ -202,6 +208,12 @@ export class GameScene extends Phaser.Scene {
     super('GameScene');
   }
 
+  // Перед create(): какой уровень играем. Без данных — первый уровень.
+  init(data: GameData): void {
+    this.levelIndex = data.levelIndex ?? 0;
+    this.level = LEVELS[this.levelIndex];
+  }
+
   // Загрузка перед create(): шрифт заголовков (картинки рисуются кодом в create()).
   preload(): void {
     loadFonts(this);
@@ -217,6 +229,8 @@ export class GameScene extends Phaser.Scene {
     this.buyZones = [];
     this.huts = [];
     this.hutZones = [];
+    this.weaponZone = undefined;
+    this.fenceZone = undefined;
     this.mode = 'ready';
     this.stats = { fed: 0, hungry: 0, tusksEarned: 0, playTime: 0, wolvesDriven: 0, itemsStolen: 0 };
 
@@ -261,7 +275,7 @@ export class GameScene extends Phaser.Scene {
 
     this.player = new Player(this, PLAYER_START.x, PLAYER_START.y);
     this.backpack = new Backpack(this);
-    this.cycle = new DayNightCycle();
+    this.cycle = new DayNightCycle(this.level.dayCount);
     this.hud = new Hud(this, () => this.pauseGame('button'));
     this.hud.setTimeLeft(this.cycle.timeLeft);
 
@@ -314,7 +328,7 @@ export class GameScene extends Phaser.Scene {
       this.player,
       this.backpack,
       this.stats,
-      WOLF_COUNT[this.cycle.phase],
+      this.level.wolves?.[this.cycle.phase] ?? 0,
       this.canWolfStep,
       delta,
     );
@@ -333,7 +347,7 @@ export class GameScene extends Phaser.Scene {
     for (const traveler of this.travelers) {
       traveler.update(delta);
     }
-    updateTravelers(this.table, this.travelers, this.huts, this.stats, delta);
+    updateTravelers(this.table, this.travelers, this.huts, this.stats, this.level.travelers, delta);
     updateTusks(this.player, this.table, this.hud, this.stats, this.cameras.main);
     const purchase = updatePurchases(this.player, this.buyZones, this.hud, this.cameras.main, delta);
     if (purchase) this.onPurchase(purchase);
@@ -379,21 +393,29 @@ export class GameScene extends Phaser.Scene {
 
   // ===== Покупки =====
 
-  // Точки покупки из data/upgrades.ts. Оружие — с первого, что можно купить (топор).
+  // Точки покупки, которые есть на уровне (data/levels.ts).
+  // Оружие — с первого, что можно купить (топор); его цена — в data/upgrades.ts.
   private createBuyZones(): void {
-    const firstWeapon = WEAPONS[1];
-    this.weaponZone = new BuyZone(this, WEAPON_SPOT.x, WEAPON_SPOT.y, firstWeapon.price, firstWeapon.icon);
-    this.buyZones.push(this.weaponZone);
+    const { weapons, fence, huts } = this.level;
+    if (weapons) {
+      const firstWeapon = WEAPONS[1];
+      this.weaponZone = new BuyZone(this, weapons.spot.x, weapons.spot.y, firstWeapon.price, firstWeapon.icon);
+      this.buyZones.push(this.weaponZone);
+    }
 
-    this.fenceZone = new BuyZone(this, FENCE_SPOT.x, FENCE_SPOT.y, FENCE_PRICE, TEXTURES.fenceIcon);
-    this.buyZones.push(this.fenceZone);
+    if (fence) {
+      this.fenceZone = new BuyZone(this, fence.spot.x, fence.spot.y, fence.price, TEXTURES.fenceIcon);
+      this.buyZones.push(this.fenceZone);
+    }
 
     // Хижины: на каждом месте — точка покупки, хижина появится на её месте.
-    for (const spot of HUT_SPOTS) {
-      this.huts.push(new Hut(this, spot.x, spot.y));
-      this.hutZones.push(new BuyZone(this, spot.x, spot.y, HUT_PRICE, TEXTURES.hut));
+    if (huts) {
+      for (const spot of huts.spots) {
+        this.huts.push(new Hut(this, spot.x, spot.y));
+        this.hutZones.push(new BuyZone(this, spot.x, spot.y, huts.price, TEXTURES.hut));
+      }
+      this.buyZones.push(...this.hutZones);
     }
-    this.buyZones.push(...this.hutZones);
   }
 
   // Покупка на точке zone готова: сцена решает, что купили.
@@ -490,7 +512,7 @@ export class GameScene extends Phaser.Scene {
   private startPlaying(): void {
     if (this.mode !== 'ready') return;
     this.mode = 'playing';
-    track({ name: 'levelStart' });
+    track({ name: 'levelStart', level: this.levelIndex + 1 });
 
     this.scene.stop('ReadyScene');
     this.scene.resume();
@@ -529,7 +551,8 @@ export class GameScene extends Phaser.Scene {
     const tabletScene = isFromPause ? 'PauseScene' : 'ResultScene';
 
     this.scene.stop(tabletScene);
-    this.scene.restart();
+    const data: GameData = { levelIndex: this.levelIndex };
+    this.scene.restart(data);
   }
 
   // PLAYING → RESULT: победа или поражение. Игра замирает, поверх — табличка итога.
@@ -538,6 +561,7 @@ export class GameScene extends Phaser.Scene {
     this.mode = 'result';
     track({
       name: 'levelEnd',
+      level: this.levelIndex + 1,
       isWin,
       reason: isWin ? 'dawn' : 'fireOut',
       day: this.cycle.dayNumber,
@@ -586,11 +610,13 @@ export class GameScene extends Phaser.Scene {
     return nearCamp || nearBush;
   }
 
-  // Волков столько, сколько их может быть на поле ночью. Первый выходит через
-  // WOLF_FIRST_DELAY, остальные — каждый на случайное время позже предыдущего.
+  // Волков столько, сколько их может быть на поле ночью (данные уровня; нет волков — ни одного).
+  // Первый выходит через firstDelay, остальные — каждый на случайное время позже предыдущего.
   private createWolves(): void {
-    const count = Math.max(WOLF_COUNT.day, WOLF_COUNT.night);
-    let delay = WOLF_FIRST_DELAY;
+    const wolves = this.level.wolves;
+    if (!wolves) return;
+    const count = Math.max(wolves.day, wolves.night);
+    let delay = wolves.firstDelay;
     for (let i = 0; i < count; i++) {
       this.wolves.push(new Wolf(this, delay));
       delay += Phaser.Math.Between(WOLF_RETURN_TIME_MIN, WOLF_RETURN_TIME_MAX);
