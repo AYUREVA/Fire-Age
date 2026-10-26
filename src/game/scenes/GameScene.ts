@@ -58,6 +58,7 @@ import { metaBonus } from '../data/metaUpgrades';
 import { ReadyData } from './ReadyScene';
 import { PauseData } from './PauseScene';
 import { ResultData } from './ResultScene';
+import { MenuData } from './MenuScene';
 
 // ===== Режим игры =====
 
@@ -614,7 +615,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   // PAUSED → меню и RESULT → меню: «В меню». Табличка закрывается, уровень
-  // выключается, открывается карта уровней (MenuScene).
+  // выключается, открывается меню — сразу табличка уровней эпохи (MenuScene).
   // Режим меняем сразу: второе нажатие в том же кадре уже ничего не сделает.
   private quitToMenu(): void {
     if (this.mode !== 'paused' && this.mode !== 'result') return;
@@ -623,7 +624,9 @@ export class GameScene extends Phaser.Scene {
     track({ name: 'quitToMenu', from: isFromPause ? 'pause' : 'result' });
 
     this.scene.stop(isFromPause ? 'PauseScene' : 'ResultScene');
-    this.scene.start('MenuScene');
+    // Сразу табличка уровней эпохи: видно, что открылось и сколько звёзд.
+    const data: MenuData = { view: 'levels' };
+    this.scene.start('MenuScene', data);
   }
 
   // RESULT → READY следующего уровня: «Дальше» на итогах. Табличка закрывается,
