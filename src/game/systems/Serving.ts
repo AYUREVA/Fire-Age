@@ -63,10 +63,10 @@ export function updateTravelers(
   travelers: Traveler[],
   huts: Hut[],
   stats: LevelStats,
-  frequency: LevelData['travelers'],
+  arrivals: LevelData['travelers'],
   delta: number,
 ): void {
-  callTraveler(table, travelers, huts, frequency, delta);
+  callTraveler(table, travelers, huts, arrivals, delta);
 
   // Очередь — путники по порядку талонов: кто пришёл раньше, тот ближе к столу.
   const queue = travelers.filter((traveler) => traveler.isInQueue()).sort((a, b) => a.ticket - b.ticket);
@@ -79,19 +79,20 @@ export function updateTravelers(
   if (queue.length > 0) serveFirst(table, queue[0], stats, delta);
 }
 
-// Раз в frequency.interval (первый — через frequency.firstDelay; числа уровня) из леса выходит
+// Раз в arrivals.interval (первый — через arrivals.firstDelay; числа уровня) из леса выходит
 // новый путник, если в очереди есть место. Путники созданы заранее — зовём свободного.
 // Каждая построенная хижина умножает интервал на HUT_SPAWN_FACTOR — путники приходят чаще.
+// arrivals — как приходят путники на этом уровне (data/levels.ts).
 function callTraveler(
   table: StoneTable,
   travelers: Traveler[],
   huts: Hut[],
-  frequency: LevelData['travelers'],
+  arrivals: LevelData['travelers'],
   delta: number,
 ): void {
   const builtHuts = huts.filter((hut) => hut.isBuilt()).length;
-  const spawnInterval = frequency.interval * Math.pow(HUT_SPAWN_FACTOR, builtHuts);
-  const interval = table.nextTicket === 1 ? frequency.firstDelay : spawnInterval;
+  const spawnInterval = arrivals.interval * Math.pow(HUT_SPAWN_FACTOR, builtHuts);
+  const interval = table.nextTicket === 1 ? arrivals.firstDelay : spawnInterval;
   // Очередь полная — таймер не копится дальше: путник придёт сразу, как освободится место.
   table.spawnTimer = Math.min(table.spawnTimer + delta, interval);
   if (table.spawnTimer < interval) return;
@@ -100,7 +101,12 @@ function callTraveler(
   if (!free) return;
 
   table.spawnTimer = 0;
-  const order = Phaser.Math.Between(TRAVELER_ORDER_MIN, TRAVELER_ORDER_MAX);
+  // Сколько кусков просит путник: случайно, а первый — столько, сколько задал уровень (если задал).
+  const isFirst = table.nextTicket === 1;
+  const order =
+    isFirst && arrivals.firstOrder !== undefined
+      ? arrivals.firstOrder
+      : Phaser.Math.Between(TRAVELER_ORDER_MIN, TRAVELER_ORDER_MAX);
   free.arrive(table.nextTicket, order, table.getForestPoint());
   table.nextTicket += 1;
 }

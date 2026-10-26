@@ -19,7 +19,8 @@ export type LevelData = {
   // firstDelay — через сколько мс после начала выходит первый волк.
   wolves?: { day: number; night: number; firstDelay: number };
   // Путники: когда приходит первый и как часто следующие (мс), если в очереди есть место.
-  travelers: { firstDelay: number; interval: number };
+  // firstOrder — сколько кусков просит первый путник (нет поля — сколько угодно, как все).
+  travelers: { firstDelay: number; interval: number; firstOrder?: number };
   // Точка покупки частокола: цена в клыках и где стоит. Нет поля — частокол не продаётся.
   fence?: { price: number; spot: Point };
   // Точка покупки оружия: где стоит. Цены оружия — в data/upgrades.ts (WEAPONS).
@@ -49,7 +50,8 @@ export const LEVELS: LevelData[] = [
   {
     name: 'Первый ужин',
     dayCount: 1,
-    travelers: TRAVELERS,
+    // Обучение: первый путник просит один кусок — столько вождь и приносит по подсказке.
+    travelers: { ...TRAVELERS, firstOrder: 1 },
     starFed: 5,
     hasTutorial: true,
   },
