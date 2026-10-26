@@ -77,10 +77,24 @@ export const TEXTURES = {
   hudPanel: 'hud-panel', // плашка интерфейса со скруглёнными углами
   moonIcon: 'moon-icon', // луна на плашке таймера: ночь, до рассвета
   sunIcon: 'sun-icon', // солнце на плашке таймера: день, до ночи
-  stoneTablet: 'stone-tablet', // каменная табличка: пауза, итоги
+  stoneTablet: 'stone-tablet', // каменная табличка: пауза, старт уровня
+  stoneTabletLarge: 'stone-tablet-large', // большая каменная табличка: меню, итоги
+  roundStone: 'round-stone', // круглый камень-кнопка: уровень и эпоха на карте
+  lock: 'lock', // замок: закрытый уровень или эпоха
+  star: 'star', // звезда (белая, красится tint): полученная — золотая, пустая — тёмная
+  // Иконки эпох на карте (для закрытых — тёмный силуэт через tint).
+  epochStone: 'epoch-stone', // каменный век: костёр
+  epochBronze: 'epoch-bronze', // бронзовый век: наковальня
+  epochMedieval: 'epoch-medieval', // средневековье: крепостная башня
+  epochSteam: 'epoch-steam', // эпоха пара: паровоз
+  epochPolar: 'epoch-polar', // полярная станция: домик с антенной
+  epochFuture: 'epoch-future', // будущее: купол колонии
+  tutorialArrow: 'tutorial-arrow', // стрелка обучения: смотрит вниз, на цель
   stoneBanner: 'stone-banner', // широкая низкая табличка: уведомление о смене дня и ночи
   stoneButton: 'stone-button', // каменная кнопка на табличке
   pauseButton: 'pause-button', // круглая каменная кнопка паузы в углу экрана
+  soundOnButton: 'sound-on-button', // круглая каменная кнопка звука: динамик со звуковыми волнами
+  soundOffButton: 'sound-off-button', // та же кнопка, звук выключен: динамик перечёркнут
 } as const;
 
 // Шрифт всех надписей. Это тоже «ассет»: свой шрифт подключается здесь.
@@ -159,7 +173,14 @@ const HEAT_BAR_FILL_SIZE: Size = { w: 104, h: 12 };
 const HUD_PANEL_SIZE: Size = { w: 170, h: 66 };
 const MOON_ICON_SIZE: Size = { w: 40, h: 40 };
 const SUN_ICON_SIZE: Size = { w: 44, h: 44 };
-const STONE_TABLET_SIZE: Size = { w: 540, h: 320 };
+// Ширина 600 — табличка помещается на узкий экран (короткая сторона 640).
+const STONE_TABLET_SIZE: Size = { w: 600, h: 320 };
+const STONE_TABLET_LARGE_SIZE: Size = { w: 600, h: 560 };
+const ROUND_STONE_SIZE: Size = { w: 84, h: 84 };
+const LOCK_SIZE: Size = { w: 30, h: 36 };
+const STAR_SIZE: Size = { w: 36, h: 36 };
+const EPOCH_ICON_SIZE: Size = { w: 64, h: 64 };
+const TUTORIAL_ARROW_SIZE: Size = { w: 48, h: 56 };
 const STONE_BANNER_SIZE: Size = { w: 520, h: 170 };
 const STONE_BUTTON_SIZE: Size = { w: 210, h: 66 };
 const PAUSE_BUTTON_SIZE: Size = { w: 60, h: 60 };
@@ -266,6 +287,19 @@ export function createTextures(scene: Phaser.Scene): void {
   bake(scene, TEXTURES.stoneBanner, STONE_BANNER_SIZE, (g) => drawStoneSlab(g, STONE_BANNER_SIZE));
   bake(scene, TEXTURES.stoneButton, STONE_BUTTON_SIZE, drawStoneButton);
   bake(scene, TEXTURES.pauseButton, PAUSE_BUTTON_SIZE, drawPauseButton);
+  bake(scene, TEXTURES.soundOnButton, PAUSE_BUTTON_SIZE, (g) => drawSoundButton(g, true));
+  bake(scene, TEXTURES.soundOffButton, PAUSE_BUTTON_SIZE, (g) => drawSoundButton(g, false));
+  bake(scene, TEXTURES.stoneTabletLarge, STONE_TABLET_LARGE_SIZE, (g) => drawStoneSlab(g, STONE_TABLET_LARGE_SIZE));
+  bake(scene, TEXTURES.roundStone, ROUND_STONE_SIZE, drawRoundStone);
+  bake(scene, TEXTURES.lock, LOCK_SIZE, drawLock);
+  bake(scene, TEXTURES.star, STAR_SIZE, drawStar);
+  bake(scene, TEXTURES.epochStone, EPOCH_ICON_SIZE, drawEpochStone);
+  bake(scene, TEXTURES.epochBronze, EPOCH_ICON_SIZE, drawEpochBronze);
+  bake(scene, TEXTURES.epochMedieval, EPOCH_ICON_SIZE, drawEpochMedieval);
+  bake(scene, TEXTURES.epochSteam, EPOCH_ICON_SIZE, drawEpochSteam);
+  bake(scene, TEXTURES.epochPolar, EPOCH_ICON_SIZE, drawEpochPolar);
+  bake(scene, TEXTURES.epochFuture, EPOCH_ICON_SIZE, drawEpochFuture);
+  bake(scene, TEXTURES.tutorialArrow, TUTORIAL_ARROW_SIZE, drawTutorialArrow);
 }
 
 // Рисует картинку на временном Graphics и сохраняет её как текстуру под ключом key.
@@ -2437,6 +2471,230 @@ function drawPauseButton(g: Graphics): void {
   g.fillStyle(COLORS.hudText, 1);
   g.fillRoundedRect(cx - 11, cx - 14, 7, 22, 2);
   g.fillRoundedRect(cx + 4, cx - 14, 7, 22, 2);
+}
+
+// ===== Меню: карта эпох и уровней =====
+
+// Круглый камень-кнопка: как кнопка паузы, только крупнее и без значка.
+// Номер уровня или иконку эпохи кладёт сверху MenuScene.
+function drawRoundStone(g: Graphics): void {
+  const { w } = ROUND_STONE_SIZE;
+  const cx = w / 2;
+  const radius = cx - OUTLINE_WIDTH;
+  const lip = 6;
+
+  // Торец снизу, лицевая сторона и светлый блик сверху.
+  outlinedCircle(g, cx, cx + lip / 2, radius - lip / 2, COLORS.tabletDark);
+  g.fillStyle(COLORS.tablet, 1);
+  g.fillCircle(cx, cx - lip / 2, radius - lip);
+  g.fillStyle(COLORS.tabletLight, 1);
+  g.fillEllipse(cx, cx - radius * 0.62, radius * 0.9, 8);
+}
+
+// Замок: дужка и бронзовый корпус с замочной скважиной.
+function drawLock(g: Graphics): void {
+  const { w, h } = LOCK_SIZE;
+  const cx = w / 2;
+  // Дужка: тёмная обводка, поверх — светлый металл.
+  g.lineStyle(7, COLORS.outline, 1);
+  g.beginPath();
+  g.arc(cx, 14, 8, Math.PI, 0);
+  g.strokePath();
+  g.lineStyle(3, COLORS.stoneLight, 1);
+  g.beginPath();
+  g.arc(cx, 14, 8, Math.PI, 0);
+  g.strokePath();
+  // Корпус.
+  g.fillStyle(COLORS.bronze, 1);
+  g.fillRoundedRect(3, 14, w - 6, h - 17, 4);
+  g.fillStyle(COLORS.bronzeLight, 1);
+  g.fillRect(6, 17, w - 12, 3);
+  g.lineStyle(OUTLINE_WIDTH, COLORS.outline, 1);
+  g.strokeRoundedRect(3, 14, w - 6, h - 17, 4);
+  // Замочная скважина.
+  g.fillStyle(COLORS.outline, 1);
+  g.fillCircle(cx, 24, 3);
+  g.fillRect(cx - 1.5, 24, 3, 6);
+}
+
+// Пятиконечная звезда: белая (цвет задаёт tint), с тёмной обводкой.
+function drawStar(g: Graphics): void {
+  const { w } = STAR_SIZE;
+  const cx = w / 2;
+  const outer = cx - OUTLINE_WIDTH;
+  const inner = outer * 0.45;
+  const points: number[] = [];
+  for (let i = 0; i < 10; i++) {
+    // Начинаем с верхнего луча; внешние и внутренние точки чередуются.
+    const angle = -Math.PI / 2 + (i * Math.PI) / 5;
+    const r = i % 2 === 0 ? outer : inner;
+    points.push(cx + r * Math.cos(angle), cx + 1 + r * Math.sin(angle));
+  }
+  fillPolygon(g, points, COLORS.white);
+  strokePolygon(g, points);
+}
+
+// Каменный век: костёр — два скрещённых полена и пламя.
+function drawEpochStone(g: Graphics): void {
+  limb(g, 14, 54, 50, 46, 8, COLORS.woodDark);
+  limb(g, 14, 46, 50, 54, 8, COLORS.wood);
+  const flame = [32, 6, 43, 22, 47, 36, 41, 46, 23, 46, 17, 36, 21, 22];
+  fillPolygon(g, flame, COLORS.fireOrange);
+  strokePolygon(g, flame);
+  fillPolygon(g, [32, 20, 38, 32, 37, 43, 27, 43, 26, 32], COLORS.fireYellow);
+}
+
+// Бронзовый век: наковальня с рогом слева.
+function drawEpochBronze(g: Graphics): void {
+  const anvil = [4, 22, 18, 18, 58, 18, 58, 29, 44, 31, 39, 43, 50, 52, 14, 52, 25, 43, 20, 31, 12, 28];
+  fillPolygon(g, anvil, COLORS.bronze);
+  // Тень под рабочей плитой и блик на ней.
+  fillPolygon(g, [20, 31, 44, 31, 39, 43, 25, 43], COLORS.bronzeDark);
+  g.fillStyle(COLORS.bronzeLight, 1);
+  g.fillRect(18, 20, 38, 3);
+  strokePolygon(g, anvil);
+}
+
+// Средневековье: крепостная башня с зубцами, воротами и бойницей.
+function drawEpochMedieval(g: Graphics): void {
+  const tower = [17, 20, 47, 20, 45, 58, 19, 58];
+  fillPolygon(g, tower, COLORS.stone);
+  // Зубцы по верху башни.
+  for (const x of [14, 28, 42]) {
+    const merlon = [x, 9, x + 8, 9, x + 8, 21, x, 21];
+    fillPolygon(g, merlon, COLORS.stoneLight);
+    strokePolygon(g, merlon);
+  }
+  strokePolygon(g, tower);
+  // Ворота с круглым верхом и узкая бойница.
+  const gate = [...arcPoints(32, 48, 7, Math.PI, Math.PI * 2), 39, 58, 25, 58];
+  fillPolygon(g, gate, COLORS.outline);
+  g.fillStyle(COLORS.outline, 1);
+  g.fillRoundedRect(30, 27, 4, 10, 2);
+}
+
+// Эпоха пара: паровоз — котёл, труба с дымом, красная будка и колёса.
+function drawEpochSteam(g: Graphics): void {
+  outlinedCircle(g, 13, 9, 5, COLORS.snowShade);
+  outlinedCircle(g, 21, 5, 4, COLORS.snowLight);
+  const chimney = [12, 13, 20, 13, 19, 26, 13, 26];
+  fillPolygon(g, chimney, COLORS.steelDark);
+  strokePolygon(g, chimney);
+  const boiler = [6, 26, 40, 26, 40, 44, 6, 44];
+  fillPolygon(g, boiler, COLORS.steel);
+  strokePolygon(g, boiler);
+  const cab = [38, 16, 58, 16, 58, 44, 38, 44];
+  fillPolygon(g, cab, COLORS.stationWall);
+  strokePolygon(g, cab);
+  const window = [43, 21, 53, 21, 53, 30, 43, 30];
+  fillPolygon(g, window, COLORS.glass);
+  strokePolygon(g, window);
+  outlinedCircle(g, 16, 48, 7, COLORS.steelDark);
+  outlinedCircle(g, 32, 48, 7, COLORS.steelDark);
+  outlinedCircle(g, 49, 50, 5, COLORS.steelDark);
+}
+
+// Полярная станция: красный домик под снегом и мачта антенны (без флагов).
+function drawEpochPolar(g: Graphics): void {
+  // Мачта с перекладинами.
+  g.lineStyle(5, COLORS.outline, 1);
+  g.lineBetween(52, 56, 52, 6);
+  g.lineStyle(2, COLORS.stoneLight, 1);
+  g.lineBetween(52, 55, 52, 7);
+  g.lineStyle(THIN_OUTLINE_WIDTH, COLORS.outline, 1);
+  g.lineBetween(46, 14, 58, 14);
+  g.lineBetween(47, 24, 57, 24);
+  const wall = [8, 32, 44, 32, 44, 56, 8, 56];
+  fillPolygon(g, wall, COLORS.stationWall);
+  strokePolygon(g, wall);
+  const roof = [4, 33, 26, 18, 48, 33];
+  fillPolygon(g, roof, COLORS.snow);
+  strokePolygon(g, roof);
+  const window = [14, 38, 24, 38, 24, 47, 14, 47];
+  fillPolygon(g, window, COLORS.glass);
+  strokePolygon(g, window);
+  const door = [30, 40, 39, 40, 39, 56, 30, 56];
+  fillPolygon(g, door, COLORS.woodDark);
+  strokePolygon(g, door);
+}
+
+// Будущее: стеклянный купол колонии на металлическом основании.
+function drawEpochFuture(g: Graphics): void {
+  const dome = [...arcPoints(32, 46, 25, Math.PI, Math.PI * 2)];
+  fillPolygon(g, dome, COLORS.glass);
+  // Рёбра купола.
+  g.lineStyle(THIN_OUTLINE_WIDTH, COLORS.steel, 1);
+  g.lineBetween(32, 21, 32, 46);
+  g.strokePoints(toPoints(arcPoints(32, 46, 13, Math.PI, Math.PI * 2)), false);
+  // Блик на стекле.
+  g.fillStyle(COLORS.snowLight, 1);
+  g.fillEllipse(22, 32, 6, 10);
+  strokePolygon(g, dome);
+  const base = [4, 45, 60, 45, 56, 56, 8, 56];
+  fillPolygon(g, base, COLORS.steel);
+  strokePolygon(g, base);
+  g.fillStyle(COLORS.fireYellow, 1);
+  g.fillCircle(20, 51, 2);
+  g.fillCircle(32, 51, 2);
+  g.fillCircle(44, 51, 2);
+}
+
+// ===== Обучение =====
+
+// Стрелка обучения: толстая янтарная стрелка остриём вниз, со светлым бликом.
+function drawTutorialArrow(g: Graphics): void {
+  const { w, h } = TUTORIAL_ARROW_SIZE;
+  const cx = w / 2;
+  const arrow = [cx - 9, 4, cx + 9, 4, cx + 9, 26, w - 4, 26, cx, h - 4, 4, 26, cx - 9, 26];
+  fillPolygon(g, arrow, COLORS.titleAmber);
+  fillPolygon(g, [cx - 5, 8, cx - 1, 8, cx - 1, 30, cx - 5, 30], COLORS.titleHighlight);
+  strokePolygon(g, arrow);
+}
+
+// Кнопка звука: такой же круглый камень, как кнопка паузы, на нём динамик.
+// isOn — звук включён (рядом волны) или выключен (динамик перечёркнут).
+function drawSoundButton(g: Graphics, isOn: boolean): void {
+  const { w } = PAUSE_BUTTON_SIZE;
+  const cx = w / 2;
+  const radius = cx - OUTLINE_WIDTH;
+  const lip = 4;
+
+  // Торец снизу и лицевая сторона.
+  outlinedCircle(g, cx, cx + lip / 2, radius - lip / 2, COLORS.tabletDark);
+  g.fillStyle(COLORS.tablet, 1);
+  g.fillCircle(cx, cx - lip / 2, radius - lip);
+
+  // Динамик: коробочка и раструб.
+  const speaker = [cx - 15, cx - 8, cx - 8, cx - 8, cx + 1, cx - 15, cx + 1, cx + 11, cx - 8, cx + 4, cx - 15, cx + 4];
+  fillPolygon(g, speaker, COLORS.hudText);
+  strokePolygon(g, speaker);
+
+  if (isOn) {
+    // Две звуковые волны справа от динамика: тёмная обводка, поверх светлая дуга.
+    for (const [width, color] of [
+      [6, COLORS.outline],
+      [3, COLORS.hudText],
+    ]) {
+      g.lineStyle(width, color, 1);
+      g.beginPath();
+      g.arc(cx + 2, cx - 2, 8, -0.8, 0.8);
+      g.strokePath();
+      g.beginPath();
+      g.arc(cx + 2, cx - 2, 14, -0.8, 0.8);
+      g.strokePath();
+    }
+    return;
+  }
+
+  // Звук выключен: красный крестик справа от динамика.
+  for (const [width, color] of [
+    [7, COLORS.outline],
+    [4, COLORS.maxText],
+  ]) {
+    g.lineStyle(width, color, 1);
+    g.lineBetween(cx + 6, cx - 9, cx + 17, cx + 4);
+    g.lineBetween(cx + 17, cx - 9, cx + 6, cx + 4);
+  }
 }
 
 // ===== Помощники рисования =====

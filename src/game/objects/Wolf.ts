@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
+import { SOUNDS, SOUND_VOLUMES, playSound } from '../sounds';
 import {
   WOLF_CARRY_SPEED,
-  WOLF_FIRST_DELAY,
   WOLF_FLEE_SPEED,
   WOLF_HP,
   WOLF_KNOCKBACK,
@@ -149,7 +149,7 @@ export class Wolf {
   private farBackLeg: Phaser.GameObjects.Image;
 
   // returnDelay — через сколько мс после начала игры этот волк выйдет впервые.
-  constructor(scene: Phaser.Scene, returnDelay = WOLF_FIRST_DELAY) {
+  constructor(scene: Phaser.Scene, returnDelay: number) {
     this.scene = scene;
     this.returnTimer = returnDelay;
     this.shadow = scene.add.image(0, 0, TEXTURES.shadow);
@@ -193,6 +193,8 @@ export class Wolf {
     this.huntTime = 0;
     this.setVisible(true);
     this.place();
+    // Волк выходит из леса — слышен вой.
+    playSound(this.scene, SOUNDS.howl, SOUND_VOLUMES.howl);
   }
 
   // Схватить добычу: она летит со спины вождя в пасть, волк убегает в лес.

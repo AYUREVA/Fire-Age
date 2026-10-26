@@ -146,6 +146,21 @@ export class ItemPile {
     });
   }
 
+  // Положить в кучу count предметов сразу, без полёта (стартовый запас уровня).
+  // Больше, чем помещается, не кладём.
+  fill(count: number): void {
+    const total = Math.min(count, this.capacity - this.pile.length);
+    for (let i = 0; i < total; i++) {
+      const slotIndex = this.pile.length;
+      const slot = this.getPileSlot(slotIndex);
+      const item = this.scene.add
+        .image(slot.x, slot.y, ITEMS[this.type].texture)
+        .setOrigin(0.5, 1)
+        .setDepth(this.getPileDepth(slotIndex));
+      this.pile.push(item);
+    }
+  }
+
   // Забрать верхний предмет (в огонь, на вертел или на спину). Дальше его двигает тот, кто забрал.
   // Вернёт undefined, если куча пуста или верхний предмет ещё летит.
   takeTop(): Phaser.GameObjects.Image | undefined {
