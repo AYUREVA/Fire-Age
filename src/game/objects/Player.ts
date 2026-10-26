@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { CanStep, pop } from '../fx';
 import { JOYSTICK_RADIUS, PLAYER_SPEED, WORLD_EDGE, WORLD_HEIGHT, WORLD_WIDTH } from '../settings';
+import { SOUNDS, SOUND_VOLUMES, playSound } from '../sounds';
 import { TEXTURES, WEAPON_GRIP_FROM_BOTTOM } from '../textures';
 import { WEAPONS, Weapon } from '../data/upgrades';
 
@@ -241,7 +242,10 @@ export class Player {
           clubSwing: CLUB_STRIKE_ANGLE,
           duration: duration * SWING_STRIKE_SHARE,
           ease: 'Quad.easeIn',
-          onComplete: onImpact,
+          onComplete: () => {
+            playSound(this.scene, SOUNDS.hit, SOUND_VOLUMES.hit);
+            onImpact();
+          },
         },
         // 3. Возврат в покой: Back.easeOut чуть проскакивает — получается пружинка.
         { clubSwing: 0, duration: duration * SWING_RECOVER_SHARE, ease: 'Back.easeOut' },

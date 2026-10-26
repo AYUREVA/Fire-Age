@@ -1,8 +1,7 @@
 import Phaser from 'phaser';
 import { StoneTablet } from '../ui/StoneTablet';
 
-// Надписи на табличке (раздел 5 плана).
-const TITLE = 'Fire Age';
+// Подзаголовок таблички (раздел 5 плана). Заголовок — название уровня.
 const SUBTITLE = 'Нажми, чтобы начать';
 
 // Через сколько мс после начала показа касание, клик или клавиша запускают игру.
@@ -11,11 +10,11 @@ const SUBTITLE = 'Нажми, чтобы начать';
 const READY_INPUT_DELAY = 500;
 
 // С какими данными GameScene запускает эту сцену.
-// onStart — переход READY → PLAYING (его делает GameScene).
-export type ReadyData = { onStart: () => void };
+// title — название уровня, onStart — переход READY → PLAYING (его делает GameScene).
+export type ReadyData = { title: string; onStart: () => void };
 
 /**
- * Экран старта (режим READY): табличка «Fire Age» и «Нажми, чтобы начать».
+ * Экран старта (режим READY): табличка с названием уровня и «Нажми, чтобы начать».
  *
  * GameScene строит мир, ставит себя на паузу и запускает эту сцену поверх:
  * мир виден, но стоит — время суток, жар и путники не идут.
@@ -23,7 +22,7 @@ export type ReadyData = { onStart: () => void };
  * onStart. Режим игры эта сцена не хранит и не меняет — это делает GameScene.
  */
 export class ReadyScene extends Phaser.Scene {
-  // Табличка «Fire Age».
+  // Табличка с названием уровня.
   private tablet!: StoneTablet;
   // Табличка уже закрывается — повторные нажатия не считаем.
   private isClosing = false;
@@ -36,7 +35,7 @@ export class ReadyScene extends Phaser.Scene {
     // При новом запуске сцены поля сохраняют старые значения — сбрасываем.
     this.isClosing = false;
 
-    this.tablet = new StoneTablet(this, { title: TITLE, subtitle: SUBTITLE, buttons: [] });
+    this.tablet = new StoneTablet(this, { title: data.title, subtitle: SUBTITLE, buttons: [] });
 
     // Касание, клик или любая клавиша — старт, но не сразу.
     this.time.delayedCall(READY_INPUT_DELAY, () => {

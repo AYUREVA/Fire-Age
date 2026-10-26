@@ -3,6 +3,8 @@ import { COLORS, toCss } from '../palette';
 import { PHASES } from '../settings';
 import { TEXTURES, TITLE_FONT } from '../textures';
 import { flyArc, pop } from '../fx';
+import { SOUNDS, SOUND_VOLUMES, playSound, toggleMute } from '../sounds';
+import { getProgress } from '../save';
 
 // HUD рисуется поверх всего мира (джойстик — на том же уровне, см. Player.ts).
 const HUD_DEPTH = 20000;
@@ -29,6 +31,8 @@ const MODIFIER_TEXT_X = -8;
 // Иконки: пламя и нога в сапоге — уменьшенные картинки из игры.
 const FLAME_ICON_SCALE = 0.28;
 const BOOT_ICON_SCALE = 0.75;
+// Кнопка звука стоит левее кнопки паузы с таким зазором.
+const SOUND_BUTTON_GAP = 10;
 // Кнопка паузы чуть темнее, при наведении — светлеет до настоящего цвета.
 const PAUSE_IDLE_TINT = 0xdddddd;
 const PAUSE_HOVER_TINT = 0xffffff;
@@ -51,6 +55,8 @@ export class Hud {
   private tuskText: Phaser.GameObjects.Text;
   // Кнопка паузы в правом верхнем углу.
   private pauseButton: Phaser.GameObjects.Image;
+  // Кнопка звука левее паузы: включить или выключить звук (запоминается в сохранении).
+  private soundButton: Phaser.GameObjects.Image;
   // Плашки ночных модификаторов: видны только ночью.
   private modifiers: (Phaser.GameObjects.Image | Phaser.GameObjects.Text)[] = [];
 
@@ -95,6 +101,19 @@ export class Hud {
     pauseButton.on('pointerout', () => pauseButton.setTint(PAUSE_IDLE_TINT));
     pauseButton.on('pointerdown', onPause);
 
+    const soundButton = scene.add
+      .image(0, 0, getProgress().isMuted ? TEXTURES.soundOffButton : TEXTURES.soundOnButton)
+      .setTint(PAUSE_IDLE_TINT);
+    this.soundButton = soundButton;
+    soundButton.setInteractive({ useHandCursor: true });
+    soundButton.on('pointerover', () => soundButton.setTint(PAUSE_HOVER_TINT));
+    soundButton.on('pointerout', () => soundButton.setTint(PAUSE_IDLE_TINT));
+    soundButton.on('pointerdown', () => {
+      const isMuted = toggleMute(scene);
+      soundButton.setTexture(isMuted ? TEXTURES.soundOffButton : TEXTURES.soundOnButton);
+      pop(scene, soundButton);
+    });
+
     // Ночные модификаторы — числа из таблицы PHASES в settings.ts.
     const modifierY = PANEL_MARGIN + panel.height + MODIFIER_GAP + (panel.height * MODIFIER_SCALE_Y) / 2;
     const modifierX = PANEL_MARGIN + (panel.width * MODIFIER_SCALE_X) / 2;
@@ -111,7 +130,7 @@ export class Hud {
     this.setModifiers(false);
 
     // Всё в координатах экрана и поверх мира.
-    const parts = [panel, this.phaseIcon, this.timeText, tuskPanel, this.tuskIcon, this.tuskText, pauseButton];
+    const parts = [panel, this.phaseIcon, this.timeText, tuskPanel, this.tuskIcon, this.tuskText, pauseButton, soundButton];
     for (const object of [...parts, ...this.modifiers]) {
       object.setScrollFactor(0).setDepth(HUD_DEPTH);
     }
@@ -126,11 +145,15 @@ export class Hud {
     });
   }
 
-  // Кнопка паузы — в правом верхнем углу текущего экрана.
+  // Кнопка паузы — в правом верхнем углу текущего экрана, кнопка звука — левее неё.
   private layout(): void {
     this.pauseButton.setPosition(
       this.scene.scale.width - PANEL_MARGIN - this.pauseButton.width / 2,
       PANEL_MARGIN + this.pauseButton.height / 2,
+    );
+    this.soundButton.setPosition(
+      this.pauseButton.x - this.pauseButton.width / 2 - SOUND_BUTTON_GAP - this.soundButton.width / 2,
+      this.pauseButton.y,
     );
   }
 
@@ -158,6 +181,7 @@ export class Hud {
       height: TUSK_FLY_ARC,
       onLand: () => {
         tusk.destroy();
+        playSound(this.scene, SOUNDS.tusk, SOUND_VOLUMES.tusk);
         this.tuskText.setText(String(total));
         pop(this.scene, this.tuskText);
         pop(this.scene, this.tuskIcon);
@@ -172,6 +196,7 @@ export class Hud {
   spendTusk(total: number): { x: number; y: number } {
     this.tuskText.setText(String(total));
     pop(this.scene, this.tuskIcon);
+    playSound(this.scene, SOUNDS.tusk, SOUND_VOLUMES.tusk);
     return { x: this.tuskIcon.x, y: this.tuskIcon.y };
   }
 

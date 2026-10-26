@@ -119,6 +119,11 @@ export class StoneTable {
 
   // ===== Площадка и еда =====
 
+  // Середина площадки над столом: сюда вождь встаёт, чтобы выложить еду и собрать клыки.
+  getZonePoint(): Point {
+    return this.zone;
+  }
+
   // Стоит ли точка (x, y) на площадке перед столом.
   contains(x: number, y: number): boolean {
     return Phaser.Math.Distance.Between(x, y, this.zone.x, this.zone.y) <= DROP_RADIUS;

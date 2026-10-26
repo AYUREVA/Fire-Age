@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { SUNSET_TIME, WORLD_HEIGHT, WORLD_WIDTH } from '../settings';
 import { COLORS } from '../palette';
 import { TEXTURES } from '../textures';
+import { LoopSound, SOUNDS, SOUND_VOLUMES, addLoop } from '../sounds';
 
 // ===== Слои =====
 
@@ -73,6 +74,8 @@ export class NightOverlay {
   private shadeBottom: Phaser.GameObjects.Rectangle;
   // Метель: включается ночью, выключается утром.
   private blizzard: Phaser.GameObjects.Particles.ParticleEmitter;
+  // Вой ветра ночью: звучит по кругу (нет Web Audio — undefined).
+  private wind?: LoopSound;
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
@@ -98,6 +101,7 @@ export class NightOverlay {
       .setAlpha(0);
 
     this.blizzard = this.createBlizzard();
+    this.wind = addLoop(scene, SOUNDS.wind, 0);
 
     // Экран поменял размер (повернули телефон) — закат снова на весь экран.
     // Подписка на событие всей игры: при выключении сцены её снимаем.
@@ -122,6 +126,9 @@ export class NightOverlay {
     this.fade(this.sunset, 0, NIGHT_FADE_TIME);
     this.fade(this.darkness, NIGHT_ALPHA, NIGHT_FADE_TIME);
     this.blizzard.start();
+    // Ветер нарастает вместе с тьмой.
+    this.wind?.play();
+    if (this.wind) this.scene.tweens.add({ targets: this.wind, volume: SOUND_VOLUMES.wind, duration: NIGHT_FADE_TIME });
   }
 
   // Утро: тьма уходит, метель стихает (уже летящие снежинки долетают).
@@ -129,6 +136,8 @@ export class NightOverlay {
     this.fade(this.sunset, 0, DAY_FADE_TIME);
     this.fade(this.darkness, 0, DAY_FADE_TIME);
     this.blizzard.stop();
+    // Ветер стихает вместе с тьмой.
+    if (this.wind) this.scene.tweens.add({ targets: this.wind, volume: 0, duration: DAY_FADE_TIME });
   }
 
   // Вызывается сценой каждый кадр: светлое пятно стоит на огне (x, y)

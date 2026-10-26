@@ -16,7 +16,7 @@ const COLUMN_DEPTH_STEP = -0.05;
  *
  * Колонки стоят рядом друг с другом за спиной в порядке ITEM_ORDER.
  * Пустая колонка не видна и не занимает места. У каждой колонки свой
- * одинаковый лимит STACK_CAPACITY; полная колонка показывает «МАКС» сама.
+ * одинаковый лимит capacity; полная колонка показывает «МАКС» сама.
  * Про вождя рюкзак ничего не знает: сцена каждый кадр сообщает точку
  * на спине, скорость, глубину и куда смотрит вождь.
  */
@@ -24,11 +24,13 @@ export class Backpack {
   // По стопке на каждый тип ресурса.
   private stacks: Record<ItemType, CarryStack>;
 
-  constructor(scene: Phaser.Scene) {
+  // capacity — сколько предметов помещается в каждую колонку
+  // (STACK_CAPACITY и прибавка мета-улучшения «Крепкая спина»).
+  constructor(scene: Phaser.Scene, capacity: number) {
     this.stacks = {
-      wood: new CarryStack(scene, ITEMS.wood.texture),
-      rawMeat: new CarryStack(scene, ITEMS.rawMeat.texture),
-      cookedMeat: new CarryStack(scene, ITEMS.cookedMeat.texture),
+      wood: new CarryStack(scene, ITEMS.wood.texture, capacity),
+      rawMeat: new CarryStack(scene, ITEMS.rawMeat.texture, capacity),
+      cookedMeat: new CarryStack(scene, ITEMS.cookedMeat.texture, capacity),
     };
   }
 

@@ -10,8 +10,6 @@ import {
   WOODPILE_POSITION,
   WOODPILE_CAPACITY,
   RABBIT_COUNT,
-  WOLF_COUNT,
-  WOLF_FIRST_DELAY,
   WOLF_RETURN_TIME_MAX,
   WOLF_RETURN_TIME_MIN,
   RAW_MEAT_PILE_POSITION,
@@ -22,8 +20,10 @@ import {
   COOKED_MEAT_PILE_CAPACITY,
   PHASES,
   FIRE_MAX_HEAT,
+  STACK_CAPACITY,
 } from '../settings';
 import { TEXTURES, createTextures, loadFonts } from '../textures';
+import { createSounds } from '../sounds';
 import { Player } from '../objects/Player';
 import { Backpack } from '../objects/Backpack';
 import { ResourceNode } from '../objects/ResourceNode';
@@ -42,17 +42,23 @@ import { Hud } from '../objects/Hud';
 import { CycleEvent, DayNightCycle } from '../objects/DayNightCycle';
 import { NightOverlay } from '../objects/NightOverlay';
 import { PhaseBanner } from '../ui/PhaseBanner';
+import { TutorialHint } from '../ui/TutorialHint';
+import { updateTutorial } from '../systems/Tutorial';
 import { updateDropping, updateGathering, updateHunting, updatePickup } from '../systems/Gathering';
 import { updateCooking } from '../systems/Cooking';
 import { updateTable, updateTravelers, updateTusks } from '../systems/Serving';
 import { updateFire } from '../systems/Fire';
 import { updatePurchases } from '../systems/Purchases';
 import { updateWolfFight, updateWolves } from '../systems/Predators';
-import { FENCE_PRICE, FENCE_SPOT, HUT_PRICE, HUT_SPOTS, WEAPONS, WEAPON_SPOT } from '../data/upgrades';
+import { WEAPONS } from '../data/upgrades';
+import { LEVELS, LevelData } from '../data/levels';
 import { LevelStats, PauseSource, track } from '../analytics';
+import { getProgress, recordLevel } from '../save';
+import { metaBonus } from '../data/metaUpgrades';
 import { ReadyData } from './ReadyScene';
 import { PauseData } from './PauseScene';
 import { ResultData } from './ResultScene';
+import { MenuData } from './MenuScene';
 
 // ===== Режим игры =====
 
@@ -62,6 +68,9 @@ import { ResultData } from './ResultScene';
 // 'paused'  — пауза, поверх табличка «ПАУЗА»;
 // 'result'  — победа или поражение, поверх табличка итога.
 type GameMode = 'ready' | 'playing' | 'paused' | 'result';
+
+// С какими данными запускается сцена: какой уровень играем (номер в LEVELS, с нуля).
+export type GameData = { levelIndex?: number };
 
 // ===== Слои отрисовки (depth) =====
 // Порядок снизу вверх во всей игре:
@@ -153,6 +162,9 @@ const CAMERA_OFFSET_Y = 60;
  * Только сцена знает обо всех объектах — сами объекты друг о друге не знают.
  */
 export class GameScene extends Phaser.Scene {
+  // Какой уровень играем: номер в LEVELS (с нуля) и его данные (data/levels.ts).
+  private levelIndex = 0;
+  private level!: LevelData;
   // Вождь — его водит игрок.
   private player!: Player;
   // Всё, что вождь несёт за спиной: колонки хвороста и мяса.
@@ -176,14 +188,15 @@ export class GameScene extends Phaser.Scene {
   // Путники: созданы заранее (сколько мест в очереди), приходят из леса по очереди.
   private travelers: Traveler[] = [];
   // Точки покупки: клыки из счётчика → покупка. Оружие продаётся на одной точке.
+  // Каких точек нет на уровне — того поля нет (undefined).
   private buyZones: BuyZone[] = [];
-  private weaponZone!: BuyZone;
+  private weaponZone?: BuyZone;
   // Хижины и их точки покупки (одинаковый порядок: hutZones[i] строит huts[i]).
   private huts: Hut[] = [];
   private hutZones: BuyZone[] = [];
   // Частокол вокруг лагеря и его точка покупки.
   private fence!: Fence;
-  private fenceZone!: BuyZone;
+  private fenceZone?: BuyZone;
   // Интерфейс: сколько осталось до конца дня или ночи, кнопка паузы.
   private hud!: Hud;
   // Смена дня и ночи: фаза, номер суток, сколько осталось до конца фазы.
@@ -192,14 +205,24 @@ export class GameScene extends Phaser.Scene {
   private nightOverlay!: NightOverlay;
   // Уведомление о смене дня и ночи: табличка сверху экрана.
   private phaseBanner!: PhaseBanner;
+  // Обучение стрелками-подсказками — только на уровне с обучением (иначе undefined).
+  private tutorial?: TutorialHint;
   // Режим игры. Меняют его только функции переходов (раздел «Режим игры» ниже).
   private mode: GameMode = 'ready';
+  // Во сколько раз вождь быстрее благодаря мета-улучшению «Быстрые ноги» (1 — не куплено).
+  private speedBonus = 1;
   // Статистика уровня: накормлено, ушло голодными, клыки, время игры, волки.
   // Меняют системы, аналитика читает её в переходах (analytics.ts).
   private stats!: LevelStats;
 
   constructor() {
     super('GameScene');
+  }
+
+  // Перед create(): какой уровень играем. Без данных — первый уровень.
+  init(data: GameData): void {
+    this.levelIndex = data.levelIndex ?? 0;
+    this.level = LEVELS[this.levelIndex];
   }
 
   // Загрузка перед create(): шрифт заголовков (картинки рисуются кодом в create()).
@@ -217,10 +240,24 @@ export class GameScene extends Phaser.Scene {
     this.buyZones = [];
     this.huts = [];
     this.hutZones = [];
+    this.weaponZone = undefined;
+    this.fenceZone = undefined;
     this.mode = 'ready';
-    this.stats = { fed: 0, hungry: 0, tusksEarned: 0, playTime: 0, wolvesDriven: 0, itemsStolen: 0 };
+    this.stats = {
+      fed: 0,
+      hungry: 0,
+      tusksEarned: 0,
+      playTime: 0,
+      wolvesDriven: 0,
+      itemsStolen: 0,
+      woodGathered: 0,
+      meatCooked: 0,
+    };
 
     createTextures(this);
+    createSounds(this);
+    // Уровень выключается («Заново», «Дальше», «В меню») — его звуки замолкают.
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.sound.stopAll());
 
     // Одинаковый seed — одинаковый декор при каждом запуске.
     const rng = new Phaser.Math.RandomDataGenerator([DECOR_SEED]);
@@ -259,9 +296,15 @@ export class GameScene extends Phaser.Scene {
 
     this.createBuyZones();
 
+    // Мета-улучшения за звёзды (save.ts хранит, сколько раз куплено, metaUpgrades.ts — что дают):
+    // скорость вождя, вместимость колонок за спиной, стартовый хворост в поленнице.
+    const meta = getProgress().meta;
+    this.speedBonus = 1 + metaBonus('speed', meta.speed);
+    this.woodpile.fill(metaBonus('startWood', meta.startWood));
+
     this.player = new Player(this, PLAYER_START.x, PLAYER_START.y);
-    this.backpack = new Backpack(this);
-    this.cycle = new DayNightCycle();
+    this.backpack = new Backpack(this, STACK_CAPACITY + metaBonus('capacity', meta.capacity));
+    this.cycle = new DayNightCycle(this.level.dayCount);
     this.hud = new Hud(this, () => this.pauseGame('button'));
     this.hud.setTimeLeft(this.cycle.timeLeft);
 
@@ -269,6 +312,7 @@ export class GameScene extends Phaser.Scene {
     this.createSnowfall();
     this.nightOverlay = new NightOverlay(this);
     this.phaseBanner = new PhaseBanner(this);
+    this.tutorial = this.level.hasTutorial ? new TutorialHint(this) : undefined;
     this.setupPause();
 
     // Мир построен — игра в режиме READY: ждём касания, клика или клавиши.
@@ -288,7 +332,7 @@ export class GameScene extends Phaser.Scene {
     // здесь копится чистое время игры.
     this.stats.playTime += delta;
 
-    this.player.update(delta, phase.playerSpeedMultiplier, this.canWalk);
+    this.player.update(delta, phase.playerSpeedMultiplier * this.speedBonus, this.canWalk);
     // Калитка, к которой подошёл вождь, распахивается.
     this.fence.update(delta, this.player.x, this.player.y);
     // Рюкзаку сообщаем, где спина вождя, как быстро он идёт, его глубину и куда он смотрит.
@@ -314,18 +358,18 @@ export class GameScene extends Phaser.Scene {
       this.player,
       this.backpack,
       this.stats,
-      WOLF_COUNT[this.cycle.phase],
+      this.level.wolves?.[this.cycle.phase] ?? 0,
       this.canWolfStep,
       delta,
     );
     updateWolfFight(this.player, this.backpack, this.wolves, this.stats);
-    updateGathering(this.player, this.backpack, this.bushes, delta);
+    updateGathering(this.player, this.backpack, this.bushes, this.stats, delta);
     updateHunting(this.player, this.backpack, this.rabbits);
     updateDropping(this.player, this.backpack, [this.woodpile, this.rawMeatPile], delta);
     updatePickup(this.player, this.backpack, this.cookedMeatPile, delta);
     const isFireOut = updateFire(this.campfire, this.woodpile, delta, phase.fireBurnMultiplier);
     this.campfire.update(delta);
-    updateCooking(this.campfire, this.rawMeatPile, this.spit, this.cookedMeatPile, delta);
+    updateCooking(this.campfire, this.rawMeatPile, this.spit, this.cookedMeatPile, this.stats, delta);
     this.spit.update(delta);
     this.nightOverlay.update(this.campfire.x, this.campfire.y, this.campfire.heat / FIRE_MAX_HEAT);
 
@@ -333,10 +377,28 @@ export class GameScene extends Phaser.Scene {
     for (const traveler of this.travelers) {
       traveler.update(delta);
     }
-    updateTravelers(this.table, this.travelers, this.huts, this.stats, delta);
+    updateTravelers(this.table, this.travelers, this.huts, this.stats, this.level.travelers, delta);
     updateTusks(this.player, this.table, this.hud, this.stats, this.cameras.main);
     const purchase = updatePurchases(this.player, this.buyZones, this.hud, this.cameras.main, delta);
     if (purchase) this.onPurchase(purchase);
+
+    if (this.tutorial) {
+      updateTutorial(
+        this.tutorial,
+        {
+          player: this.player,
+          backpack: this.backpack,
+          bushes: this.bushes,
+          rabbits: this.rabbits,
+          woodpile: this.woodpile,
+          rawMeatPile: this.rawMeatPile,
+          cookedMeatPile: this.cookedMeatPile,
+          table: this.table,
+          stats: this.stats,
+        },
+        delta,
+      );
+    }
 
     const cycleEvent = this.cycle.update(delta);
     this.hud.setTimeLeft(this.cycle.timeLeft);
@@ -379,21 +441,29 @@ export class GameScene extends Phaser.Scene {
 
   // ===== Покупки =====
 
-  // Точки покупки из data/upgrades.ts. Оружие — с первого, что можно купить (топор).
+  // Точки покупки, которые есть на уровне (data/levels.ts).
+  // Оружие — с первого, что можно купить (топор); его цена — в data/upgrades.ts.
   private createBuyZones(): void {
-    const firstWeapon = WEAPONS[1];
-    this.weaponZone = new BuyZone(this, WEAPON_SPOT.x, WEAPON_SPOT.y, firstWeapon.price, firstWeapon.icon);
-    this.buyZones.push(this.weaponZone);
+    const { weapons, fence, huts } = this.level;
+    if (weapons) {
+      const firstWeapon = WEAPONS[1];
+      this.weaponZone = new BuyZone(this, weapons.spot.x, weapons.spot.y, firstWeapon.price, firstWeapon.icon);
+      this.buyZones.push(this.weaponZone);
+    }
 
-    this.fenceZone = new BuyZone(this, FENCE_SPOT.x, FENCE_SPOT.y, FENCE_PRICE, TEXTURES.fenceIcon);
-    this.buyZones.push(this.fenceZone);
+    if (fence) {
+      this.fenceZone = new BuyZone(this, fence.spot.x, fence.spot.y, fence.price, TEXTURES.fenceIcon);
+      this.buyZones.push(this.fenceZone);
+    }
 
     // Хижины: на каждом месте — точка покупки, хижина появится на её месте.
-    for (const spot of HUT_SPOTS) {
-      this.huts.push(new Hut(this, spot.x, spot.y));
-      this.hutZones.push(new BuyZone(this, spot.x, spot.y, HUT_PRICE, TEXTURES.hut));
+    if (huts) {
+      for (const spot of huts.spots) {
+        this.huts.push(new Hut(this, spot.x, spot.y));
+        this.hutZones.push(new BuyZone(this, spot.x, spot.y, huts.price, TEXTURES.hut));
+      }
+      this.buyZones.push(...this.hutZones);
     }
-    this.buyZones.push(...this.hutZones);
   }
 
   // Покупка на точке zone готова: сцена решает, что купили.
@@ -472,7 +542,9 @@ export class GameScene extends Phaser.Scene {
   //
   // Допустимые переходы (раздел 9 плана, правило 11):
   //   READY → PLAYING, PLAYING → PAUSED, PAUSED → PLAYING,
-  //   PAUSED → READY, PLAYING → RESULT, RESULT → READY.
+  //   PAUSED → READY, PLAYING → RESULT, RESULT → READY,
+  //   PAUSED → меню, RESULT → меню, RESULT → READY следующего уровня.
+  //   Из меню сцена запускается в READY выбранного уровня.
   // Каждый переход — одна функция. Первой строкой она проверяет, можно ли
   // перейти из текущего режима; если нельзя — ничего не делает.
   // Когда игра не идёт (READY, PAUSED, RESULT), сцена стоит на паузе целиком
@@ -482,7 +554,9 @@ export class GameScene extends Phaser.Scene {
   // Вызывается сразу после create(): при первом запуске и после «Заново».
   private showReady(): void {
     this.scene.pause();
-    const data: ReadyData = { onStart: () => this.startPlaying() };
+    // Пока игра стоит, стоят и звуки (треск костра, ветер).
+    this.sound.pauseAll();
+    const data: ReadyData = { title: this.level.name, onStart: () => this.startPlaying() };
     this.scene.launch('ReadyScene', data);
   }
 
@@ -490,10 +564,11 @@ export class GameScene extends Phaser.Scene {
   private startPlaying(): void {
     if (this.mode !== 'ready') return;
     this.mode = 'playing';
-    track({ name: 'levelStart' });
+    track({ name: 'levelStart', level: this.levelIndex + 1 });
 
     this.scene.stop('ReadyScene');
     this.scene.resume();
+    this.sound.resumeAll();
   }
 
   // PLAYING → PAUSED: игра замирает, поверх — табличка «ПАУЗА».
@@ -504,7 +579,12 @@ export class GameScene extends Phaser.Scene {
     track({ name: 'pause', source });
 
     this.scene.pause();
-    const data: PauseData = { onResume: () => this.resumeGame(), onRestart: () => this.restart() };
+    this.sound.pauseAll();
+    const data: PauseData = {
+      onResume: () => this.resumeGame(),
+      onRestart: () => this.restart(),
+      onMenu: () => this.quitToMenu(),
+    };
     this.scene.launch('PauseScene', data);
   }
 
@@ -516,6 +596,7 @@ export class GameScene extends Phaser.Scene {
 
     this.scene.stop('PauseScene');
     this.scene.resume();
+    this.sound.resumeAll();
   }
 
   // PAUSED → READY и RESULT → READY: «Заново». Табличка паузы или итога
@@ -529,24 +610,79 @@ export class GameScene extends Phaser.Scene {
     const tabletScene = isFromPause ? 'PauseScene' : 'ResultScene';
 
     this.scene.stop(tabletScene);
-    this.scene.restart();
+    const data: GameData = { levelIndex: this.levelIndex };
+    this.scene.restart(data);
+  }
+
+  // PAUSED → меню и RESULT → меню: «В меню». Табличка закрывается, уровень
+  // выключается, открывается меню — сразу табличка уровней эпохи (MenuScene).
+  // Режим меняем сразу: второе нажатие в том же кадре уже ничего не сделает.
+  private quitToMenu(): void {
+    if (this.mode !== 'paused' && this.mode !== 'result') return;
+    const isFromPause = this.mode === 'paused';
+    this.mode = 'ready';
+    track({ name: 'quitToMenu', from: isFromPause ? 'pause' : 'result' });
+
+    this.scene.stop(isFromPause ? 'PauseScene' : 'ResultScene');
+    // Сразу табличка уровней эпохи: видно, что открылось и сколько звёзд.
+    const data: MenuData = { view: 'levels' };
+    this.scene.start('MenuScene', data);
+  }
+
+  // RESULT → READY следующего уровня: «Дальше» на итогах. Табличка закрывается,
+  // строится следующий уровень и ждёт старта. Следующего уровня нет — ничего не делает.
+  private nextLevel(): void {
+    if (this.mode !== 'result' || this.levelIndex + 1 >= LEVELS.length) return;
+    this.mode = 'ready';
+
+    this.scene.stop('ResultScene');
+    const data: GameData = { levelIndex: this.levelIndex + 1 };
+    this.scene.restart(data);
   }
 
   // PLAYING → RESULT: победа или поражение. Игра замирает, поверх — табличка итога.
+  // Звёзды сразу сохраняются (save.ts хранит лучший результат уровня).
   private endGame(isWin: boolean): void {
     if (this.mode !== 'playing') return;
     this.mode = 'result';
+    const stars = this.countStars(isWin);
+    recordLevel(this.levelIndex, stars);
     track({
       name: 'levelEnd',
+      level: this.levelIndex + 1,
       isWin,
       reason: isWin ? 'dawn' : 'fireOut',
       day: this.cycle.dayNumber,
+      stars,
       ...this.stats,
     });
 
     this.scene.pause();
-    const data: ResultData = { isWin, onRestart: () => this.restart() };
+    this.sound.pauseAll();
+    const hasNext = isWin && this.levelIndex + 1 < LEVELS.length;
+    const data: ResultData = {
+      isWin,
+      stars,
+      stats: this.stats,
+      // Пережиты все сутки уровня — или те, что успели закончиться до поражения.
+      days: isWin ? this.level.dayCount : this.cycle.dayNumber - 1,
+      hasWolves: this.level.wolves !== undefined,
+      onRestart: () => this.restart(),
+      onMenu: () => this.quitToMenu(),
+      onNext: hasNext ? () => this.nextLevel() : undefined,
+    };
     this.scene.launch('ResultScene', data);
+  }
+
+  // Сколько звёзд за уровень (раздел 5 плана). Проиграл — ни одной. Победа — звезда,
+  // ещё одна, если жар ни разу не падал ниже засечки, и ещё одна, если накормлено
+  // не меньше starFed путников (порог из данных уровня). Условия независимы.
+  private countStars(isWin: boolean): number {
+    if (!isWin) return 0;
+    let stars = 1;
+    if (!this.campfire.wasBelowMark) stars += 1;
+    if (this.stats.fed >= this.level.starFed) stars += 1;
+    return stars;
   }
 
   // ===== Мир =====
@@ -586,11 +722,13 @@ export class GameScene extends Phaser.Scene {
     return nearCamp || nearBush;
   }
 
-  // Волков столько, сколько их может быть на поле ночью. Первый выходит через
-  // WOLF_FIRST_DELAY, остальные — каждый на случайное время позже предыдущего.
+  // Волков столько, сколько их может быть на поле ночью (данные уровня; нет волков — ни одного).
+  // Первый выходит через firstDelay, остальные — каждый на случайное время позже предыдущего.
   private createWolves(): void {
-    const count = Math.max(WOLF_COUNT.day, WOLF_COUNT.night);
-    let delay = WOLF_FIRST_DELAY;
+    const wolves = this.level.wolves;
+    if (!wolves) return;
+    const count = Math.max(wolves.day, wolves.night);
+    let delay = wolves.firstDelay;
     for (let i = 0; i < count; i++) {
       this.wolves.push(new Wolf(this, delay));
       delay += Phaser.Math.Between(WOLF_RETURN_TIME_MIN, WOLF_RETURN_TIME_MAX);
