@@ -145,22 +145,26 @@ function tuskSynth(): Synth {
   };
 }
 
-// Треск костра: тихий глухой гул и случайные короткие щелчки поленьев.
+// Треск костра: тихий глухой гул и редкие мягкие щелчки поленьев.
+// Щелчок — сглаженный (глухой) шум, который быстро затухает: «щёлк», а не шипение.
 function crackleSynth(): Synth {
   const rumble = softNoise(() => 0.02);
-  // Сколько ещё длится текущий щелчок (секунды) и его громкость.
-  let clickLeft = 0;
+  const pop = softNoise(() => 0.25);
+  // Сколько секунд прошло с начала щелчка и его громкость.
+  let clickTime = 1;
   let clickVolume = 0;
-  // В среднем столько щелчков в секунду.
-  const clicksPerSecond = 14;
-  return (_t, dt) => {
-    if (clickLeft <= 0 && Math.random() < clicksPerSecond * dt) {
-      clickLeft = 0.004 + Math.random() * 0.01;
-      clickVolume = 0.3 + Math.random() * 0.6;
+  // В среднем столько щелчков в секунду, сколько длится щелчок (секунды) и как быстро он затухает.
+  const clicksPerSecond = 5;
+  const clickLength = 0.03;
+  const clickFade = 180;
+  return (t, dt) => {
+    if (clickTime > clickLength && Math.random() < clicksPerSecond * dt) {
+      clickTime = 0;
+      clickVolume = 0.5 + Math.random() * 0.7;
     }
-    clickLeft -= dt;
-    const click = clickLeft > 0 ? noise() * clickVolume : 0;
-    return 1.2 * rumble(_t, dt) + click;
+    clickTime += dt;
+    const click = clickTime < clickLength ? pop(t, dt) * clickVolume * Math.exp(-clickTime * clickFade) : 0;
+    return 1.2 * rumble(t, dt) + click;
   };
 }
 
