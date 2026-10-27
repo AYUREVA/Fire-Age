@@ -28,10 +28,10 @@ export const TEXTURES = {
   leg: 'leg', // нога в сапоге; вращается вокруг бедра (см. Player.ts)
   arm: 'arm', // свободная рука с открытой ладонью; вращается вокруг плеча (см. Player.ts)
   clubArm: 'club-arm', // рука с оружием без кисти (кулак — на картинке оружия); вращается вокруг плеча
-  club: 'club', // дубина с кулаком внизу; вращается вокруг кулака (см. Player.ts)
-  axe: 'axe', // каменный топор с кулаком внизу (кулак — как у дубины)
-  spear: 'spear', // копьё с кремнёвым наконечником и кулаком внизу
-  axeIcon: 'axe-icon', // каменный топор без кулака — на точке покупки
+  club: 'club', // каменная булава с кулаком внизу; вращается вокруг кулака (см. Player.ts)
+  axe: 'axe', // двусторонний каменный топор с кулаком внизу (кулак — как у дубины)
+  spear: 'spear', // копьё с широким кремнёвым наконечником и кулаком внизу
+  axeIcon: 'axe-icon', // двусторонний каменный топор без кулака — на точке покупки
   spearIcon: 'spear-icon', // копьё без кулака — на точке покупки
   ring: 'ring', // светлое кольцо под ногами вождя
   joystickBase: 'joystick-base', // круг джойстика
@@ -134,8 +134,6 @@ const CLUB_ARM_SIZE: Size = { w: 26, h: 40 };
 const CLUB_SIZE: Size = { w: 36, h: 92 };
 const AXE_SIZE: Size = { w: 88, h: 100 };
 const SPEAR_SIZE: Size = { w: 40, h: 150 };
-// Клин топора ниже верхнего края картинки на столько пикселей.
-const AXE_HEAD_SHIFT = 5;
 const RING_SIZE: Size = { w: 90, h: 44 };
 const JOYSTICK_BASE_SIZE: Size = { w: 128, h: 128 };
 const JOYSTICK_KNOB_SIZE: Size = { w: 60, h: 60 };
@@ -198,11 +196,6 @@ const SNOW_TILE_SEED = 'snow-tile';
 const SNOW_TILE_SHADES = 8;
 const SNOW_TILE_LIGHTS = 6;
 const SNOW_TILE_SPECKS = 60;
-// Дубина: полуширина рукояти у кулака, радиус толстого конца
-// и на сколько шагов делится её контур (больше — глаже).
-const CLUB_HANDLE_HALF_WIDTH = 3.5;
-const CLUB_TOP_RADIUS = 13;
-const CLUB_STEPS = 16;
 // Центр кулака на дубине — на столько пикселей выше нижнего края картинки
 // Так же у топора и копья: кулак у всего оружия на одной высоте от низа картинки,
 // вокруг него оружие вращается (Player.ts).
@@ -980,207 +973,100 @@ function fillLock(g: Graphics, lock: Lock, grow: number): void {
   );
 }
 
-// ===== Дубина =====
+// ===== Оружие: каменная булава, двусторонний топор, кремнёвое копьё =====
 
-// Дубина из цельного куска дерева: у кулака тонкая рукоять,
-// к концу плавно расширяется до толстого закруглённого «набалдашника».
-// Центр кулака — на WEAPON_GRIP_FROM_BOTTOM пикселей выше нижнего края: вокруг него дубина и вращается.
+// Центр кулака — на WEAPON_GRIP_FROM_BOTTOM пикселей выше нижнего края картинки:
+// вокруг него оружие и вращается. Ладонь рисуется до рукояти, пальцы — после всего.
+// withFist — с кулаком (в руке вождя) или без (иконка на точке покупки).
+
+// Каменная булава: деревянная рукоять, сверху примотан круглый валун.
 function drawClub(g: Graphics): void {
   const { w, h } = CLUB_SIZE;
   const cx = w / 2;
-
-  // Контур: левый край снизу вверх, закругление сверху, правый край сверху вниз.
-  const silhouette: number[] = [];
-  for (let i = 0; i <= CLUB_STEPS; i++) {
-    const t = i / CLUB_STEPS;
-    silhouette.push(cx - clubHalfWidth(t), clubY(t));
-  }
-  for (let i = 1; i < CLUB_STEPS; i++) {
-    // Полукруг сверху: угол от 180° (слева) через 270° (верх) до 360° (справа).
-    const angle = Math.PI + (i / CLUB_STEPS) * Math.PI;
-    silhouette.push(cx + Math.cos(angle) * CLUB_TOP_RADIUS, clubY(1) + Math.sin(angle) * CLUB_TOP_RADIUS);
-  }
-  for (let i = CLUB_STEPS; i >= 0; i--) {
-    const t = i / CLUB_STEPS;
-    silhouette.push(cx + clubHalfWidth(t) * clubBumps(t), clubY(t));
-  }
-
-  // Кулак обхватывает рукоять: ладонь — за рукоятью, пальцы — поверх неё.
-  // Под кулаком выглядывает закруглённый конец рукояти.
   drawFistBack(g, cx, h - WEAPON_GRIP_FROM_BOTTOM);
-  outlinedEllipse(g, cx, h - 4, 9, 5, COLORS.woodDark);
-
-  fillPolygon(g, silhouette, COLORS.wood);
-  drawClubShading(g, cx);
-  drawClubGrain(g, cx);
-  strokePolygon(g, silhouette);
-  drawClubWrap(g, cx);
-
+  drawWoodHandle(g, cx, h, 30, 7);
+  // Валун: тень справа снизу, светлая грань слева сверху, сколы.
+  outlinedEllipse(g, cx, 21, 31, 27, COLORS.stone);
+  crescent(g, cx, 21, 14, 12, -4, -3, COLORS.stoneDark);
+  g.fillStyle(COLORS.stoneLight, 1);
+  g.fillEllipse(cx - 6, 13, 9, 5);
+  g.lineStyle(1.4, COLORS.stoneDark, 1);
+  g.strokePoints(toPoints([cx - 9, 22, cx - 4, 25, cx - 5, 30]), false);
+  g.strokePoints(toPoints([cx + 5, 12, cx + 8, 17]), false);
+  // Ремни крест-накрест держат валун.
+  limb(g, cx - 13, 16, cx + 12, 31, 3.4, COLORS.leather);
+  limb(g, cx + 13, 16, cx - 12, 31, 3.4, COLORS.leather);
+  drawHandleWrap(g, cx, h - 30, 5.5);
   drawFistFront(g, cx, h - WEAPON_GRIP_FROM_BOTTOM);
 }
 
-// Полуширина дубины на доле длины t (0 — у рукояти, 1 — у толстого конца).
-// t в степени 1.8: сначала дубина почти не толстеет, потом всё быстрее.
-function clubHalfWidth(t: number): number {
-  return CLUB_HANDLE_HALF_WIDTH + (CLUB_TOP_RADIUS - CLUB_HANDLE_HALF_WIDTH) * Math.pow(t, 1.8);
-}
-
-// Высота точки на доле длины t: от низа рукояти до центра закругления наверху.
-function clubY(t: number): number {
-  return Phaser.Math.Linear(CLUB_SIZE.h - 4, CLUB_TOP_RADIUS + 2, t);
-}
-
-// Неровности правого края — дерево не бывает идеально гладким.
-function clubBumps(t: number): number {
-  return 1 + 0.06 * Math.sin(t * 14) * t;
-}
-
-// Объём: тень вдоль правой стороны и светлая полоса слева.
-function drawClubShading(g: Graphics, cx: number): void {
-  fillPolygon(g, clubStrip(cx, 0.35, 1), COLORS.woodDark);
-  // Тень заходит и на правую часть закругления наверху.
-  g.fillStyle(COLORS.woodDark, 1);
-  g.slice(cx, clubY(1), CLUB_TOP_RADIUS, -Math.PI / 2 + 0.3, 0);
-  g.fillPath();
-
-  fillPolygon(g, clubStrip(cx, -0.7, -0.45), COLORS.woodLight);
-}
-
-// Полоса вдоль дубины между долями ширины from и to (−1 — левый край, 1 — правый).
-function clubStrip(cx: number, from: number, to: number): number[] {
-  const strip: number[] = [];
-  for (let i = 0; i <= CLUB_STEPS; i++) {
-    const t = i / CLUB_STEPS;
-    strip.push(cx + clubHalfWidth(t) * from, clubY(t));
+// Двусторонний каменный топор: лезвия по обе стороны рукояти, в середине — обух,
+// крест-накрест примотанный ремнём.
+function drawAxe(g: Graphics, withFist: boolean): void {
+  const { w, h } = AXE_SIZE;
+  const cx = w / 2;
+  if (withFist) drawFistBack(g, cx, h - WEAPON_GRIP_FROM_BOTTOM);
+  drawWoodHandle(g, cx, h, 8, 8);
+  for (const side of [-1, 1]) {
+    // m — зеркалит лезвие на другую сторону рукояти.
+    const m = (x: number): number => cx + side * x;
+    const blade = [m(4), 18, m(14), 12, m(26), 4, m(34), 9, m(37), 26, m(34), 43, m(26), 48, m(14), 40, m(4), 34];
+    fillPolygon(g, blade, COLORS.stone);
+    // Свет на верхней грани, тень на нижней, заточенная кромка.
+    fillPolygon(g, [m(14), 12, m(26), 4, m(34), 9, m(30), 14, m(16), 18], COLORS.stoneLight);
+    fillPolygon(g, [m(14), 36, m(26), 40, m(33), 38, m(34), 43, m(26), 48, m(14), 40], COLORS.stoneDark);
+    g.lineStyle(2.6, COLORS.snowLight, 0.95);
+    g.strokePoints(toPoints([m(34.5), 11, m(36.5), 26, m(34.5), 41]), false);
+    strokePolygon(g, blade);
   }
-  for (let i = CLUB_STEPS; i >= 0; i--) {
-    const t = i / CLUB_STEPS;
-    strip.push(cx + clubHalfWidth(t) * to * (to > 0.99 ? clubBumps(t) : 1), clubY(t));
+  outlinedEllipse(g, cx, 26, 12, 22, COLORS.stoneDark);
+  for (const [y1, y2] of [[16, 36], [36, 16]]) limb(g, cx - 6, y1, cx + 6, y2, 4, COLORS.leather);
+  if (withFist) drawFistFront(g, cx, h - WEAPON_GRIP_FROM_BOTTOM);
+}
+
+// Копьё: древко, широкий кремнёвый лист со сколами-гранями, меховой воротник
+// и два красных пера под наконечником.
+function drawSpear(g: Graphics, withFist: boolean): void {
+  const { w, h } = SPEAR_SIZE;
+  const cx = w / 2;
+  if (withFist) drawFistBack(g, cx, h - WEAPON_GRIP_FROM_BOTTOM);
+  drawWoodHandle(g, cx, h, 46, 6);
+  drawFeather(g, cx - 4, 54, -0.6, COLORS.feather);
+  drawFeather(g, cx + 4, 55, 0.6, COLORS.feather);
+  const leaf = [cx, 2, cx + 11, 18, cx + 12, 32, cx + 6, 44, cx, 48, cx - 6, 44, cx - 12, 32, cx - 11, 18];
+  fillPolygon(g, leaf, COLORS.stoneDark);
+  for (const facet of [
+    [cx, 5, cx + 9, 18, cx + 3, 22],
+    [cx + 3, 22, cx + 11, 30, cx + 5, 38],
+    [cx, 5, cx - 9, 18, cx - 3, 24],
+    [cx - 3, 24, cx - 11, 32, cx - 4, 38],
+  ]) {
+    fillPolygon(g, facet, COLORS.stone);
   }
-  return strip;
+  g.lineStyle(1.4, COLORS.stoneLight, 1);
+  g.lineBetween(cx, 6, cx, 44);
+  strokePolygon(g, leaf);
+  outlinedBlobs(g, [cx - 5, 50, 3.6, cx, 51, 4, cx + 5, 50, 3.6], COLORS.furLight);
+  if (withFist) drawFistFront(g, cx, h - WEAPON_GRIP_FROM_BOTTOM);
 }
 
-// Текстура дерева: продольные волокна вдоль расширения, два сучка с кольцами и трещинка.
-function drawClubGrain(g: Graphics, cx: number): void {
-  g.lineStyle(1.3, COLORS.woodDark, 0.8);
-  for (const share of [-0.5, -0.15, 0.2]) {
-    const points: Phaser.Math.Vector2[] = [];
-    for (let i = 2; i <= CLUB_STEPS; i++) {
-      const t = i / CLUB_STEPS;
-      const wave = 0.8 * Math.sin(t * 10 + share * 7);
-      points.push(new Phaser.Math.Vector2(cx + share * clubHalfWidth(t) + wave, clubY(t)));
-    }
-    g.strokePoints(points);
-  }
-
-  // Сучки: тёмное пятно и светлое кольцо вокруг.
-  drawKnot(g, cx - 4, clubY(0.72), 7, 5);
-  drawKnot(g, cx + 1, clubY(0.45), 4, 3);
-
-  // Трещинка на толстом конце.
-  g.lineStyle(1.5, COLORS.outline, 1);
-  g.strokePoints(toPoints([cx + 3, 4, cx + 1, 9, cx + 4, 13, cx + 2, 17]));
+// Деревянная рукоять от низа картинки (h) до top: чуть изогнута, с бликом и торцом под кулаком.
+function drawWoodHandle(g: Graphics, cx: number, h: number, top: number, width: number): void {
+  outlinedEllipse(g, cx, h - 4, width + 2, 5, COLORS.woodDark);
+  limbChain(g, [cx, h - 6, cx - 1.2, (h + top) / 2, cx, top], width, COLORS.wood);
+  g.lineStyle(1.6, COLORS.woodLight, 1);
+  g.lineBetween(cx - width / 2 + 1.5, h - 16, cx - width / 2 + 1.5, top + 8);
 }
 
-// Сучок на дереве: тёмная серединка и светлое годовое кольцо.
-function drawKnot(g: Graphics, x: number, y: number, width: number, height: number): void {
-  g.fillStyle(COLORS.woodDark, 1);
-  g.fillEllipse(x, y, width, height);
-  g.lineStyle(1.2, COLORS.woodLight, 1);
-  g.strokeEllipse(x, y, width + 4, height + 3);
-  g.fillStyle(COLORS.outline, 0.6);
-  g.fillEllipse(x, y, width * 0.4, height * 0.4);
-}
-
-// Кожаная обмотка рукояти над кулаком: три косые полоски.
-function drawClubWrap(g: Graphics, cx: number): void {
-  const half = CLUB_HANDLE_HALF_WIDTH + 1.5;
-  for (const y of [CLUB_SIZE.h - 30, CLUB_SIZE.h - 25, CLUB_SIZE.h - 20]) {
-    const band = [cx - half, y + 2, cx + half, y - 1, cx + half, y + 2, cx - half, y + 5];
+// Кожаная обмотка рукояти над кулаком: три косые полоски, первая на высоте y.
+function drawHandleWrap(g: Graphics, cx: number, y: number, half: number): void {
+  for (let k = 0; k < 3; k++) {
+    const top = y + k * 5;
+    const band = [cx - half, top + 2, cx + half, top - 1, cx + half, top + 2, cx - half, top + 5];
     fillPolygon(g, band, COLORS.leather);
     g.lineStyle(1.2, COLORS.outline, 1);
     g.strokePoints(toPoints(band), true, true);
   }
-}
-
-// ===== Топор и копьё =====
-
-// Каменный топор: рукоять, как у дубины, и тёсаный каменный клин справа,
-// примотанный кожаным ремнём. Клин справа: в замахе он идёт вперёд-вниз.
-// withFist — с кулаком (в руке вождя) или без (на точке покупки).
-function drawAxe(g: Graphics, withFist: boolean): void {
-  const { w, h } = AXE_SIZE;
-  const cx = w / 2;
-  const gripY = h - WEAPON_GRIP_FROM_BOTTOM;
-
-  if (withFist) drawFistBack(g, cx, gripY);
-  outlinedEllipse(g, cx, h - 4, 9, 5, COLORS.woodDark);
-  // Рукоять чуть изогнута; светлая полоска — блик на дереве.
-  limbChain(g, [cx, h - 6, cx - 1.5, h / 2, cx, 10], 8, COLORS.wood);
-  g.lineStyle(2, COLORS.woodLight, 1);
-  g.lineBetween(cx - 2.5, h - 16, cx - 2.5, 20);
-
-  // Клин и ремень чуть ниже верха рукояти — сдвигаем рисунок вниз.
-  g.save();
-  g.translateCanvas(0, AXE_HEAD_SHIFT);
-  // Каменный клин: узкий обух у рукояти расширяется вправо в лезвие с выпуклой кромкой.
-  const head = [
-    cx - 7, 17, cx + 10, 14, cx + 22, 7, cx + 31, 1,
-    cx + 37, 10, cx + 39, 22, cx + 37, 35, cx + 31, 46,
-    cx + 21, 39, cx + 10, 34, cx - 7, 33,
-  ];
-  fillPolygon(g, head, COLORS.stone);
-  // Свет на верхней грани, тень на нижней.
-  fillPolygon(g, [cx + 10, 14, cx + 22, 7, cx + 31, 1, cx + 35, 8, cx + 24, 16, cx + 10, 20], COLORS.stoneLight);
-  fillPolygon(g, [cx + 10, 30, cx + 24, 32, cx + 36, 34, cx + 31, 46, cx + 21, 39, cx + 10, 34], COLORS.stoneDark);
-  // Заточенная кромка лезвия — светлая полоса вдоль дуги.
-  g.lineStyle(3, COLORS.snowLight, 0.95);
-  g.strokePoints(toPoints([cx + 33, 6, cx + 35.5, 14, cx + 36.5, 24, cx + 35, 34, cx + 31, 41]), false);
-  // Сколы от обтёсывания.
-  g.lineStyle(1.5, COLORS.stoneDark, 1);
-  g.lineBetween(cx + 18, 22, cx + 25, 27);
-  g.lineBetween(cx + 6, 24, cx + 11, 28);
-  strokePolygon(g, head);
-
-  // Кожаный ремень крест-накрест держит клин на рукояти.
-  for (const [y1, y2] of [[14, 34], [34, 14]]) {
-    limb(g, cx - 6, y1, cx + 6, y2, 4, COLORS.leather);
-  }
-
-  g.restore();
-
-  if (withFist) drawFistFront(g, cx, gripY);
-}
-
-// Копьё: длинное древко, кремнёвый наконечник-лист, обмотка и два пёрышка.
-function drawSpear(g: Graphics, withFist: boolean): void {
-  const { w, h } = SPEAR_SIZE;
-  const cx = w / 2;
-  const gripY = h - WEAPON_GRIP_FROM_BOTTOM;
-
-  if (withFist) drawFistBack(g, cx, gripY);
-  outlinedEllipse(g, cx, h - 4, 8, 5, COLORS.woodDark);
-  limbChain(g, [cx, h - 6, cx, 40], 6, COLORS.wood);
-  g.lineStyle(1.5, COLORS.woodLight, 1);
-  g.lineBetween(cx - 1.5, h - 16, cx - 1.5, 46);
-
-  // Два пёрышка под наконечником — красное и бирюзовое.
-  drawFeather(g, cx - 3, 50, -0.5, COLORS.feather);
-  drawFeather(g, cx + 3, 52, 0.5, COLORS.featherAlt);
-
-  // Кремнёвый наконечник-лист: тёмный камень, светлая грань посередине.
-  const tip = [cx, 3, cx + 9, 20, cx + 7, 36, cx, 42, cx - 7, 36, cx - 9, 20];
-  fillPolygon(g, tip, COLORS.stoneDark);
-  fillPolygon(g, [cx, 6, cx + 6, 20, cx + 4, 33, cx, 38], COLORS.stone);
-  g.lineStyle(1.5, COLORS.stoneLight, 1);
-  g.lineBetween(cx + 1, 9, cx + 3, 30);
-  strokePolygon(g, tip);
-  // Обмотка держит наконечник.
-  for (const y of [40, 45]) {
-    limb(g, cx - 4, y, cx + 4, y + 2, 3, COLORS.leather);
-  }
-
-  if (withFist) drawFistFront(g, cx, gripY);
 }
 
 // Пёрышко: вытянутый овал цвета color, повёрнутый на angle (радианы), с тёмным стержнем.
