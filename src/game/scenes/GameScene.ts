@@ -432,7 +432,13 @@ export class GameScene extends Phaser.Scene {
         // Пока едет табличка, плашка звёзд спрятана: на узком экране табличка под ней.
         // Когда табличка уедет, ночные модификаторы остаются в HUD до утра.
         this.starGoals.setVisible(false);
-        this.phaseBanner.showNight(this.cycle.dayNumber, () => {
+        // Под табличкой — крупный таймер до рассвета: потом он улетает в плашку времени.
+        const timer = {
+          getTimeLeft: () => this.cycle.timeLeft,
+          target: this.hud.getTimePoint(),
+          onLand: () => this.hud.popTime(),
+        };
+        this.phaseBanner.showNight(this.cycle.dayNumber, timer, () => {
           this.hud.setModifiers(true);
           this.starGoals.setVisible(true);
         });

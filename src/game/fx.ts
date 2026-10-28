@@ -165,6 +165,9 @@ export function setGlow(
   // Нет WebGL — фильтров нет; уже светится — второй раз не добавляем.
   if (!object.filters || object.filters.internal.list.length > 0) return;
   const glow = object.filters.internal.addGlow(COLORS.hintGlow, GLOW_MIN);
+  // У фильтров Phaser 4 по умолчанию нет запаса места вокруг картинки, и свечение
+  // обрезалось бы по её прямоугольнику. null — пусть Glow сам добавит запас на ширину ореола.
+  glow.setPaddingOverride(null);
   scene.tweens.add({
     targets: glow,
     outerStrength: GLOW_MAX,

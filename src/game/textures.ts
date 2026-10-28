@@ -76,6 +76,11 @@ export const TEXTURES = {
   heatBarBack: 'heat-bar-back', // подложка шкалы жара над костром
   heatBarFill: 'heat-bar-fill', // заливка шкалы жара (белая, красится tint)
   hudPanel: 'hud-panel', // плашка интерфейса со скруглёнными углами
+  starPanel: 'star-panel', // плашка «за что звёзды» (такая же каменная плашка, своего размера)
+  bannerChip: 'banner-chip', // плашка метели под табличкой ночи
+  modifierPlate: 'modifier-plate', // плашка ночного модификатора «×2» / «×0.6» в HUD
+  tutorialPlate: 'tutorial-plate', // плашка подсказки обучения: перерисовывается под ширину текста
+  timerPlate: 'timer-plate', // плашка крупного таймера ночи «ДО РАССВЕТА»
   moonIcon: 'moon-icon', // луна на плашке таймера: ночь, до рассвета
   sunIcon: 'sun-icon', // солнце на плашке таймера: день, до ночи
   stoneTablet: 'stone-tablet', // каменная табличка: пауза, старт уровня
@@ -175,6 +180,11 @@ const NIGHT_LIGHT_SIZE: Size = { w: 256, h: 256 };
 const HEAT_BAR_BACK_SIZE: Size = { w: 116, h: 24 };
 const HEAT_BAR_FILL_SIZE: Size = { w: 104, h: 12 };
 const HUD_PANEL_SIZE: Size = { w: 170, h: 66 };
+// Каменные плашки своего размера (размер самой плашки — картинка на PLATE_MARGIN шире с каждой стороны).
+export const STAR_PANEL_SIZE: Size = { w: 270, h: 112 };
+const BANNER_CHIP_SIZE: Size = { w: 200, h: 46 };
+export const MODIFIER_PLATE_SIZE: Size = { w: 84, h: 38 };
+const TIMER_PLATE_SIZE: Size = { w: 230, h: 124 };
 const MOON_ICON_SIZE: Size = { w: 40, h: 40 };
 const SUN_ICON_SIZE: Size = { w: 44, h: 44 };
 // Ширина 600 — табличка помещается на узкий экран (короткая сторона 640).
@@ -288,6 +298,10 @@ export function createTextures(scene: Phaser.Scene): void {
   bake(scene, TEXTURES.heatBarBack, HEAT_BAR_BACK_SIZE, drawHeatBarBack);
   bake(scene, TEXTURES.heatBarFill, HEAT_BAR_FILL_SIZE, drawHeatBarFill);
   bake(scene, TEXTURES.hudPanel, HUD_PANEL_SIZE, drawHudPanel);
+  bakeStonePlate(scene, TEXTURES.starPanel, STAR_PANEL_SIZE.w, STAR_PANEL_SIZE.h);
+  bakeStonePlate(scene, TEXTURES.bannerChip, BANNER_CHIP_SIZE.w, BANNER_CHIP_SIZE.h);
+  bakeStonePlate(scene, TEXTURES.modifierPlate, MODIFIER_PLATE_SIZE.w, MODIFIER_PLATE_SIZE.h);
+  bakeStonePlate(scene, TEXTURES.timerPlate, TIMER_PLATE_SIZE.w, TIMER_PLATE_SIZE.h);
   bake(scene, TEXTURES.moonIcon, MOON_ICON_SIZE, drawMoonIcon);
   bake(scene, TEXTURES.sunIcon, SUN_ICON_SIZE, drawSunIcon);
   bake(scene, TEXTURES.stoneTablet, STONE_TABLET_SIZE, (g) => drawStoneSlab(g, STONE_TABLET_SIZE));
@@ -2350,25 +2364,55 @@ function drawChip(g: Graphics): void {
 
 // ===== Интерфейс =====
 
-// Плашка HUD из того же камня, что таблички и кнопки: тонкая светлая кромка сверху,
-// тёмный торец снизу и тёмное «окошко» почти на всю высоту. Середина окошка —
-// на середине картинки: там Hud ставит иконку и цифры.
+// Плашка HUD: каменная плашка во всю картинку (отступ 2 сверху и по бокам, снизу — место под тень).
 function drawHudPanel(g: Graphics): void {
   const { w, h } = HUD_PANEL_SIZE;
-  const radius = 14;
-  const height = h - 6;
-  const windowHeight = 48;
+  drawStonePlate(g, 2, 2, w - 4, h - 8);
+}
+
+// Каменная плашка — как таблички и кнопки. Скругление углов (у низкой плашки —
+// не больше половины высоты), светлая кромка сверху с отступом от углов,
+// тёмное «окошко» под цифры и текст: отступ по бокам и сверху, ниже краёв на столько.
+const PLATE_RADIUS = 14;
+const PLATE_RIM_INSET = 12;
+const PLATE_WINDOW_SIDE = 4;
+const PLATE_WINDOW_TOP = 7;
+const PLATE_WINDOW_SHRINK = 10;
+// Запас вокруг плашки в картинке: обводка ложится по краю, и без запаса половина
+// её обрезалась бы (на прямых сторонах линия стала бы тоньше, чем на углах).
+const PLATE_MARGIN = 2;
+
+// Каменная плашка размером width × height — в картинку key (с запасом PLATE_MARGIN
+// со всех сторон, середина картинки — середина плашки). Рисуется так же, как
+// плашка HUD, поэтому все плашки выглядят одинаково. Картинка с таким ключом уже
+// есть (плашку подсказки перерисовывают под новый текст) — старую удаляем.
+export function bakeStonePlate(scene: Phaser.Scene, key: string, width: number, height: number): void {
+  if (scene.textures.exists(key)) scene.textures.remove(key);
+  bake(scene, key, { w: width + PLATE_MARGIN * 2, h: height + PLATE_MARGIN * 2 }, (g) =>
+    drawStonePlate(g, PLATE_MARGIN, PLATE_MARGIN, width, height),
+  );
+}
+
+// Каменная плашка любого размера: тонкая светлая кромка сверху, тёмный торец снизу
+// и тёмное «окошко» почти на всю высоту. Рисуется сразу нужного размера, а не
+// растягивается, — поэтому углы и кромка у всех плашек одинаковые, длиннее
+// становятся только прямые линии. (left, top) — левый верхний угол.
+// Так рисуются плашка HUD, плашка подсказки, плашка звёзд, плашки метели и модификаторов.
+function drawStonePlate(g: Graphics, left: number, top: number, width: number, height: number): void {
+  const radius = Math.min(PLATE_RADIUS, height / 2);
+  const windowHeight = height - PLATE_WINDOW_SHRINK;
+  const windowRadius = Math.min(radius - PLATE_WINDOW_SIDE, windowHeight / 2);
 
   g.fillStyle(COLORS.tabletDark, 1);
-  g.fillRoundedRect(2, 2, w - 4, height - 2, radius);
+  g.fillRoundedRect(left, top, width, height, radius);
   g.fillStyle(COLORS.tablet, 1);
-  g.fillRoundedRect(2, 2, w - 4, height - 3, radius);
+  g.fillRoundedRect(left, top, width, height - 1, radius);
   g.lineStyle(2, COLORS.tabletLight, 1);
-  g.lineBetween(14, 5, w - 14, 5);
+  g.lineBetween(left + PLATE_RIM_INSET, top + 3, left + width - PLATE_RIM_INSET, top + 3);
   g.fillStyle(COLORS.outline, 0.45);
-  g.fillRoundedRect(6, h / 2 - windowHeight / 2, w - 12, windowHeight, 10);
+  g.fillRoundedRect(left + PLATE_WINDOW_SIDE, top + PLATE_WINDOW_TOP, width - PLATE_WINDOW_SIDE * 2, windowHeight, windowRadius);
   g.lineStyle(OUTLINE_WIDTH, COLORS.outline, 1);
-  g.strokeRoundedRect(2, 2, w - 4, height - 2, radius);
+  g.strokeRoundedRect(left, top, width, height, radius);
 }
 
 // Подложка шкалы жара: тёмная скруглённая полоска со светлой рамкой и тёмной обводкой.
