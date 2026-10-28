@@ -86,12 +86,13 @@ export const COLORS = {
   basketDark: 0x9c7238, // прутья корзины
 
   // ===== Кролик =====
-  rabbitFur: 0xa08a74, // серо-бурый мех — хорошо виден на снегу
-  rabbitShade: 0x7c6755, // мех в тени, дальнее ухо
-  rabbitLight: 0xc4af97, // светлая спинка и макушка
-  rabbitBelly: 0xf6eee2, // светлое брюхо, щёки, лапы, хвостик
-  rabbitEar: 0xf2a6b0, // розовое внутри уха
-  rabbitEarShade: 0xc98290, // розовое внутри дальнего уха
+  rabbitFur: 0xf4f6fa, // белый зимний мех беляка
+  rabbitShade: 0xc9d6e8, // голубая тень на белом мехе, дальнее ухо
+  rabbitLight: 0xffffff, // блик на спинке и макушке
+  rabbitBelly: 0xffffff, // брюхо, мордочка, лапы, хвостик
+  rabbitEar: 0xf2b4bd, // розовое внутри уха
+  rabbitEarShade: 0xd99aa6, // розовое внутри дальнего уха
+  rabbitEarTip: 0x3a3440, // чёрные кончики ушей
   rabbitEye: 0x35261f, // глаз
   rabbitNose: 0xe77f8f, // нос
 

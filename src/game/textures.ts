@@ -1563,30 +1563,32 @@ function drawBubble(g: Graphics): void {
   g.fillRect(w / 2 - 6, body - 3, 12, 4);
 }
 
-// Пушистый серо-бурый кролик, смотрит вправо. Тело — из нескольких кругов,
-// поэтому по краю видны вихры меха. Светлое брюхо и щёки, большие уши
-// с розовым внутри (дальнее темнее), крупный блестящий глаз, хвостик-помпон.
-// Лапы — внизу картинки.
+// Заяц-беляк, смотрит вправо. Тело — из нескольких кругов, поэтому по краю
+// видны вихры меха. Белый мех с голубыми тенями, длинные уши с розовым внутри
+// и чёрными кончиками, большая задняя лапа, крупный блестящий глаз,
+// хвостик-помпон. Лапы — внизу картинки.
 function drawRabbit(g: Graphics): void {
   // Дальнее ухо (темнее) и ближнее — рисуются первыми, голова их перекрывает.
-  drawRabbitEar(g, 40, 18, -0.45, COLORS.rabbitShade, COLORS.rabbitEarShade);
-  drawRabbitEar(g, 47, 16, -0.12, COLORS.rabbitFur, COLORS.rabbitEar);
+  drawRabbitEar(g, 40, 20, -0.45, COLORS.rabbitShade, COLORS.rabbitEarShade);
+  drawRabbitEar(g, 47, 18, -0.12, COLORS.rabbitFur, COLORS.rabbitEar);
   // Хвостик-помпон.
   outlinedBlobs(g, [11, 38, 6, 14, 33, 5, 9, 34, 4], COLORS.rabbitBelly);
-  // Пушистое тело: круги с общей обводкой, тень снизу, светлая спинка.
+  // Пушистое тело: круги с общей обводкой, тень полумесяцем снизу, блик на спинке.
   outlinedBlobs(g, [22, 40, 14, 33, 38, 13, 15, 45, 10, 28, 47, 12, 37, 45, 10], COLORS.rabbitFur);
-  g.fillStyle(COLORS.rabbitShade, 1);
-  g.fillEllipse(24, 51, 26, 7);
+  crescent(g, 27, 42, 17, 11, 0, -3.5, COLORS.rabbitShade);
   g.fillStyle(COLORS.rabbitLight, 1);
-  g.fillEllipse(25, 33, 16, 6);
+  g.fillEllipse(25, 31, 16, 5);
   // Светлое брюхо спереди.
   g.fillStyle(COLORS.rabbitBelly, 1);
   g.fillEllipse(38, 46, 12, 14);
-  // Длинная задняя лапа и маленькая передняя.
-  outlinedEllipse(g, 20, 55, 18, 6, COLORS.rabbitBelly);
+  // Большая задняя лапа с пальчиками и маленькая передняя.
+  outlinedEllipse(g, 20, 55, 22, 6, COLORS.rabbitBelly);
   outlinedEllipse(g, 42, 55, 9, 5, COLORS.rabbitBelly);
-  // Голова: светлая макушка и светлая мордочка спереди.
+  g.lineStyle(1, COLORS.rabbitShade, 1);
+  for (const x of [26, 28.5]) g.lineBetween(x, 54, x, 57);
+  // Голова: тень снизу, блик на макушке, светлая мордочка спереди.
   outlinedCircle(g, 46, 30, 13, COLORS.rabbitFur);
+  crescent(g, 46, 30, 12, 12, -2, -2.5, COLORS.rabbitShade, 0.8);
   g.fillStyle(COLORS.rabbitLight, 1);
   g.fillEllipse(42, 22, 12, 5);
   g.fillStyle(COLORS.rabbitBelly, 1);
@@ -1595,11 +1597,13 @@ function drawRabbit(g: Graphics): void {
   g.fillStyle(COLORS.rabbitEye, 1);
   g.fillEllipse(49, 27, 8, 9);
   g.fillStyle(COLORS.white, 1);
-  g.fillCircle(50.8, 24.8, 2);
-  g.fillCircle(47.8, 29.5, 1);
-  // Нос и усы.
+  g.fillCircle(51, 24.5, 2);
+  g.fillCircle(47.6, 29.6, 1);
+  // Нос, рот и усы.
   g.fillStyle(COLORS.rabbitNose, 1);
   g.fillEllipse(58, 33, 5, 4);
+  g.lineStyle(1, COLORS.outline, 0.6);
+  g.lineBetween(57.5, 35, 57, 37.5);
   g.lineStyle(1, COLORS.outline, 0.45);
   g.lineBetween(56, 36, 63, 35);
   g.lineBetween(56, 37, 62, 40);
@@ -1732,14 +1736,21 @@ function drawWolfPaw(g: Graphics, x: number, y: number): void {
   for (const dx of [2, 5, 8]) g.lineBetween(x + dx - 1, y - 1, x + dx + 1, y + 3);
 }
 
-// Ухо кролика: овал цвета fur с розовой серединкой inner, повёрнутый на angle (радианы).
+// Ухо кролика: длинный овал цвета fur с розовой серединкой inner и чёрным
+// кончиком, повёрнутый на angle (радианы).
 function drawRabbitEar(g: Graphics, x: number, y: number, angle: number, fur: number, inner: number): void {
+  const length = 31;
   g.save();
   g.translateCanvas(x, y);
   g.rotateCanvas(angle);
-  outlinedEllipse(g, 0, 0, 10, 27, fur);
+  outlinedEllipse(g, 0, 0, 10, length, fur);
   g.fillStyle(inner, 1);
-  g.fillEllipse(0, 2, 4.5, 18);
+  g.fillEllipse(0, 2, 4.5, length * 0.66);
+  g.fillStyle(COLORS.rabbitEarTip, 1);
+  g.fillEllipse(0, -length / 2 + 4, 7.5, 7);
+  // Обводка поверх кончика, чтобы край уха остался ровным.
+  g.lineStyle(OUTLINE_WIDTH, COLORS.outline, 1);
+  g.strokeEllipse(0, 0, 10, length);
   g.restore();
 }
 
