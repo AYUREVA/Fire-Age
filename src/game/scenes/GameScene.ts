@@ -43,7 +43,7 @@ import { CycleEvent, DayNightCycle } from '../objects/DayNightCycle';
 import { NightOverlay } from '../objects/NightOverlay';
 import { PhaseBanner } from '../ui/PhaseBanner';
 import { TutorialHint } from '../ui/TutorialHint';
-import { StarGoals } from '../ui/StarGoals';
+import { StarGoals, describeStarGoals } from '../ui/StarGoals';
 import { updateTutorial } from '../systems/Tutorial';
 import { updateDropping, updateGathering, updateHunting, updatePickup } from '../systems/Gathering';
 import { updateCooking } from '../systems/Cooking';
@@ -656,7 +656,10 @@ export class GameScene extends Phaser.Scene {
   private endGame(isWin: boolean): void {
     if (this.mode !== 'playing') return;
     this.mode = 'result';
-    const stars = this.countStars(isWin);
+    // Звёзды (раздел 5 плана): проиграл — ни одной; победа — звезда за рассвет и по звезде
+    // за жар не ниже засечки и за starFed накормленных путников. Условия — в StarGoals.ts.
+    const starGoals = describeStarGoals(isWin, this.campfire.wasBelowMark, this.stats.fed, this.level.starFed);
+    const stars = starGoals.filter((goal) => goal.isDone).length;
     recordLevel(this.levelIndex, stars);
     track({
       name: 'levelEnd',
@@ -673,7 +676,7 @@ export class GameScene extends Phaser.Scene {
     const hasNext = isWin && this.levelIndex + 1 < LEVELS.length;
     const data: ResultData = {
       isWin,
-      stars,
+      starGoals,
       stats: this.stats,
       // Пережиты все сутки уровня — или те, что успели закончиться до поражения.
       days: isWin ? this.level.dayCount : this.cycle.dayNumber - 1,
@@ -683,17 +686,6 @@ export class GameScene extends Phaser.Scene {
       onNext: hasNext ? () => this.nextLevel() : undefined,
     };
     this.scene.launch('ResultScene', data);
-  }
-
-  // Сколько звёзд за уровень (раздел 5 плана). Проиграл — ни одной. Победа — звезда,
-  // ещё одна, если жар ни разу не падал ниже засечки, и ещё одна, если накормлено
-  // не меньше starFed путников (порог из данных уровня). Условия независимы.
-  private countStars(isWin: boolean): number {
-    if (!isWin) return 0;
-    let stars = 1;
-    if (!this.campfire.wasBelowMark) stars += 1;
-    if (this.stats.fed >= this.level.starFed) stars += 1;
-    return stars;
   }
 
   // ===== Мир =====
