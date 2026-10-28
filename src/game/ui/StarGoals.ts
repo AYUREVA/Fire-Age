@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { COLORS, toCss } from '../palette';
 import { STAR_HEAT_MARK } from '../settings';
-import { FONT_FAMILY, TEXTURES } from '../textures';
+import { FONT_FAMILY, TEXTURES, drawStonePlate } from '../textures';
 import { pop } from '../fx';
 import { SOUNDS, SOUND_VOLUMES, playSound } from '../sounds';
 
@@ -77,7 +77,9 @@ export class StarGoals {
     this.starFed = starFed;
     this.container = scene.add.container(0, 0).setScrollFactor(0).setDepth(GOALS_DEPTH);
 
-    const plate = scene.add.image(0, 0, TEXTURES.hudPanel).setOrigin(0, 0).setDisplaySize(PANEL_WIDTH, PANEL_HEIGHT);
+    // Фон — каменная плашка, нарисованная сразу нужного размера (не растянутая картинка).
+    const plate = scene.add.graphics();
+    drawStonePlate(plate, 0, 0, PANEL_WIDTH, PANEL_HEIGHT);
     this.container.add(plate);
     describeStarGoals(false, false, 0, starFed).forEach((goal, index) => {
       const y = FIRST_ROW_Y + index * ROW_STEP;

@@ -2350,25 +2350,41 @@ function drawChip(g: Graphics): void {
 
 // ===== Интерфейс =====
 
-// Плашка HUD из того же камня, что таблички и кнопки: тонкая светлая кромка сверху,
-// тёмный торец снизу и тёмное «окошко» почти на всю высоту. Середина окошка —
-// на середине картинки: там Hud ставит иконку и цифры.
+// Плашка HUD: каменная плашка во всю картинку (отступ 2 сверху и по бокам, снизу — место под тень).
 function drawHudPanel(g: Graphics): void {
   const { w, h } = HUD_PANEL_SIZE;
-  const radius = 14;
-  const height = h - 6;
-  const windowHeight = 48;
+  drawStonePlate(g, 2, 2, w - 4, h - 8);
+}
+
+// Каменная плашка — как таблички и кнопки. Скругление углов (у низкой плашки —
+// не больше половины высоты), светлая кромка сверху с отступом от углов,
+// тёмное «окошко» под цифры и текст: отступ по бокам и сверху, ниже краёв на столько.
+const PLATE_RADIUS = 14;
+const PLATE_RIM_INSET = 12;
+const PLATE_WINDOW_SIDE = 4;
+const PLATE_WINDOW_TOP = 7;
+const PLATE_WINDOW_SHRINK = 10;
+
+// Каменная плашка любого размера: тонкая светлая кромка сверху, тёмный торец снизу
+// и тёмное «окошко» почти на всю высоту. Рисуется сразу нужного размера, а не
+// растягивается, — поэтому углы и кромка у всех плашек одинаковые, длиннее
+// становятся только прямые линии. (left, top) — левый верхний угол.
+// Так рисуются плашка HUD, плашка подсказки, плашка звёзд, плашки метели и модификаторов.
+export function drawStonePlate(g: Graphics, left: number, top: number, width: number, height: number): void {
+  const radius = Math.min(PLATE_RADIUS, height / 2);
+  const windowHeight = height - PLATE_WINDOW_SHRINK;
+  const windowRadius = Math.min(radius - PLATE_WINDOW_SIDE, windowHeight / 2);
 
   g.fillStyle(COLORS.tabletDark, 1);
-  g.fillRoundedRect(2, 2, w - 4, height - 2, radius);
+  g.fillRoundedRect(left, top, width, height, radius);
   g.fillStyle(COLORS.tablet, 1);
-  g.fillRoundedRect(2, 2, w - 4, height - 3, radius);
+  g.fillRoundedRect(left, top, width, height - 1, radius);
   g.lineStyle(2, COLORS.tabletLight, 1);
-  g.lineBetween(14, 5, w - 14, 5);
+  g.lineBetween(left + PLATE_RIM_INSET, top + 3, left + width - PLATE_RIM_INSET, top + 3);
   g.fillStyle(COLORS.outline, 0.45);
-  g.fillRoundedRect(6, h / 2 - windowHeight / 2, w - 12, windowHeight, 10);
+  g.fillRoundedRect(left + PLATE_WINDOW_SIDE, top + PLATE_WINDOW_TOP, width - PLATE_WINDOW_SIDE * 2, windowHeight, windowRadius);
   g.lineStyle(OUTLINE_WIDTH, COLORS.outline, 1);
-  g.strokeRoundedRect(2, 2, w - 4, height - 2, radius);
+  g.strokeRoundedRect(left, top, width, height, radius);
 }
 
 // Подложка шкалы жара: тёмная скруглённая полоска со светлой рамкой и тёмной обводкой.
