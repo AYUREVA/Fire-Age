@@ -110,6 +110,7 @@ export const COLORS = {
   wolfBelly: 0xd5dbe4, // брюхо, горло, нижняя челюсть
   wolfEye: 0xffc22e, // жёлтый глаз
   wolfMouth: 0x6e2232, // тёмная пасть в оскале
+  wolfEar: 0xc98290, // розовое внутри уха волка
 
   // ===== Мясо =====
   rawMeat: 0xf08b8b, // сырое мясо

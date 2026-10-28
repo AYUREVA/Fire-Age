@@ -1737,7 +1737,7 @@ function drawWolfHead(g: Graphics): void {
   // Ухо прижато назад.
   const ear = [18, 16, 2, 2, 30, 10];
   fillPolygon(g, ear, COLORS.wolfDark);
-  fillPolygon(g, [17, 13, 8, 6, 24, 10], COLORS.rabbitEarShade);
+  fillPolygon(g, [17, 13, 8, 6, 24, 10], COLORS.wolfEar);
   strokePolygon(g, ear);
 
   // Нижняя челюсть и тёмная щель пасти.
