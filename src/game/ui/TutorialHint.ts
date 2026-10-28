@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { COLORS, toCss } from '../palette';
 import { TEXTURES, TITLE_FONT } from '../textures';
-import { Point, pop } from '../fx';
+import { Point, pop, setGlow } from '../fx';
 
 // Подсказка поверх мира, но под HUD (20000, Hud.ts).
 const HINT_DEPTH = 19000;
@@ -19,10 +19,17 @@ const PLATE_BOTTOM = 70;
 // Плашка шире текста на столько пикселей (по бокам) и такой высоты.
 const PLATE_PADDING = 48;
 const PLATE_HEIGHT = 58;
+// Плашка «дышит»: плавно увеличивается до такого размера и обратно за столько мс.
+const PLATE_BREATH_SCALE = 1.06;
+const PLATE_BREATH_TIME = 700;
+
+// То, что подсказка может подсветить: куст, кролик, куча, стол.
+export type Glowing = { setHintGlow(isOn: boolean): void };
 
 /**
- * Подсказка обучения на первом уровне: прыгающая стрелка над целью
- * и плашка с текстом шага внизу экрана («Сруби куст»).
+ * Подсказка обучения на первом уровне: прыгающая стрелка над целью,
+ * свечение-обводка самой цели и плашка с текстом шага внизу экрана
+ * («Сруби куст»). Плашка тоже светится и «дышит», чтобы её заметили.
  *
  * Хранит номер шага. Что считается выполненным и куда показывать, решает
  * systems/Tutorial.ts: каждый кадр он зовёт show() или nextStep().
@@ -44,6 +51,8 @@ export class TutorialHint {
   private time = 0;
   // Все шаги пройдены — подсказка спрятана.
   private isFinished = false;
+  // Что сейчас светится. Сменилась цель — старая гаснет, новая загорается.
+  private glowing?: Glowing;
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
@@ -63,6 +72,7 @@ export class TutorialHint {
       .setScrollFactor(0)
       .setDepth(HINT_DEPTH);
     this.edgeArrow.setVisible(false);
+    setGlow(scene, this.plate, true);
   }
 
   // Все шаги пройдены.
@@ -78,19 +88,25 @@ export class TutorialHint {
       return;
     }
     this.isFinished = true;
+    this.setGlowing(undefined);
+    setGlow(this.scene, this.plate, false);
     for (const part of [this.arrow, this.edgeArrow, this.plate, this.label]) part.destroy();
   }
 
-  // Показать шаг: текст на плашке и стрелку над целью target (точка мира).
+  // Показать шаг: текст на плашке, стрелку над целью target (точка мира)
+  // и свечение того, что подсвечивается (glow; нет — ничего не светится).
   // Вызывается каждый кадр — текст перерисовывается, только если поменялся.
-  show(text: string, target: Point, delta: number): void {
+  show(text: string, target: Point, glow: Glowing | undefined, delta: number): void {
     this.time += delta;
     const { width, height } = this.scene.scale;
+    this.setGlowing(glow);
 
-    this.label.setText(text).setPosition(width / 2, height - PLATE_BOTTOM);
+    // «Дыхание» плашки: синус от 0 до 1, как покачивание стрелки ниже.
+    const breath = 1 + (PLATE_BREATH_SCALE - 1) * ((1 - Math.cos((this.time / PLATE_BREATH_TIME) * Math.PI)) / 2);
+    this.label.setText(text).setPosition(width / 2, height - PLATE_BOTTOM).setScale(breath);
     this.plate
       .setPosition(width / 2, height - PLATE_BOTTOM)
-      .setDisplaySize(this.label.width + PLATE_PADDING, PLATE_HEIGHT);
+      .setDisplaySize((this.label.width + PLATE_PADDING) * breath, PLATE_HEIGHT * breath);
 
     // Покачивание: синус от 0 до 1 — стрелка «кивает» на цель.
     const bob = ((1 - Math.cos((this.time / ARROW_BOB_TIME) * Math.PI)) / 2) * ARROW_BOB;
@@ -99,6 +115,14 @@ export class TutorialHint {
     this.arrow.setVisible(isVisible).setPosition(target.x, target.y - ARROW_LIFT + bob);
     this.edgeArrow.setVisible(!isVisible);
     if (!isVisible) this.pointFromEdge(target, view);
+  }
+
+  // Подсветить glow, а то, что светилось раньше, — погасить.
+  private setGlowing(glow: Glowing | undefined): void {
+    if (glow === this.glowing) return;
+    this.glowing?.setHintGlow(false);
+    glow?.setHintGlow(true);
+    this.glowing = glow;
   }
 
   // Цель за краем экрана: стрелка у края экрана на линии «середина экрана → цель», остриём к цели.

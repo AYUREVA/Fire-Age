@@ -3,7 +3,7 @@ import { DROP_RADIUS } from '../settings';
 import { COLORS } from '../palette';
 import { TEXTURES } from '../textures';
 import { ITEMS, ItemType } from '../items';
-import { floatText, flyArc, pop, Point } from '../fx';
+import { floatText, flyArc, pop, Point, glowFrame, setGlow } from '../fx';
 
 // ===== Площадка =====
 
@@ -67,6 +67,8 @@ export class ItemPile {
   // Сколько предметов помещается в кучу.
   private capacity: number;
   private platform: Phaser.GameObjects.Image;
+  // Светящаяся рамка площадки для подсказки обучения (создаётся при первой подсказке).
+  private hintFrame?: Phaser.GameObjects.Graphics;
   // Подсвечена ли площадка сейчас (вождь в зоне).
   private isHighlighted = false;
   // Связки, лежащие в куче (и те, что уже летят туда, — место для них занято).
@@ -108,6 +110,13 @@ export class ItemPile {
   // В куче нет ни одного предмета.
   isEmpty(): boolean {
     return this.pile.length === 0;
+  }
+
+  // Свечение-обводка по краю площадки: сюда показывает подсказка обучения.
+  setHintGlow(isOn: boolean): void {
+    this.hintFrame ??= glowFrame(this.scene, this.platform);
+    this.hintFrame.setVisible(isOn);
+    setGlow(this.scene, this.hintFrame, isOn);
   }
 
   // Подсветка площадки, пока вождь в зоне. Сцена вызывает это каждый кадр.

@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { BUSH_REGROW_TIME, BUSH_STOCK } from '../settings';
 import { TEXTURES } from '../textures';
-import { Point, pop, shake } from '../fx';
+import { Point, pop, setGlow, shake } from '../fx';
 
 // ===== Внешний вид куста =====
 
@@ -116,6 +116,11 @@ export class ResourceNode {
   // Есть ли в кусте хворост. У пенька — нет.
   hasStock(): boolean {
     return this.stock > 0;
+  }
+
+  // Свечение-обводка куста: сюда показывает подсказка обучения.
+  setHintGlow(isOn: boolean): void {
+    setGlow(this.scene, this.image, isOn);
   }
 
   // Точка, из которой вылетает связка хвороста.
