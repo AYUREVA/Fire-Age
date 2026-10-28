@@ -37,6 +37,15 @@ const SOUND_BUTTON_GAP = 10;
 const PAUSE_IDLE_TINT = 0xdddddd;
 const PAUSE_HOVER_TINT = 0xffffff;
 
+// Время в виде «минуты:секунды», например «1:59». Округляем вверх:
+// в начале видно «2:00», а «0:00» — только когда время вышло.
+export function formatTime(ms: number): string {
+  const totalSeconds = Math.ceil(ms / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return minutes + ':' + String(seconds).padStart(2, '0');
+}
+
 /**
  * Интерфейс поверх игры: плашка «сколько осталось до конца дня или ночи»
  * (днём на ней солнце, ночью луна), справа от неё — счётчик клыков,
@@ -225,11 +234,17 @@ export class Hud {
 
   // Показать, сколько мс осталось до конца дня или ночи, в виде «минуты:секунды».
   setTimeLeft(ms: number): void {
-    // Округляем вверх: в начале видно «2:00», а «0:00» — только когда время вышло.
-    const totalSeconds = Math.ceil(ms / 1000);
-    const minutes = Math.floor(totalSeconds / 60);
-    const seconds = totalSeconds % 60;
     // setText перерисовывает надпись, только если текст изменился, — раз в секунду.
-    this.timeText.setText(minutes + ':' + String(seconds).padStart(2, '0'));
+    this.timeText.setText(formatTime(ms));
+  }
+
+  // Где на экране середина цифр времени: сюда прилетает крупный таймер ночи.
+  getTimePoint(): { x: number; y: number } {
+    return { x: this.timeText.x + this.timeText.width / 2, y: this.timeText.y };
+  }
+
+  // Цифры времени «пружинят»: крупный таймер ночи долетел до плашки.
+  popTime(): void {
+    pop(this.scene, this.timeText);
   }
 }
