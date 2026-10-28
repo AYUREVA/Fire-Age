@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { COLORS, toCss } from '../palette';
-import { FONT_FAMILY, TEXTURES, TITLE_FONT, drawStonePlate } from '../textures';
+import { FONT_FAMILY, TEXTURES, TITLE_FONT } from '../textures';
 import { Point, pop } from '../fx';
 import { formatTime } from '../objects/Hud';
 import { addCarvedTitle } from './StoneTablet';
@@ -31,9 +31,6 @@ const ICON_SCALE = 1.3;
 // Насколько ниже середины таблички висят плашки и как далеко друг от друга.
 const CHIPS_Y = 108;
 const CHIP_STEP = 216;
-// Размер плашки (каменная плашка, нарисованная под этот размер).
-const CHIP_WIDTH = 200;
-const CHIP_HEIGHT = 46;
 // Иконка слева на плашке и начало надписи.
 const CHIP_ICON_X = -80;
 const CHIP_TEXT_X = -60;
@@ -225,8 +222,7 @@ export class PhaseBanner {
 
   // Плашка под табличкой: иконка и надпись. x — середина плашки.
   private createChip(x: number, icon: string, iconScale: number, text: string): Phaser.GameObjects.GameObject[] {
-    const plate = this.scene.add.graphics({ x, y: CHIPS_Y });
-    drawStonePlate(plate, -CHIP_WIDTH / 2, -CHIP_HEIGHT / 2, CHIP_WIDTH, CHIP_HEIGHT);
+    const plate = this.scene.add.image(x, CHIPS_Y, TEXTURES.bannerChip);
     const image = this.scene.add.image(x + CHIP_ICON_X, CHIPS_Y, icon).setScale(iconScale);
     const label = this.scene.add
       .text(x + CHIP_TEXT_X, CHIPS_Y, text, {

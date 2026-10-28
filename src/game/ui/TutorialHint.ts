@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { COLORS, toCss } from '../palette';
-import { TEXTURES, TITLE_FONT, drawStonePlate } from '../textures';
+import { TEXTURES, TITLE_FONT, bakeStonePlate } from '../textures';
 import { Point, pop, setGlow } from '../fx';
 
 // Подсказка поверх мира, но под HUD (20000, Hud.ts).
@@ -24,9 +24,6 @@ const PLATE_BREATH_SCALE = 1.06;
 const PLATE_BREATH_TIME = 700;
 // Сменился текст шага — ширина плашки плавно догоняет новую примерно за столько мс.
 const PLATE_RESIZE_TIME = 160;
-// Плашка рисуется кодом в эту текстуру под ширину текста и показывается картинкой
-// (свечение-фильтр правильно работает на картинке, прикреплённой к экрану).
-const PLATE_TEXTURE = 'tutorial-plate';
 
 // То, что подсказка может подсветить: куст, кролик, куча, стол.
 export type Glowing = { setHintGlow(isOn: boolean): void };
@@ -49,11 +46,10 @@ export class TutorialHint {
   private arrow: Phaser.GameObjects.Image;
   // Стрелка у края экрана, когда цель не видна.
   private edgeArrow: Phaser.GameObjects.Image;
-  // Плашка и текст шага внизу экрана. Плашка рисуется кодом под ширину текста.
+  // Плашка и текст шага внизу экрана. Плашка — картинка TEXTURES.tutorialPlate,
+  // её перерисовывают под ширину текста.
   private plate: Phaser.GameObjects.Image;
   private label: Phaser.GameObjects.Text;
-  // Чем рисуется плашка (на экран не добавлен — только рисует текстуру PLATE_TEXTURE).
-  private painter: Phaser.GameObjects.Graphics;
   // Ширина, на которую плашка нарисована сейчас (0 — ещё не рисовали).
   private plateWidth = 0;
   // Сколько мс идёт подсказка — из этого считается покачивание стрелки.
@@ -67,7 +63,6 @@ export class TutorialHint {
     this.scene = scene;
     this.arrow = scene.add.image(0, 0, TEXTURES.tutorialArrow).setOrigin(0.5, 1).setDepth(HINT_DEPTH);
     this.edgeArrow = scene.add.image(0, 0, TEXTURES.tutorialArrow).setScrollFactor(0).setDepth(HINT_DEPTH);
-    this.painter = scene.make.graphics({}, false);
     this.plate = scene.add.image(0, 0, TEXTURES.hudPanel).setScrollFactor(0).setDepth(HINT_DEPTH).setVisible(false);
     this.label = scene.add
       .text(0, 0, '', {
@@ -100,7 +95,7 @@ export class TutorialHint {
     this.isFinished = true;
     this.setGlowing(undefined);
     setGlow(this.scene, this.plate, false);
-    for (const part of [this.arrow, this.edgeArrow, this.plate, this.label, this.painter]) part.destroy();
+    for (const part of [this.arrow, this.edgeArrow, this.plate, this.label]) part.destroy();
   }
 
   // Показать шаг: текст на плашке, стрелку над целью target (точка мира)
@@ -128,19 +123,15 @@ export class TutorialHint {
 
   // Ширина плашки плавно догоняет нужную (target). Перерисовываем, только пока ширина меняется:
   // плашка рисуется заново под новую ширину, углы и кромка остаются прежними.
-  // Текстура другого размера — новая: старую удаляем и рисуем заново.
+  // Плашка рисуется в картинку так же, как плашка HUD (bakeStonePlate).
   private resizePlate(target: number, delta: number): void {
     if (Math.abs(target - this.plateWidth) < 0.5) return;
     const step = this.plateWidth === 0 ? 1 : Math.min(1, delta / PLATE_RESIZE_TIME);
     this.plateWidth += (target - this.plateWidth) * step;
     if (Math.abs(target - this.plateWidth) < 0.5) this.plateWidth = target;
 
-    const width = Math.ceil(this.plateWidth);
-    this.painter.clear();
-    drawStonePlate(this.painter, 0, 0, width, PLATE_HEIGHT);
-    if (this.scene.textures.exists(PLATE_TEXTURE)) this.scene.textures.remove(PLATE_TEXTURE);
-    this.painter.generateTexture(PLATE_TEXTURE, width, PLATE_HEIGHT);
-    this.plate.setTexture(PLATE_TEXTURE);
+    bakeStonePlate(this.scene, TEXTURES.tutorialPlate, Math.ceil(this.plateWidth), PLATE_HEIGHT);
+    this.plate.setTexture(TEXTURES.tutorialPlate);
   }
 
   // Подсветить glow, а то, что светилось раньше, — погасить.

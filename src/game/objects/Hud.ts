@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { COLORS, toCss } from '../palette';
 import { PHASES } from '../settings';
-import { TEXTURES, TITLE_FONT, drawStonePlate } from '../textures';
+import { MODIFIER_PLATE_SIZE, TEXTURES, TITLE_FONT } from '../textures';
 import { flyArc, pop } from '../fx';
 import { SOUNDS, SOUND_VOLUMES, playSound, toggleMute } from '../sounds';
 import { getProgress } from '../save';
@@ -20,10 +20,10 @@ const PANEL_GAP = 10;
 const TUSK_FLY_TIME = 450;
 const TUSK_FLY_ARC = 80;
 // Плашки ночных модификаторов под плашкой времени: зазор, размер плашки
-// (каменная плашка, нарисованная под этот размер), расстояние между плашками.
+// (картинка TEXTURES.modifierPlate), расстояние между плашками.
 const MODIFIER_GAP = 6;
-const MODIFIER_WIDTH = 84;
-const MODIFIER_HEIGHT = 38;
+const MODIFIER_WIDTH = MODIFIER_PLATE_SIZE.w;
+const MODIFIER_HEIGHT = MODIFIER_PLATE_SIZE.h;
 const MODIFIER_STEP = 92;
 // Иконка и надпись на плашке модификатора (от её середины).
 const MODIFIER_ICON_X = -22;
@@ -67,7 +67,7 @@ export class Hud {
   // Кнопка звука левее паузы: включить или выключить звук (запоминается в сохранении).
   private soundButton: Phaser.GameObjects.Image;
   // Плашки ночных модификаторов: видны только ночью.
-  private modifiers: (Phaser.GameObjects.Image | Phaser.GameObjects.Text | Phaser.GameObjects.Graphics)[] = [];
+  private modifiers: (Phaser.GameObjects.Image | Phaser.GameObjects.Text)[] = [];
 
   // onPause — что сделать, когда нажали кнопку паузы (сцена ставит игру на паузу).
   constructor(scene: Phaser.Scene, onPause: () => void) {
@@ -216,9 +216,8 @@ export class Hud {
     icon: string,
     iconScale: number,
     multiplier: number,
-  ): (Phaser.GameObjects.Image | Phaser.GameObjects.Text | Phaser.GameObjects.Graphics)[] {
-    const plate = this.scene.add.graphics({ x, y });
-    drawStonePlate(plate, -MODIFIER_WIDTH / 2, -MODIFIER_HEIGHT / 2, MODIFIER_WIDTH, MODIFIER_HEIGHT);
+  ): (Phaser.GameObjects.Image | Phaser.GameObjects.Text)[] {
+    const plate = this.scene.add.image(x, y, TEXTURES.modifierPlate);
     const image = this.scene.add.image(x + MODIFIER_ICON_X, y, icon).setScale(iconScale);
     const label = this.scene.add
       .text(x + MODIFIER_TEXT_X, y, '×' + multiplier, {
