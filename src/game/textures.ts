@@ -2587,20 +2587,28 @@ function drawPauseButton(g: Graphics): void {
 
 // ===== Меню: карта эпох и уровней =====
 
-// Круглый камень-кнопка: как кнопка паузы, только крупнее и без значка.
-// Номер уровня или иконку эпохи кладёт сверху MenuScene.
+// Круглый камень-медальон для кнопок меню: бронзовый обод с бликом и заклёпками,
+// внутри — камень с тенью полумесяцем. Номер уровня или иконку эпохи кладёт сверху MenuScene.
 function drawRoundStone(g: Graphics): void {
   const { w } = ROUND_STONE_SIZE;
   const cx = w / 2;
   const radius = cx - OUTLINE_WIDTH;
-  const lip = 6;
+  // Ширина бронзового обода и сколько на нём заклёпок.
+  const rim = 8;
+  const rivets = 8;
 
-  // Торец снизу, лицевая сторона и светлый блик сверху.
-  outlinedCircle(g, cx, cx + lip / 2, radius - lip / 2, COLORS.tabletDark);
-  g.fillStyle(COLORS.tablet, 1);
-  g.fillCircle(cx, cx - lip / 2, radius - lip);
-  g.fillStyle(COLORS.tabletLight, 1);
-  g.fillEllipse(cx, cx - radius * 0.62, radius * 0.9, 8);
+  outlinedCircle(g, cx, cx, radius, COLORS.bronze);
+  g.lineStyle(2, COLORS.bronzeLight, 1);
+  g.beginPath();
+  g.arc(cx, cx, radius - 3, Math.PI * 1.05, Math.PI * 1.6);
+  g.strokePath();
+  outlinedCircle(g, cx, cx + 1, radius - rim, COLORS.tablet);
+  crescent(g, cx, cx + 1, radius - rim - 2, radius - rim - 2, -4, -4, COLORS.tabletDark, 0.6);
+  g.fillStyle(COLORS.bronzeDark, 1);
+  for (let i = 0; i < rivets; i++) {
+    const angle = (i / rivets) * Math.PI * 2 + Math.PI / rivets;
+    g.fillCircle(cx + Math.cos(angle) * (radius - 4), cx + Math.sin(angle) * (radius - 4), 1.8);
+  }
 }
 
 // Замок: дужка и бронзовый корпус с замочной скважиной.
@@ -2644,6 +2652,11 @@ function drawStar(g: Graphics): void {
   }
   fillPolygon(g, points, COLORS.white);
   strokePolygon(g, points);
+
+  // Искорка у вершины.
+  g.fillStyle(COLORS.white, 1);
+  g.fillRect(cx + 8, 3, 1.6, 7);
+  g.fillRect(cx + 5.3, 5.7, 7, 1.6);
 }
 
 // Каменный век: костёр — два скрещённых полена и пламя.
@@ -2654,6 +2667,10 @@ function drawEpochStone(g: Graphics): void {
   fillPolygon(g, flame, COLORS.fireOrange);
   strokePolygon(g, flame);
   fillPolygon(g, [32, 20, 38, 32, 37, 43, 27, 43, 26, 32], COLORS.fireYellow);
+
+  // Искры над костром.
+  g.fillStyle(COLORS.fireYellow, 1);
+  for (const [x, y] of [[22, 10], [44, 8], [36, 4]]) g.fillCircle(x, y, 1.8);
 }
 
 // Бронзовый век: наковальня с рогом слева.
@@ -2665,6 +2682,12 @@ function drawEpochBronze(g: Graphics): void {
   g.fillStyle(COLORS.bronzeLight, 1);
   g.fillRect(18, 20, 38, 3);
   strokePolygon(g, anvil);
+
+  // Молот на наковальне.
+  limb(g, 36, 4, 50, 14, 3, COLORS.wood);
+  const hammer = [30, 0, 40, 6, 36, 12, 26, 6];
+  fillPolygon(g, hammer, COLORS.steelDark);
+  strokePolygon(g, hammer);
 }
 
 // Средневековье: крепостная башня с зубцами, воротами и бойницей.
@@ -2683,6 +2706,10 @@ function drawEpochMedieval(g: Graphics): void {
   fillPolygon(g, gate, COLORS.outline);
   g.fillStyle(COLORS.outline, 1);
   g.fillRoundedRect(30, 27, 4, 10, 2);
+
+  // Кладка на башне.
+  g.lineStyle(1, COLORS.stoneDark, 1);
+  for (const y of [26, 32, 38]) g.lineBetween(20, y, 44, y);
 }
 
 // Эпоха пара: паровоз — котёл, труба с дымом, красная будка и колёса.
@@ -2704,6 +2731,10 @@ function drawEpochSteam(g: Graphics): void {
   outlinedCircle(g, 16, 48, 7, COLORS.steelDark);
   outlinedCircle(g, 32, 48, 7, COLORS.steelDark);
   outlinedCircle(g, 49, 50, 5, COLORS.steelDark);
+
+  // Рельсы под паровозом.
+  g.lineStyle(2, COLORS.steelDark, 1);
+  g.lineBetween(2, 58, 62, 58);
 }
 
 // Полярная станция: красный домик под снегом и мачта антенны (без флагов).
@@ -2728,6 +2759,10 @@ function drawEpochPolar(g: Graphics): void {
   const door = [30, 40, 39, 40, 39, 56, 30, 56];
   fillPolygon(g, door, COLORS.woodDark);
   strokePolygon(g, door);
+
+  // Окно светится тёплым светом.
+  g.fillStyle(COLORS.fireYellow, 1);
+  g.fillRect(16, 40, 6, 5);
 }
 
 // Будущее: стеклянный купол колонии на металлическом основании.
@@ -2749,6 +2784,10 @@ function drawEpochFuture(g: Graphics): void {
   g.fillCircle(20, 51, 2);
   g.fillCircle(32, 51, 2);
   g.fillCircle(44, 51, 2);
+
+  // Звёзды над куполом.
+  g.fillStyle(COLORS.white, 1);
+  for (const [x, y] of [[10, 10], [52, 8], [32, 4]]) g.fillCircle(x, y, 1.4);
 }
 
 // ===== Обучение =====
