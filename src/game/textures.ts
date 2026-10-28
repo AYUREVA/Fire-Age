@@ -1915,8 +1915,8 @@ function drawBuyZone(g: Graphics): void {
 
 // ===== Частокол =====
 
-// Кол частокола: бревно с заострённым верхом, полосками коры и верёвкой,
-// на острие — снежная шапка, у подножия — снег.
+// Кол частокола: бревно с заострённым верхом, полосками коры, сучком и верёвкой,
+// на острие — снежная шапка с искоркой, у подножия — снег.
 function drawFenceStake(g: Graphics): void {
   const { w, h } = FENCE_STAKE_SIZE;
   const cx = w / 2;
@@ -1949,6 +1949,14 @@ function drawFenceStake(g: Graphics): void {
   // Снег у подножия.
   g.fillStyle(COLORS.snowLight, 1);
   g.fillEllipse(cx - 2, h - 6, 22, 7);
+
+  // Сучок, искорка на снежной шапке и светлый срез на остриё.
+  g.fillStyle(COLORS.woodDark, 1);
+  g.fillEllipse(cx - 3, 58, 4, 3);
+  g.fillStyle(COLORS.white, 1);
+  g.fillCircle(cx - 2, 10, 1.2);
+  g.lineStyle(1.3, COLORS.woodEnd, 1);
+  g.lineBetween(cx - 7, 21, cx - 1, 9);
 }
 
 // Иконка частокола: три кола рядом, средний выше и впереди.
@@ -1966,8 +1974,8 @@ function drawFenceIcon(g: Graphics): void {
 // ===== Хижина =====
 
 // Хижина-шалаш: жерди, сходящиеся наверху, обтянуты шкурами со швами.
-// Внизу — тёмный вход с закатанным пологом, сверху — снежная шапка,
-// у подножия — сугробы. Точка опоры — середина нижнего края.
+// Внизу — тёмный вход с закатанным пологом, сбоку — кожаная заплатка,
+// сверху — снежная шапка и дымовое отверстие, у подножия — сугробы. Точка опоры — середина нижнего края.
 function drawHut(g: Graphics): void {
   const { w, h } = HUT_SIZE;
   const cx = w / 2;
@@ -2038,6 +2046,19 @@ function drawHut(g: Graphics): void {
   g.fillEllipse(cx - 52, base, 40, 13);
   g.fillEllipse(cx + 55, base - 1, 34, 11);
   g.fillCircle(cx - 38, base - 3, 5);
+
+  // Кожаная заплатка со стежками на шкурах.
+  const patch = [cx - 46, 112, cx - 30, 108, cx - 28, 124, cx - 44, 127];
+  fillPolygon(g, patch, COLORS.leather);
+  strokePolygon(g, patch);
+  g.lineStyle(1.2, COLORS.furLight, 1);
+  for (const [x, y] of [[cx - 44, 115], [cx - 38, 111], [cx - 31, 114], [cx - 42, 124], [cx - 33, 122]]) {
+    g.lineBetween(x - 1, y, x + 1, y);
+  }
+  // Дымовое отверстие у вершины и тень у входа — вход глубже.
+  g.fillStyle(COLORS.charcoal, 1);
+  g.fillEllipse(cx + 1, 40, 8, 4);
+  crescent(g, cx, 102, 18, 16, 2, 4, COLORS.outline, 0.5);
 }
 
 // Точки дуги эллипса [x1, y1, …]: центр (cx, cy), полуоси rx и ry, от угла from до to.
