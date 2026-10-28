@@ -554,7 +554,7 @@ export class GameScene extends Phaser.Scene {
   // Вызывается сразу после create(): при первом запуске и после «Заново».
   private showReady(): void {
     this.scene.pause();
-    // Пока игра стоит, стоят и звуки (треск костра, ветер).
+    // Пока игра стоит, стоят и звуки (например, вой волка).
     this.sound.pauseAll();
     const data: ReadyData = { title: this.level.name, onStart: () => this.startPlaying() };
     this.scene.launch('ReadyScene', data);
