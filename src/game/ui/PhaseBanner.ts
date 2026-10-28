@@ -43,8 +43,10 @@ const BOOT_ICON_SCALE = 0.95;
 // Таймер «ДО РАССВЕТА 1:59» под плашками метели. Летит в плашку времени поверх HUD (20000).
 const TIMER_DEPTH = 20001;
 // Середина цифр — на такой высоте от верха экрана; подпись — выше цифр на столько пикселей.
-const TIMER_Y = 330;
+const TIMER_Y = 345;
 const TIMER_LABEL_Y = -52;
+// Каменная плашка под подписью и цифрами (как у плашек метели): её середина выше середины цифр.
+const TIMER_PLATE_Y = -14;
 const TIMER_FONT_SIZE = 72;
 const TIMER_LABEL = 'ДО РАССВЕТА';
 // Появляется из такого размера, пока выезжает табличка.
@@ -160,8 +162,9 @@ export class PhaseBanner {
         resolution: 2,
       })
       .setOrigin(0.5);
+    const plate = this.scene.add.image(0, TIMER_PLATE_Y, TEXTURES.timerPlate);
     const box = this.scene.add
-      .container(this.scene.scale.width / 2, TIMER_Y, [label, digits])
+      .container(this.scene.scale.width / 2, TIMER_Y, [plate, label, digits])
       .setScrollFactor(0, 0, true)
       .setDepth(TIMER_DEPTH)
       .setScale(TIMER_START_SCALE)
@@ -174,9 +177,9 @@ export class PhaseBanner {
     this.scene.events.on(Phaser.Scenes.Events.UPDATE, tick);
     box.once(Phaser.GameObjects.Events.DESTROY, () => this.scene.events.off(Phaser.Scenes.Events.UPDATE, tick));
 
-    // Подпись тает, когда таймер улетает: в плашке HUD её нет.
+    // Подпись и плашка тают, когда таймер улетает: в плашку времени HUD прилетают только цифры.
     this.scene.tweens.add({
-      targets: label,
+      targets: [label, plate],
       alpha: 0,
       delay: BANNER_IN_TIME + BANNER_HOLD_TIME,
       duration: TIMER_FLY_TIME / 2,

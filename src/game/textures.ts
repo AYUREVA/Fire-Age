@@ -80,6 +80,7 @@ export const TEXTURES = {
   bannerChip: 'banner-chip', // плашка метели под табличкой ночи
   modifierPlate: 'modifier-plate', // плашка ночного модификатора «×2» / «×0.6» в HUD
   tutorialPlate: 'tutorial-plate', // плашка подсказки обучения: перерисовывается под ширину текста
+  timerPlate: 'timer-plate', // плашка крупного таймера ночи «ДО РАССВЕТА»
   moonIcon: 'moon-icon', // луна на плашке таймера: ночь, до рассвета
   sunIcon: 'sun-icon', // солнце на плашке таймера: день, до ночи
   stoneTablet: 'stone-tablet', // каменная табличка: пауза, старт уровня
@@ -183,6 +184,7 @@ const HUD_PANEL_SIZE: Size = { w: 170, h: 66 };
 export const STAR_PANEL_SIZE: Size = { w: 270, h: 112 };
 const BANNER_CHIP_SIZE: Size = { w: 200, h: 46 };
 export const MODIFIER_PLATE_SIZE: Size = { w: 84, h: 38 };
+const TIMER_PLATE_SIZE: Size = { w: 230, h: 124 };
 const MOON_ICON_SIZE: Size = { w: 40, h: 40 };
 const SUN_ICON_SIZE: Size = { w: 44, h: 44 };
 // Ширина 600 — табличка помещается на узкий экран (короткая сторона 640).
@@ -299,6 +301,7 @@ export function createTextures(scene: Phaser.Scene): void {
   bakeStonePlate(scene, TEXTURES.starPanel, STAR_PANEL_SIZE.w, STAR_PANEL_SIZE.h);
   bakeStonePlate(scene, TEXTURES.bannerChip, BANNER_CHIP_SIZE.w, BANNER_CHIP_SIZE.h);
   bakeStonePlate(scene, TEXTURES.modifierPlate, MODIFIER_PLATE_SIZE.w, MODIFIER_PLATE_SIZE.h);
+  bakeStonePlate(scene, TEXTURES.timerPlate, TIMER_PLATE_SIZE.w, TIMER_PLATE_SIZE.h);
   bake(scene, TEXTURES.moonIcon, MOON_ICON_SIZE, drawMoonIcon);
   bake(scene, TEXTURES.sunIcon, SUN_ICON_SIZE, drawSunIcon);
   bake(scene, TEXTURES.stoneTablet, STONE_TABLET_SIZE, (g) => drawStoneSlab(g, STONE_TABLET_SIZE));
