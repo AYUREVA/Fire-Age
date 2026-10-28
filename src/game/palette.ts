@@ -75,8 +75,15 @@ export const COLORS = {
   // ===== Путники =====
   sack: 0xc9a46a, // котомка охотника — холщовый мешок
   sackDark: 0x9c7a46, // мешок в тени, заплатка
-  elderCloak: 0x8a90a6, // серый плащ старца
-  elderCloakDark: 0x666c82, // плащ старца в тени и капюшон
+  elderCloak: 0x8e6a4c, // кожаный плащ старца
+  elderCloakDark: 0x654632, // плащ старца в тени и капюшон
+  travelerHide: 0xa8784e, // выделанная кожа одежды путников
+  travelerHideShade: 0x7e5534, // кожа в тени
+  travelerHideSpot: 0x5e3a20, // пятна на шкуре охотника
+  travelerHideLight: 0xd9b48a, // светлая кожа: шубка девушки, кайма
+  travelerRuff: 0xf3ece0, // белая меховая опушка капюшона
+  travelerHoodInside: 0x5a3826, // тёмная глубина капюшона вокруг лица
+  ochre: 0xc8402a, // красная охра: раскраска на лице и одежде
   elderHair: 0xf1f3f7, // седые волосы и борода старца
   feather: 0xd8573f, // красное перо на посохе
   featherAlt: 0x3fa6a0, // бирюзовое перо на посохе
