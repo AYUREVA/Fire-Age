@@ -263,9 +263,9 @@ export function createTextures(scene: Phaser.Scene): void {
   bake(scene, TEXTURES.stump, STUMP_SIZE, drawStump);
   bake(scene, TEXTURES.bundle, BUNDLE_SIZE, drawBundle);
   bake(scene, TEXTURES.tusk, TUSK_SIZE, drawTusk);
-  bake(scene, TEXTURES.rawMeat, MEAT_SIZE, (g) => drawMeat(g, COLORS.rawMeat, COLORS.rawMeatShade, COLORS.rawMeatLight));
+  bake(scene, TEXTURES.rawMeat, MEAT_SIZE, (g) => drawMeat(g, COLORS.rawMeat, COLORS.rawMeatShade, COLORS.rawMeatLight, false));
   bake(scene, TEXTURES.cookedMeat, MEAT_SIZE, (g) =>
-    drawMeat(g, COLORS.cookedMeat, COLORS.cookedMeatShade, COLORS.cookedMeatLight),
+    drawMeat(g, COLORS.cookedMeat, COLORS.cookedMeatShade, COLORS.cookedMeatLight, true),
   );
   bake(scene, TEXTURES.snowflake, SNOWFLAKE_SIZE, drawSnowflake);
   bake(scene, TEXTURES.chip, CHIP_SIZE, drawChip);
@@ -1318,7 +1318,8 @@ function drawStump(g: Graphics): void {
   g.fillEllipse(cx - 2, h - 6, w - 26, 7);
 }
 
-// Связка хвороста: четыре палки, перевязанные двумя верёвками.
+// Связка хвороста: четыре палки, перевязанные двумя кожаными ремешками,
+// сверху еловая веточка и два листика.
 // Верх и низ ровные — из таких связок стопка получается аккуратной, как из монет.
 function drawBundle(g: Graphics): void {
   // Палки сверху вниз: x левого конца, y верха, длина, цвет. Нижние перекрывают верхние.
@@ -1329,6 +1330,18 @@ function drawBundle(g: Graphics): void {
 
   drawRopeBand(g, 17);
   drawRopeBand(g, 38);
+
+  // Еловая веточка: стебелёк и иголки парами.
+  g.lineStyle(2, COLORS.fir, 1);
+  g.lineBetween(26, 6, 40, 3);
+  for (const t of [0.25, 0.5, 0.75, 1]) {
+    const x = 26 + 14 * t;
+    const y = 6 - 3 * t;
+    g.lineBetween(x, y, x - 3, y - 2.5);
+    g.lineBetween(x, y, x - 3, y + 2.5);
+  }
+  drawLeaf(g, 48, 9, 0.6, COLORS.leaf);
+  drawLeaf(g, 50, 19, -0.4, COLORS.leafLight);
 }
 
 // ===== Путники =====
@@ -1754,9 +1767,9 @@ function drawRabbitEar(g: Graphics, x: number, y: number, angle: number, fur: nu
   g.restore();
 }
 
-// Клык саблезуба. Сверху — корень с неровным краем, ниже — изогнутый клинок
-// эмали, который сужается к острию и чуть загибается влево. Объём — три слоя
-// по одной кривой: основа, тень вдоль вогнутого края и блик вдоль выпуклого.
+// Клык саблезуба. Сверху — корень с неровным краем и золотым ободком, ниже —
+// изогнутый клинок эмали, который сужается к острию и чуть загибается влево.
+// Объём — три слоя по одной кривой: основа, тень вдоль вогнутого края и блик вдоль выпуклого.
 function drawTusk(g: Graphics): void {
   const { w } = TUSK_SIZE;
   const top = TUSK_ROOT_HEIGHT;
@@ -1799,21 +1812,41 @@ function drawTusk(g: Graphics): void {
   fillPolygon(g, root, COLORS.tuskRoot);
   fillPolygon(g, [left + 10, top + 1, left + 11, 4, left + 12, 2, right, 5, right, top + 1], COLORS.tuskRootShade);
   strokePolygon(g, root);
+
+  // Золотой ободок у корня — клык как сокровище.
+  const cx = w / 2;
+  g.lineStyle(5.4, COLORS.outline, 1);
+  g.lineBetween(cx - 7, 15, cx + 11, 14);
+  g.lineStyle(3.4, COLORS.tuskGold, 1);
+  g.lineBetween(cx - 7, 15, cx + 11, 14);
+  g.fillStyle(COLORS.white, 0.9);
+  g.fillCircle(cx - 2, 14, 0.9);
 }
 
-// Мультяшная мясная ножка: косточка слева, круглый кусок мяса справа,
-// тень снизу и блик сверху. Цвета разные у сырого и жареного мяса.
-function drawMeat(g: Graphics, color: number, shade: number, light: number): void {
+// Большой румяный окорок: косточка слева, кусок-капля, широкий справа,
+// тень снизу, блик и искорки сверху. Цвета разные у сырого и жареного мяса;
+// у жареного ещё капля сока и жёлтая искра жара.
+function drawMeat(g: Graphics, color: number, shade: number, light: number, isCooked: boolean): void {
   // Косточка: палочка и две «шишечки» на конце.
-  limb(g, 9, 21, 22, 16, 6, COLORS.bone);
-  outlinedCircle(g, 7, 17, 4, COLORS.bone);
-  outlinedCircle(g, 9, 25, 4, COLORS.bone);
-  // Сам кусок мяса.
-  outlinedEllipse(g, 32, 15, 28, 22, color);
-  g.fillStyle(shade, 1);
-  g.fillEllipse(34, 20, 20, 8);
+  limb(g, 8, 23, 20, 18, 6, COLORS.bone);
+  outlinedCircle(g, 6, 19, 4, COLORS.bone);
+  outlinedCircle(g, 8, 27, 4, COLORS.bone);
+  // Окорок-капля и тень по нижнему краю.
+  const ham = [18, 12, 24, 5, 34, 2, 42, 5, 46, 13, 44, 22, 36, 28, 26, 28, 18, 22];
+  fillPolygon(g, ham, color);
+  fillPolygon(g, [26, 28, 36, 28, 44, 22, 46, 13, 40, 18, 30, 22], shade);
+  strokePolygon(g, ham);
   g.fillStyle(light, 1);
-  g.fillEllipse(28, 9, 10, 5);
+  g.fillEllipse(30, 8, 12, 5);
+  g.fillStyle(COLORS.white, 0.9);
+  g.fillCircle(27, 7, 1.5);
+  g.fillCircle(38, 6, 0.9);
+  if (isCooked) {
+    g.fillStyle(COLORS.fireYellow, 1);
+    g.fillCircle(42, 9, 1.2);
+    g.fillStyle(light, 1);
+    g.fillEllipse(34, 24, 4, 2);
+  }
 }
 
 // Одна палка связки: скруглённый брусок с обводкой и светлым срезом слева.
@@ -1827,11 +1860,11 @@ function drawStick(g: Graphics, x: number, y: number, length: number, color: num
   g.fillEllipse(x + 3, y + height / 2, 4, 5);
 }
 
-// Верёвка поперёк связки, в точке x.
+// Ремешок поперёк связки, в точке x.
 function drawRopeBand(g: Graphics, x: number): void {
-  g.fillStyle(COLORS.rope, 1);
+  g.fillStyle(COLORS.bundleStrap, 1);
   g.fillRoundedRect(x - 3, 1, 6, 25, 2);
-  g.fillStyle(COLORS.ropeDark, 1);
+  g.fillStyle(COLORS.bundleStrapDark, 1);
   g.fillRect(x + 1, 2, 2, 23);
   g.lineStyle(THIN_OUTLINE_WIDTH, COLORS.outline, 1);
   g.strokeRoundedRect(x - 3, 1, 6, 25, 2);

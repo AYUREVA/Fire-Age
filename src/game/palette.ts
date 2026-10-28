@@ -117,6 +117,7 @@ export const COLORS = {
   tuskShine: 0xffffff, // блик на эмали
   tuskRoot: 0xc9a77a, // корень клыка
   tuskRootShade: 0xa4835a, // корень в тени
+  tuskGold: 0xf2c23a, // золотой ободок у корня клыка
   meatRoasting: 0xb07040, // до этого оттенка темнеет сырое мясо на вертеле (tint)
 
   // ===== Ветки и связки хвороста =====
@@ -125,6 +126,8 @@ export const COLORS = {
   brushLight: 0x9e7e62, // светлые веточки
   rope: 0xe0bf74, // верёвка на связке
   ropeDark: 0xa98440, // тень на верёвке
+  bundleStrap: 0x7c4a2c, // кожаный ремешок на связке хвороста
+  bundleStrapDark: 0x6d3d1c, // тень на ремешке
 
   // ===== Костёр =====
   fireRed: 0xe8452c, // внешний край пламени
