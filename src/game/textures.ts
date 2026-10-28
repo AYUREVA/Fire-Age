@@ -338,7 +338,7 @@ function bakeNightLight(scene: Phaser.Scene): void {
 
 // ===== Земля и мелкий декор =====
 
-// Плитка снега: ровный снег, мягкие голубые тени, светлые пятна и крупинки.
+// Плитка снега: ровный снег, мягкие голубые тени, светлые пятна, крупинки и блёстки.
 function drawSnowTile(g: Graphics): void {
   const { w, h } = SNOW_TILE_SIZE;
   const rng = new Phaser.Math.RandomDataGenerator([SNOW_TILE_SEED]);
@@ -373,6 +373,16 @@ function drawSnowTile(g: Graphics): void {
     g.fillStyle(isSparkle ? COLORS.snowLight : COLORS.snowDeep, isSparkle ? 1 : 0.35);
     g.fillCircle(x, y, isSparkle ? 1.6 : 1);
   }
+
+  // Искорки-блёстки: маленькие белые крестики.
+  const sparkles = 26;
+  g.fillStyle(COLORS.white, 1);
+  for (let i = 0; i < sparkles; i++) {
+    const x = rng.between(4, w - 4);
+    const y = rng.between(4, h - 4);
+    g.fillRect(x - 2, y - 0.5, 4, 1);
+    g.fillRect(x - 0.5, y - 2, 1, 4);
+  }
 }
 
 // Пятно утоптанного снега: мягкое серо-голубое пятно.
@@ -382,7 +392,7 @@ function drawSnowPatch(g: Graphics): void {
   softEllipse(g, w / 2, h / 2 + 4, w * 0.6, h * 0.5, COLORS.snowShade, 0.12, 4);
 }
 
-// Сугроб: голубая тень у подножия, тело в тени снизу и светлое сверху.
+// Сугроб: голубая тень у подножия, тело в тени снизу и светлое сверху, светлый гребень.
 function drawSnowDrift(g: Graphics): void {
   const { w, h } = SNOW_DRIFT_SIZE;
   softEllipse(g, w / 2, h - 14, w, 26, COLORS.snowDeep, 0.1, 5);
@@ -390,6 +400,13 @@ function drawSnowDrift(g: Graphics): void {
   g.fillEllipse(w / 2, h * 0.55, w * 0.86, h * 0.62);
   g.fillStyle(COLORS.snowLight, 1);
   g.fillEllipse(w / 2 - 4, h * 0.48, w * 0.74, h * 0.5);
+
+  // Гребень сугроба: светлая дуга и мягкая тень полумесяцем.
+  g.lineStyle(2, COLORS.white, 1);
+  g.beginPath();
+  g.arc(w / 2 - 4, h * 0.62, w * 0.34, Math.PI * 1.15, Math.PI * 1.75);
+  g.strokePath();
+  crescent(g, w / 2, h * 0.55, w * 0.42, h * 0.3, -6, -4, COLORS.snowShade, 0.8);
 }
 
 // Камешек: тёмный низ, светлый верх, снежная шапка и обводка.
@@ -432,7 +449,7 @@ function drawGrassTuft(g: Graphics): void {
 
 // ===== Лес по краю мира =====
 
-// Заснеженная ель: ствол и четыре яруса хвои со снежными шапками.
+// Заснеженная ель: ствол и четыре яруса хвои с иголками и снежными шапками.
 function drawFir(g: Graphics): void {
   const { w, h } = FIR_SIZE;
   const cx = w / 2;
@@ -448,6 +465,15 @@ function drawFir(g: Graphics): void {
   drawFirTier(g, cx, h - 62, 62, 46);
   drawFirTier(g, cx, h - 96, 54, 34);
   drawFirTier(g, cx, h - 128, 48, 22);
+
+  // Иголки: короткие тёмные штрихи по нижнему краю ярусов (низ яруса, половина ширины).
+  g.lineStyle(1.5, COLORS.firDark, 1);
+  for (const [tierBottom, half] of [[h - 24, 58], [h - 62, 46], [h - 96, 34]]) {
+    for (let x = cx - half + 10; x < cx + half - 6; x += 9) g.lineBetween(x, tierBottom - 2, x + 3, tierBottom - 8);
+  }
+  // Блёстки на снежных шапках.
+  g.fillStyle(COLORS.white, 1);
+  for (const [x, y] of [[cx - 6, 30], [cx - 10, 62], [cx - 14, 96]]) g.fillCircle(x, y, 1.4);
 }
 
 // Один ярус ели: треугольник хвои (правая половина в тени) и снежная шапка.
@@ -489,7 +515,7 @@ function drawFirTier(g: Graphics, cx: number, bottom: number, height: number, ha
   g.strokeTriangle(cx, top, left, bottom, right, bottom);
 }
 
-// Скала: камень с тёмной и светлой гранями, сверху снежная шапка.
+// Скала: камень с тёмной и светлой гранями и трещинами, сверху снежная шапка.
 function drawRock(g: Graphics): void {
   const body = [10, 76, 4, 50, 16, 26, 40, 10, 66, 8, 86, 22, 96, 48, 90, 76];
   const darkSide = [66, 8, 86, 22, 96, 48, 90, 76, 58, 76, 62, 40];
@@ -503,6 +529,13 @@ function drawRock(g: Graphics): void {
   fillPolygon(g, snowCap, COLORS.snowLight);
   fillPolygon(g, snowCapShade, COLORS.snowShade);
   strokePolygon(g, body);
+
+  // Трещины на камне и блёстка на снегу.
+  g.lineStyle(1.6, COLORS.stoneDark, 1);
+  g.strokePoints(toPoints([30, 50, 38, 58, 34, 68]), false);
+  g.strokePoints(toPoints([70, 44, 64, 54]), false);
+  g.fillStyle(COLORS.white, 1);
+  g.fillCircle(40, 18, 1.5);
 }
 
 // ===== Общие картинки =====
