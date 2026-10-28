@@ -19,7 +19,7 @@ import {
 } from '../settings';
 import { COLORS } from '../palette';
 import { TEXTURES } from '../textures';
-import { CanStep, Point, pop } from '../fx';
+import { CanStep, Point, pop, setGlow } from '../fx';
 
 // ===== Прогулка =====
 
@@ -124,6 +124,11 @@ export class Rabbit {
   // Кролика можно поймать: он бродит или убегает.
   isCatchable(): boolean {
     return this.state === 'wander' || this.state === 'flee';
+  }
+
+  // Свечение-обводка кролика: сюда показывает подсказка обучения.
+  setHintGlow(isOn: boolean): void {
+    setGlow(this.scene, this.image, isOn);
   }
 
   // Вождь догнал кролика и замахивается: кролик замирает.

@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { DROP_RADIUS, TABLE_CAPACITY, WORLD_EDGE, WORLD_HEIGHT } from '../settings';
 import { TEXTURES } from '../textures';
 import { ITEMS, ItemType } from '../items';
-import { flyArc, pop, Point } from '../fx';
+import { flyArc, pop, Point, glowFrame, setGlow } from '../fx';
 
 // ===== Площадка у стола =====
 
@@ -90,6 +90,8 @@ export class StoneTable {
   // Площадка перед столом и её середина.
   private platform: Phaser.GameObjects.Image;
   private zone: Point;
+  // Светящаяся рамка площадки для подсказки обучения (создаётся при первой подсказке).
+  private hintFrame?: Phaser.GameObjects.Graphics;
   // Подсвечена ли площадка сейчас.
   private isHighlighted = false;
   // Еда на столе (и та, что ещё летит туда). Еда, которая ещё летит.
@@ -127,6 +129,13 @@ export class StoneTable {
   // Стоит ли точка (x, y) на площадке перед столом.
   contains(x: number, y: number): boolean {
     return Phaser.Math.Distance.Between(x, y, this.zone.x, this.zone.y) <= DROP_RADIUS;
+  }
+
+  // Свечение-обводка по краю площадки над столом: сюда показывает подсказка обучения.
+  setHintGlow(isOn: boolean): void {
+    this.hintFrame ??= glowFrame(this.scene, this.platform);
+    this.hintFrame.setVisible(isOn);
+    setGlow(this.scene, this.hintFrame, isOn);
   }
 
   // Подсветка площадки, пока вождь на ней. Твин — только когда подсветка меняется.

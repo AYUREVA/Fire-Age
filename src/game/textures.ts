@@ -157,6 +157,10 @@ const TUSK_ROOT_HEIGHT = 12;
 const SNOWFLAKE_SIZE: Size = { w: 12, h: 12 };
 const CHIP_SIZE: Size = { w: 12, h: 9 };
 const DROP_ZONE_SIZE: Size = { w: 220, h: 132 };
+// Рамка площадки кучи: отступ от края картинки и скругление углов.
+// По ним же рисуется светящаяся рамка подсказки обучения (fx.ts, glowFrame).
+export const DROP_ZONE_INSET = 8;
+export const DROP_ZONE_RADIUS = 30;
 const BUY_ZONE_SIZE: Size = { w: 180, h: 110 };
 const HUT_SIZE: Size = { w: 170, h: 160 };
 const FENCE_STAKE_SIZE: Size = { w: 30, h: 80 };
@@ -1941,8 +1945,8 @@ function drawRopeBand(g: Graphics, x: number): void {
 // скруглённая рамка с тонкой внутренней рамкой и полупрозрачная заливка. Иконку ресурса ставит ItemPile.
 function drawDropZone(g: Graphics): void {
   const { w, h } = DROP_ZONE_SIZE;
-  const inset = 8;
-  const radius = 30;
+  const inset = DROP_ZONE_INSET;
+  const radius = DROP_ZONE_RADIUS;
   const width = w - inset * 2;
   const height = h - inset * 2;
 
