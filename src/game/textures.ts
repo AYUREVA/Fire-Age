@@ -1938,7 +1938,7 @@ function drawRopeBand(g: Graphics, x: number): void {
 // ===== Кучи у костра и костёр =====
 
 // Площадка кучи — как зоны сдачи в мобильных играх:
-// скруглённая рамка и полупрозрачная заливка. Иконку ресурса ставит ItemPile.
+// скруглённая рамка с тонкой внутренней рамкой и полупрозрачная заливка. Иконку ресурса ставит ItemPile.
 function drawDropZone(g: Graphics): void {
   const { w, h } = DROP_ZONE_SIZE;
   const inset = 8;
@@ -1953,6 +1953,10 @@ function drawDropZone(g: Graphics): void {
   g.strokeRoundedRect(inset, inset, width, height, radius);
   g.lineStyle(6, COLORS.zoneBorder, 1);
   g.strokeRoundedRect(inset, inset, width, height, radius);
+  // Внутренняя тонкая рамка — площадка как рамка-ковёр.
+  const innerInset = 10;
+  g.lineStyle(2, COLORS.zoneBorder, 0.6);
+  g.strokeRoundedRect(inset + innerInset, inset + innerInset, width - innerInset * 2, height - innerInset * 2, radius - innerInset);
 }
 
 // Круг точки покупки: утоптанный снег с тёплой заливкой и светлым пунктиром
@@ -2221,8 +2225,8 @@ function drawSpit(g: Graphics): void {
   limb(g, 4, skewerY, w - 4, skewerY, 5, COLORS.woodLight);
 }
 
-// Каменный стол: толстая плита на двух валунах в сугробах. Сверху — шкура
-// саблезуба: светлое брюхо, тёмные полосы, лапы по углам свисают с плиты.
+// Стол лагеря (ключ картинки по-прежнему stoneTable): столешница из трёх досок
+// и толстый передний брус с деревянными гвоздями, на двух пнях в снегу.
 // Для уюта — деревянная миска и косточка.
 function drawStoneTable(g: Graphics): void {
   const { w, h } = STONE_TABLE_SIZE;
@@ -2231,80 +2235,48 @@ function drawStoneTable(g: Graphics): void {
   // Мягкая тень под столом — он стоит на снегу, а не висит в воздухе.
   softEllipse(g, cx, h - 10, w - 30, 26, COLORS.shadow, 0.05, 8);
 
-  // Валуны-ножки, наполовину в сугробах.
+  // Пни-ножки: правая сторона в тени, трещина коры, снег у подножия.
   for (const x of [62, w - 62]) {
-    outlinedBlobs(g, [x - 12, h - 22, 17, x + 12, h - 20, 16, x, h - 32, 18], COLORS.stoneDark);
-    g.fillStyle(COLORS.stone, 1);
-    g.fillCircle(x - 4, h - 30, 13);
-    g.fillStyle(COLORS.stoneLight, 1);
-    g.fillEllipse(x - 9, h - 36, 11, 6);
+    const stump = [x - 20, h - 8, x - 16, 100, x + 16, 100, x + 20, h - 8];
+    fillPolygon(g, stump, COLORS.wood);
+    fillPolygon(g, [x + 4, 100, x + 16, 100, x + 20, h - 8, x + 6, h - 8], COLORS.woodDark);
+    g.lineStyle(THIN_OUTLINE_WIDTH, COLORS.woodDark, 1);
+    g.lineBetween(x - 8, 106, x - 9, h - 14);
+    strokePolygon(g, stump);
     g.fillStyle(COLORS.snow, 1);
-    g.fillEllipse(x, h - 8, 66, 16);
-    g.fillStyle(COLORS.snowShade, 1);
-    g.fillEllipse(x + 4, h - 4, 50, 6);
-    g.lineStyle(THIN_OUTLINE_WIDTH, COLORS.outline, 1);
-    g.beginPath();
-    g.arc(x, h - 8, 33, Math.PI * 1.08, Math.PI * 1.92);
-    g.strokePath();
+    g.fillEllipse(x, h - 8, 60, 14);
   }
 
-  // Плита: толстый тёмный торец спереди, сверху светлая столешница,
-  // по торцу трещины и крапинки.
-  // Края неровные, со сколами — это обтёсанный камень, а не ровная доска.
-  const front = [9, 72, 22, 82, 70, 80, w - 64, 82, w - 18, 80, w - 8, 72, w - 7, 100, w - 22, 112, w / 2, 110, 24, 113, 8, 102];
-  fillPolygon(g, front, COLORS.stoneDark);
+  // Толстый передний брус и три доски столешницы (каждая чуть шире предыдущей).
+  const front = [10, 76, w - 10, 76, w - 12, 104, 12, 104];
+  fillPolygon(g, front, COLORS.woodDark);
   strokePolygon(g, front);
-  const topFace = [15, 40, 28, 28, 80, 30, w - 76, 27, w - 30, 28, w - 12, 38, w - 8, 72, w - 18, 80, w - 64, 82, 70, 80, 22, 82, 9, 72];
-  fillPolygon(g, topFace, COLORS.stone);
-  fillPolygon(g, [28, 28, 80, 30, w - 76, 27, w - 30, 28, w - 24, 34, 30, 36], COLORS.stoneLight);
-  // Светлое ребро там, где столешница переходит в торец.
-  limbChain(g, [22, 82, 70, 80, w - 64, 82, w - 18, 80], 2, COLORS.stoneLight);
-  strokePolygon(g, topFace);
-  g.lineStyle(THIN_OUTLINE_WIDTH, COLORS.outline, 0.6);
-  g.strokePoints(toPoints([34, 92, 40, 100, 36, 108]), false);
-  g.strokePoints(toPoints([w - 44, 94, w - 50, 104]), false);
-  g.fillStyle(COLORS.stoneLight, 0.8);
-  for (const [x, y] of [[56, 100], [104, 104], [150, 98], [190, 106]]) g.fillCircle(x, y, 2);
-
-  // Шкура: тело с лапами по углам и хвостом справа. Передние лапы свисают с плиты.
-  const pelt = [
-    cx, 38, cx + 30, 37, cx + 56, 39, cx + 78, 32, cx + 86, 29, cx + 88, 39, cx + 80, 46, cx + 90, 54,
-    cx + 106, 56, cx + 108, 63, cx + 90, 64, cx + 92, 74, cx + 98, 92, cx + 86, 95, cx + 76, 80,
-    cx + 50, 84, cx + 26, 86, cx, 87, cx - 26, 86, cx - 50, 84, cx - 76, 80, cx - 86, 95, cx - 98, 92,
-    cx - 92, 74, cx - 88, 64, cx - 100, 58, cx - 90, 52, cx - 88, 42, cx - 92, 31, cx - 82, 29, cx - 76, 38,
-    cx - 56, 37, cx - 30, 37,
+  const planks: [number, number, number][] = [
+    [28, 44, COLORS.woodLight],
+    [44, 60, COLORS.wood],
+    [60, 76, COLORS.woodLight],
   ];
-  fillPolygon(g, pelt, COLORS.fur);
-  // Светлое брюхо посередине.
-  g.fillStyle(COLORS.furLight, 1);
-  g.fillEllipse(cx, 61, 120, 26);
-  // Тёмные полосы: от краёв шкуры к брюху, сверху и снизу вразнобой.
-  for (const x of [cx - 62, cx - 31, cx, cx + 31, cx + 62]) {
-    limb(g, x - 3, 39, x + 2, 50, 5, COLORS.furSpot);
+  for (const [top, bottom, color] of planks) {
+    const widen = (top - 28) * 0.1;
+    const plank = [16 - widen, top, w - 16 + widen, top, w - 10, bottom, 10, bottom];
+    fillPolygon(g, plank, color);
+    strokePolygon(g, plank);
+    // Волокна дерева.
+    g.lineStyle(1.2, COLORS.woodDark, 0.8);
+    g.lineBetween(40, (top + bottom) / 2, 90, (top + bottom) / 2 + 1);
+    g.lineBetween(150, (top + bottom) / 2 - 1, 200, (top + bottom) / 2);
   }
-  for (const x of [cx - 46, cx - 15, cx + 15, cx + 46]) {
-    limb(g, x + 3, 85, x - 1, 74, 5, COLORS.furSpot);
-  }
-  limbChain(g, [cx + 96, 57, cx + 100, 62], 3, COLORS.furSpot);
-  strokePolygon(g, pelt);
-  // Мех по краю: короткие светлые штрихи.
-  g.lineStyle(2, COLORS.furShade, 1);
-  for (let x = cx - 70; x <= cx + 70; x += 14) {
-    g.lineBetween(x, 83, x + 3, 79);
-    g.lineBetween(x + 6, 41, x + 9, 45);
-  }
+  // Деревянные гвозди-колышки на брусе.
+  g.fillStyle(COLORS.woodEnd, 1);
+  for (const x of [30, 80, 160, 210]) g.fillCircle(x, 90, 2.4);
 
-  // Деревянная миска справа сзади и косточка слева спереди.
+  // Деревянная миска справа и косточка слева.
   outlinedEllipse(g, cx + 86, 47, 28, 13, COLORS.wood);
   g.fillStyle(COLORS.woodDark, 1);
   g.fillEllipse(cx + 86, 45, 20, 6);
-  g.fillStyle(COLORS.woodLight, 1);
-  g.fillEllipse(cx + 79, 50, 7, 3);
-  limb(g, cx - 82, 78, cx - 64, 74, 4, COLORS.bone);
-  outlinedCircle(g, cx - 84, 76, 3.5, COLORS.bone);
-  outlinedCircle(g, cx - 83, 81, 3.5, COLORS.bone);
-  outlinedCircle(g, cx - 62, 71, 3.5, COLORS.bone);
-  outlinedCircle(g, cx - 62, 76, 3.5, COLORS.bone);
+  limb(g, cx - 82, 66, cx - 64, 62, 4, COLORS.bone);
+  outlinedCircle(g, cx - 84, 64, 3.5, COLORS.bone);
+  outlinedCircle(g, cx - 62, 60, 3.5, COLORS.bone);
 }
 
 // Язык пламени: несколько «капель» одна в другой — от красного края до почти белой середины.
