@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { CanStep, pop } from '../fx';
+import { CanStep, Point, pop } from '../fx';
 import { JOYSTICK_RADIUS, PLAYER_SPEED, WORLD_EDGE, WORLD_HEIGHT, WORLD_WIDTH } from '../settings';
 import { SOUNDS, SOUND_VOLUMES, playSound } from '../sounds';
 import { TEXTURES, WEAPON_GRIP_FROM_BOTTOM } from '../textures';
@@ -8,11 +8,13 @@ import { WEAPONS, Weapon } from '../data/upgrades';
 // ===== Слои вождя =====
 
 // Тень и кольцо лежат на земле сразу под вождём. Ноги — чуть позади тела
-// (подол шкуры закрывает бёдра), свободная рука и дубина — чуть впереди.
+// (подол шкуры закрывает бёдра), руки и дубина — чуть впереди; кулак на дубине —
+// поверх запястья руки с оружием.
 const SHADOW_DEPTH_SHIFT = -0.6;
 const RING_DEPTH_SHIFT = -0.5;
 const LEG_DEPTH_SHIFT = -0.05;
 const ARM_DEPTH_SHIFT = 0.05;
+const CLUB_ARM_DEPTH_SHIFT = 0.08;
 const CLUB_DEPTH_SHIFT = 0.1;
 // Джойстик рисуется поверх всего мира.
 const JOYSTICK_DEPTH = 20000;
@@ -28,28 +30,41 @@ const JOYSTICK_ALPHA = 0.9;
 const RING_PULSE_SCALE = 1.08;
 const RING_PULSE_TIME = 700;
 
-// Где кулак с дубиной относительно ног (когда вождь смотрит вправо).
-const HAND_OFFSET_X = 40;
-const HAND_OFFSET_Y = -29;
+// ===== Рука с оружием =====
+
+// Плечо руки с оружием (когда вождь смотрит вправо) и где плечо на картинке этой руки.
+const CLUB_SHOULDER_OFFSET_X = 30;
+const CLUB_SHOULDER_OFFSET_Y = -52;
+const CLUB_ARM_SHOULDER_Y = 0.2;
+// От плеча до центра кулака, в пикселях: кулак на картинке оружия ложится на запястье.
+const CLUB_ARM_LENGTH = 25;
+// В покое рука с оружием отведена вперёд (0° — висит прямо вниз, минус — вперёд).
+const CLUB_ARM_REST_ANGLE = -23.6;
 // Угол дубины в покое: наклонена вперёд, от лица (0° — дубина стоит вертикально).
 const CLUB_REST_ANGLE = 65;
 
-// ===== Взмах дубиной: замах → удар → возврат =====
+// ===== Удар «мягкий хлёст»: замах → удар → возврат =====
 
-// На сколько градусов от угла покоя дубина отходит назад-вверх на замахе
-// и на сколько уходит вперёд-вниз в момент удара по кусту.
-const CLUB_WINDUP_ANGLE = -50;
-const CLUB_STRIKE_ANGLE = 45;
-// Какую долю всего взмаха занимает каждая фаза (в сумме 1):
-// неспешный замах, резкий удар, возврат в покой с пружинкой.
-// Весь взмах длится столько, сколько передали в swing() (интервал удара оружия),
-// поэтому попадание (замах + удар = половина взмаха) всегда раньше следующего удара.
-const SWING_WINDUP_SHARE = 0.3;
-const SWING_STRIKE_SHARE = 0.2;
-const SWING_RECOVER_SHARE = 0.5;
-// Тело наклоняется вслед за дубиной: градусов наклона на градус взмаха
-// (назад на замахе, вперёд при ударе).
-const BODY_LEAN_PER_DEGREE = 0.08;
+// Поза удара — на сколько всё отклонено от покоя (когда вождь смотрит вправо):
+// armSwing — рука от плеча (минус — вперёд-вверх), wristSwing — дубина в кисти
+// (минус — запрокинута назад, плюс — «хлещет» вперёд), swingLean — наклон тела
+// (минус — откинулся назад), swingSquash — сжатие тела (плюс — присел),
+// freeArmSwing — отвод свободной руки (минус — назад).
+type SwingPose = { armSwing: number; wristSwing: number; swingLean: number; swingSquash: number; freeArmSwing: number };
+// Замах: рука поднимает дубину вперёд-вверх, кисть чуть отстаёт, тело откидывается.
+const SWING_WINDUP: SwingPose = { armSwing: -100, wristSwing: -5, swingLean: -5, swingSquash: -0.03, freeArmSwing: 8 };
+// Удар: рука опускается вперёд, кисть «хлещет» дубиной, тело наклоняется и чуть приседает.
+const SWING_STRIKE: SwingPose = { armSwing: 10, wristSwing: 22, swingLean: 7, swingSquash: 0.05, freeArmSwing: -10 };
+const SWING_REST: SwingPose = { armSwing: 0, wristSwing: 0, swingLean: 0, swingSquash: 0, freeArmSwing: 0 };
+// Какую долю всего удара занимает каждая фаза (в сумме 1): мягкий замах,
+// плавный разгон до попадания, спокойный возврат без пружинки.
+// Весь удар длится столько, сколько передали в swing() (интервал удара оружия),
+// поэтому попадание (замах + удар = 0.6 удара) всегда раньше следующего удара.
+const SWING_WINDUP_SHARE = 0.36;
+const SWING_STRIKE_SHARE = 0.24;
+const SWING_RECOVER_SHARE = 0.4;
+// Присев делает тело ниже и чуть шире: ширина меняется на эту долю от высоты.
+const SQUASH_WIDEN = 0.6;
 
 // Где спина — точка, от которой растёт стопка (когда вождь смотрит вправо).
 const BACK_OFFSET_X = -16;
@@ -79,8 +94,6 @@ const LEG_SWING_ANGLE = 28;
 const LEG_LIFT = 4;
 // Свободная рука машет в такт шагам — на сколько градусов вперёд-назад.
 const ARM_SWING_ANGLE = 30;
-// При взмахе дубиной свободная рука отходит для равновесия: градусов на градус взмаха.
-const ARM_STRIKE_FACTOR = 0.5;
 // Тело на каждом шаге чуть поднимается (пиксели) и наклоняется вперёд по ходу бега (градусы).
 const RUN_BOB_HEIGHT = 2.5;
 const RUN_LEAN = 5;
@@ -100,8 +113,9 @@ const CLUB_RUN_SWAY = 6;
  *
  * Ходит по миру (клавиатура или виртуальный джойстик): ноги шагают по очереди,
  * свободная рука машет в такт, тело чуть наклоняется вперёд. Разворачивается
- * по направлению и машет дубиной. Состоит из нескольких картинок: тень,
- * кольцо под ногами, две ноги, тело, свободная рука и дубина.
+ * по направлению и бьёт дубиной от плеча. Состоит из нескольких картинок: тень,
+ * кольцо под ногами, две ноги, тело, свободная рука, рука с оружием и оружие.
+ * Обе руки прикреплены к плечам и двигаются вместе с телом.
  * О кустах, стопке и поленнице вождь ничего не знает — этим занимается сцена.
  */
 export class Player {
@@ -136,9 +150,13 @@ export class Player {
   private bob = 0;
   // Волна «дыхания» на месте: от -1 (выдох) до 1 (вдох). На бегу — 0.
   private breathWave = 0;
-  // Взмах дубиной: на сколько градусов дубина сейчас отклонена от угла покоя.
-  // Меняется цепочкой твинов в swing().
-  private clubSwing = 0;
+  // Поза удара (см. SwingPose): рука, кисть, наклон и сжатие тела, свободная рука.
+  // Меняется цепочкой твинов в swing(), в покое — нули.
+  private armSwing = 0;
+  private wristSwing = 0;
+  private swingLean = 0;
+  private swingSquash = 0;
+  private freeArmSwing = 0;
   // Наклон тела вперёд по ходу бега (градусы).
   private walkTilt = 0;
   // Во сколько раз растянута текстура тени, чтобы её ширина была SHADOW_WIDTH.
@@ -150,6 +168,8 @@ export class Player {
   private bodyImage: Phaser.GameObjects.Image;
   private legs: Phaser.GameObjects.Image[];
   private freeArm: Phaser.GameObjects.Image;
+  // Рука с оружием: вращается от плеча, на её конце — кулак с оружием.
+  private clubArm: Phaser.GameObjects.Image;
   // Оружие в руке: дубина, топор или копьё (картинка с кулаком внизу).
   private club: Phaser.GameObjects.Image;
 
@@ -181,13 +201,14 @@ export class Player {
       ease: 'Sine.easeInOut',
     });
     // Точка опоры тела — середина нижнего края (ноги), ног — бедро,
-    // свободной руки — плечо, дубины — кулак.
+    // обеих рук — плечо, дубины — кулак.
     this.bodyImage = scene.add.image(x, y, TEXTURES.player).setOrigin(0.5, 1);
     this.legs = [
       scene.add.image(x, y, TEXTURES.leg).setOrigin(0.5, LEG_HIP_Y),
       scene.add.image(x, y, TEXTURES.leg).setOrigin(0.5, LEG_HIP_Y),
     ];
     this.freeArm = scene.add.image(x, y, TEXTURES.arm).setOrigin(0.5, ARM_SHOULDER_Y);
+    this.clubArm = scene.add.image(x, y, TEXTURES.clubArm).setOrigin(0.5, CLUB_ARM_SHOULDER_Y);
     this.club = scene.add.image(x, y, TEXTURES.club);
     this.setGripOrigin();
 
@@ -221,34 +242,34 @@ export class Player {
     this.place();
   }
 
-  // Взмах дубиной: вождь поворачивается к цели (кусту), замахивается и бьёт.
-  // duration — сколько мс длится весь взмах, onImpact вызывается в момент,
+  // Удар дубиной: вождь поворачивается к цели (кусту), замахивается и бьёт.
+  // duration — сколько мс длится весь удар, onImpact вызывается в момент,
   // когда дубина попадает по цели.
   swing(targetX: number, duration: number, onImpact: () => void): void {
     this.facing = targetX >= this.x ? 1 : -1;
 
-    // Если прошлый взмах ещё идёт — останавливаем его, чтобы два взмаха не спорили.
+    // Если прошлый удар ещё идёт — останавливаем его, чтобы два удара не спорили.
     this.scene.tweens.killTweensOf(this);
 
-    // Цепочка из трёх твинов, они идут друг за другом. Каждый меняет число clubSwing,
-    // а place() превращает его в угол дубины и наклон тела.
+    // Цепочка из трёх твинов, они идут друг за другом. Каждый меняет числа позы удара
+    // (armSwing, wristSwing и др.), а place() превращает их в углы рук, дубины и тела.
     this.scene.tweens.chain({
       targets: this,
       tweens: [
-        // 1. Замах: дубина плавно отходит назад-вверх.
-        { clubSwing: CLUB_WINDUP_ANGLE, duration: duration * SWING_WINDUP_SHARE, ease: 'Sine.easeOut' },
-        // 2. Удар: резко вперёд-вниз, с разгоном. В конце — попадание.
+        // 1. Замах: рука плавно поднимает дубину вперёд-вверх, кисть чуть отстаёт.
+        { ...SWING_WINDUP, duration: duration * SWING_WINDUP_SHARE, ease: 'Sine.easeInOut' },
+        // 2. Удар: плавный разгон вниз-вперёд, кисть «хлещет» дубиной. В конце — попадание.
         {
-          clubSwing: CLUB_STRIKE_ANGLE,
+          ...SWING_STRIKE,
           duration: duration * SWING_STRIKE_SHARE,
-          ease: 'Quad.easeIn',
+          ease: 'Sine.easeIn',
           onComplete: () => {
             playSound(this.scene, SOUNDS.hit, SOUND_VOLUMES.hit);
             onImpact();
           },
         },
-        // 3. Возврат в покой: Back.easeOut чуть проскакивает — получается пружинка.
-        { clubSwing: 0, duration: duration * SWING_RECOVER_SHARE, ease: 'Back.easeOut' },
+        // 3. Спокойный возврат в покой.
+        { ...SWING_REST, duration: duration * SWING_RECOVER_SHARE, ease: 'Sine.easeOut' },
       ],
     });
   }
@@ -273,7 +294,7 @@ export class Player {
     this.club.setOrigin(0.5, 1 - WEAPON_GRIP_FROM_BOTTOM / this.club.height);
   }
 
-  // Идёт ли сейчас взмах дубиной (тогда новый взмах оборвал бы удар).
+  // Идёт ли сейчас удар дубиной (тогда новый удар оборвал бы его).
   isSwinging(): boolean {
     return this.scene.tweens.isTweening(this);
   }
@@ -369,26 +390,36 @@ export class Player {
       // Тело наклонено вперёд по ходу бега.
       this.walkTilt = RUN_LEAN * this.facing;
       this.breathWave = 0;
-      this.bodyImage.setScale(1);
     } else {
       this.stepPhase = 0;
       this.legSwing = 0;
       this.idleTime += delta;
       this.bob = 0;
       this.walkTilt = 0;
-      // Медленное «дыхание»: тело чуть вытягивается и возвращается.
+      // Медленное «дыхание»: тело чуть вытягивается и возвращается (см. place()).
       this.breathWave = Math.sin(this.idleTime * IDLE_BREATH_SPEED);
-      const breath = this.breathWave * IDLE_BREATH;
-      this.bodyImage.setScale(1 - breath / 2, 1 + breath);
     }
   }
 
   // На сколько пикселей сейчас поднялась точка тела на высоте height над ногами.
   // Картинка тела «дышит», растягиваясь от ног вверх: чем выше точка, тем сильнее
-  // она поднимается. Плюс подъём тела на шагах (bob). По этой высоте ставятся
-  // отдельные картинки — свободная рука, дубина и стопка, — чтобы они двигались вместе с телом.
+  // она поднимается. Плюс подъём тела на шагах (bob). По этой высоте ставится
+  // стопка на спине, чтобы она двигалась вместе с телом.
   private bodyLiftAt(height: number): number {
     return height * this.breathWave * IDLE_BREATH + this.bob;
+  }
+
+  // Точка на теле: (offsetX, offsetY) от ног, когда вождь смотрит вправо и стоит ровно.
+  // Тело растянуто в scaleX × scaleY раз и наклонено на angle градусов вокруг ног,
+  // поэтому точка (например, плечо) поворачивается и сжимается вместе с ним.
+  private pointOnBody(offsetX: number, offsetY: number, angle: number, scaleX: number, scaleY: number): Point {
+    const localX = offsetX * this.facing * scaleX;
+    const localY = offsetY * scaleY;
+    const rad = Phaser.Math.DegToRad(angle);
+    return {
+      x: this.x + localX * Math.cos(rad) - localY * Math.sin(rad),
+      y: this.y - this.bob + localX * Math.sin(rad) + localY * Math.cos(rad),
+    };
   }
 
   // Расставляет все части вождя вокруг точки ног (x, y).
@@ -401,41 +432,54 @@ export class Player {
     this.shadow.setScale(this.shadowScale * (1 - (this.bob / RUN_BOB_HEIGHT) * SHADOW_SHRINK_IN_JUMP));
     this.ring.setPosition(this.x, this.y).setDepth(this.y + RING_DEPTH_SHIFT);
 
-    // Наклон тела: от шагов и вслед за взмахом дубины (зеркально, если вождь смотрит влево).
-    const lean = this.clubSwing * BODY_LEAN_PER_DEGREE * this.facing;
+    // Тело: наклон от шагов и от удара (зеркально, если вождь смотрит влево),
+    // «дыхание» на месте и присед при ударе.
+    const bodyAngle = this.walkTilt + this.swingLean * this.facing;
+    const breath = this.breathWave * IDLE_BREATH;
+    const scaleX = (1 - breath / 2) * (1 + this.swingSquash * SQUASH_WIDEN);
+    const scaleY = (1 + breath) * (1 - this.swingSquash);
     this.bodyImage
       .setPosition(this.x, this.y - this.bob)
-      .setAngle(this.walkTilt + lean)
+      .setAngle(bodyAngle)
+      .setScale(scaleX, scaleY)
       .setDepth(this.y)
       .setFlipX(isLeft);
 
     this.placeLegs(isLeft);
 
-    // Свободная рука держится за плечо тела и двигается вместе с ним.
+    // Свободная рука держится за плечо тела и наклоняется вместе с ним.
     // На месте она чуть покачивается в такт дыханию, на бегу машет в такт шагам
-    // (в паре с ногой на той же стороне — в противофазе), при ударе отходит назад для равновесия.
-    const armAngle =
-      ARM_REST_ANGLE +
-      this.breathWave * ARM_IDLE_SWAY +
-      this.legSwing * ARM_SWING_ANGLE +
-      this.clubSwing * ARM_STRIKE_FACTOR;
+    // (в паре с ногой на той же стороне — в противофазе), при ударе отходит для равновесия.
+    const freeShoulder = this.pointOnBody(SHOULDER_OFFSET_X, SHOULDER_OFFSET_Y, bodyAngle, scaleX, scaleY);
+    const freeArmAngle =
+      ARM_REST_ANGLE + this.breathWave * ARM_IDLE_SWAY + this.legSwing * ARM_SWING_ANGLE + this.freeArmSwing;
     this.freeArm
-      .setPosition(
-        this.x + SHOULDER_OFFSET_X * this.facing,
-        this.y + SHOULDER_OFFSET_Y - this.bodyLiftAt(-SHOULDER_OFFSET_Y),
-      )
-      .setAngle(armAngle * this.facing)
+      .setPosition(freeShoulder.x, freeShoulder.y)
+      .setAngle(freeArmAngle * this.facing + bodyAngle)
       .setFlipX(isLeft)
       .setDepth(this.y + ARM_DEPTH_SHIFT);
 
-    // Дубина в кулаке: кулак двигается вместе с телом. Дубина покачивается на месте
-    // в такт дыханию и на бегу в такт шагам, а при взмахе к этому добавляется clubSwing.
+    // Рука с оружием вращается от плеча; кулак с оружием — на её конце.
+    const clubShoulder = this.pointOnBody(CLUB_SHOULDER_OFFSET_X, CLUB_SHOULDER_OFFSET_Y, bodyAngle, scaleX, scaleY);
+    const clubArmAngle = (CLUB_ARM_REST_ANGLE + this.armSwing) * this.facing + bodyAngle;
+    this.clubArm
+      .setPosition(clubShoulder.x, clubShoulder.y)
+      .setAngle(clubArmAngle)
+      .setFlipX(isLeft)
+      .setDepth(this.y + CLUB_ARM_DEPTH_SHIFT);
+    // Картинка руки висит вниз: поворот на угол уводит кисть от плеча в сторону (−sin, cos).
+    const armRad = Phaser.Math.DegToRad(clubArmAngle);
+    const handX = clubShoulder.x - Math.sin(armRad) * CLUB_ARM_LENGTH;
+    const handY = clubShoulder.y + Math.cos(armRad) * CLUB_ARM_LENGTH;
+
+    // Дубина в кулаке поворачивается вместе с рукой и ещё в кисти: на месте покачивается
+    // в такт дыханию, на бегу — в такт шагам, при ударе кисть отстаёт и «хлещет».
     // Когда вождь смотрит влево, всё зеркально: и место, и угол.
     const clubAngle =
-      CLUB_REST_ANGLE + this.breathWave * CLUB_IDLE_SWAY + this.legSwing * CLUB_RUN_SWAY + this.clubSwing;
+      CLUB_REST_ANGLE + this.armSwing + this.wristSwing + this.breathWave * CLUB_IDLE_SWAY + this.legSwing * CLUB_RUN_SWAY;
     this.club
-      .setPosition(this.x + HAND_OFFSET_X * this.facing, this.y + HAND_OFFSET_Y - this.bodyLiftAt(-HAND_OFFSET_Y))
-      .setAngle(clubAngle * this.facing)
+      .setPosition(handX, handY)
+      .setAngle(clubAngle * this.facing + bodyAngle)
       .setFlipX(isLeft)
       .setDepth(this.y + CLUB_DEPTH_SHIFT);
   }

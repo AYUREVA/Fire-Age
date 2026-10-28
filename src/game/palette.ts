@@ -43,6 +43,8 @@ export const COLORS = {
   tongue: 0xe0646a, // язык
   hair: 0x8a4519, // волосы и борода: тёплые рыже-коричневые
   hairLight: 0xc4732f, // светлые пряди
+  hairShade: 0x64300f, // глубокая тень в гриве и бороде, тёмные пряди
+  hairShine: 0xe39a52, // блестящие пряди на свету
   fur: 0xd0843f, // шкура
   furDark: 0x8f5326, // тёмный мех: сапоги
   furSpot: 0x6d3d1c, // пятна на шкуре
@@ -50,7 +52,13 @@ export const COLORS = {
   furLight: 0xf3c27c, // светлый мех: кромка шкуры, отвороты сапог
   eye: 0xffffff, // белок глаза
   iris: 0x5a3820, // карий зрачок
+  irisRim: 0x3a2414, // тёмный ободок радужки
+  irisLight: 0x8f5e36, // светлый низ радужки
+  eyeShade: 0xe4dce8, // тень от века на белке глаза
+  noseShade: 0xd98468, // тень на носу и в ушах
+  nail: 0xffe2cf, // ногти
   leather: 0x7c4a2c, // кожаная обмотка рукояти дубины
+  leatherLight: 0xa86a3e, // блик на кожаной обмотке запястья
 
   // ===== Дерево =====
   wood: 0x9a6234, // дерево
@@ -67,8 +75,15 @@ export const COLORS = {
   // ===== Путники =====
   sack: 0xc9a46a, // котомка охотника — холщовый мешок
   sackDark: 0x9c7a46, // мешок в тени, заплатка
-  elderCloak: 0x8a90a6, // серый плащ старца
-  elderCloakDark: 0x666c82, // плащ старца в тени и капюшон
+  elderCloak: 0x8e6a4c, // кожаный плащ старца
+  elderCloakDark: 0x654632, // плащ старца в тени и капюшон
+  travelerHide: 0xa8784e, // выделанная кожа одежды путников
+  travelerHideShade: 0x7e5534, // кожа в тени
+  travelerHideSpot: 0x5e3a20, // пятна на шкуре охотника
+  travelerHideLight: 0xd9b48a, // светлая кожа: шубка девушки, кайма
+  travelerRuff: 0xf3ece0, // белая меховая опушка капюшона
+  travelerHoodInside: 0x5a3826, // тёмная глубина капюшона вокруг лица
+  ochre: 0xc8402a, // красная охра: раскраска на лице и одежде
   elderHair: 0xf1f3f7, // седые волосы и борода старца
   feather: 0xd8573f, // красное перо на посохе
   featherAlt: 0x3fa6a0, // бирюзовое перо на посохе
@@ -78,12 +93,13 @@ export const COLORS = {
   basketDark: 0x9c7238, // прутья корзины
 
   // ===== Кролик =====
-  rabbitFur: 0xa08a74, // серо-бурый мех — хорошо виден на снегу
-  rabbitShade: 0x7c6755, // мех в тени, дальнее ухо
-  rabbitLight: 0xc4af97, // светлая спинка и макушка
-  rabbitBelly: 0xf6eee2, // светлое брюхо, щёки, лапы, хвостик
-  rabbitEar: 0xf2a6b0, // розовое внутри уха
-  rabbitEarShade: 0xc98290, // розовое внутри дальнего уха
+  rabbitFur: 0xf4f6fa, // белый зимний мех беляка
+  rabbitShade: 0xc9d6e8, // голубая тень на белом мехе, дальнее ухо
+  rabbitLight: 0xffffff, // блик на спинке и макушке
+  rabbitBelly: 0xffffff, // брюхо, мордочка, лапы, хвостик
+  rabbitEar: 0xf2b4bd, // розовое внутри уха
+  rabbitEarShade: 0xd99aa6, // розовое внутри дальнего уха
+  rabbitEarTip: 0x3a3440, // чёрные кончики ушей
   rabbitEye: 0x35261f, // глаз
   rabbitNose: 0xe77f8f, // нос
 
@@ -94,6 +110,7 @@ export const COLORS = {
   wolfBelly: 0xd5dbe4, // брюхо, горло, нижняя челюсть
   wolfEye: 0xffc22e, // жёлтый глаз
   wolfMouth: 0x6e2232, // тёмная пасть в оскале
+  wolfEar: 0xc98290, // розовое внутри уха волка
 
   // ===== Мясо =====
   rawMeat: 0xf08b8b, // сырое мясо
@@ -108,6 +125,7 @@ export const COLORS = {
   tuskShine: 0xffffff, // блик на эмали
   tuskRoot: 0xc9a77a, // корень клыка
   tuskRootShade: 0xa4835a, // корень в тени
+  tuskGold: 0xf2c23a, // золотой ободок у корня клыка
   meatRoasting: 0xb07040, // до этого оттенка темнеет сырое мясо на вертеле (tint)
 
   // ===== Ветки и связки хвороста =====
@@ -116,6 +134,8 @@ export const COLORS = {
   brushLight: 0x9e7e62, // светлые веточки
   rope: 0xe0bf74, // верёвка на связке
   ropeDark: 0xa98440, // тень на верёвке
+  bundleStrap: 0x7c4a2c, // кожаный ремешок на связке хвороста
+  bundleStrapDark: 0x6d3d1c, // тень на ремешке
 
   // ===== Костёр =====
   fireRed: 0xe8452c, // внешний край пламени
@@ -135,9 +155,8 @@ export const COLORS = {
   // ===== Интерфейс =====
   ui: 0xffffff, // кольцо под ногами, джойстик
   maxText: 0xff5a3c, // надпись «МАКС» над полной стопкой
-  hudPanel: 0x3b2a22, // плашка счёта: тёмное тёплое дерево
   hudText: 0xfff6e0, // текст интерфейса
-  heatBarBack: 0x3b2a22, // подложка шкалы жара над костром
+  heatBarBack: 0x4f4641, // подложка шкалы жара над костром: тёмный камень
   heatBar: 0xff8a1f, // заливка шкалы жара
   heatMark: 0xfff6e0, // засечка второй звезды на шкале жара: звезда ещё есть
   heatMarkLost: 0x7a3326, // засечка, когда жар опустился ниже неё: звезда потеряна

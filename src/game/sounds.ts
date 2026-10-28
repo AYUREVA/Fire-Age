@@ -8,7 +8,7 @@ import { getProgress, setMuted } from './save';
 //  Чтобы заменить звук записанным файлом, меняется только этот файл.
 //
 //  Звук работает, только если браузер даёт Web Audio. Нет — игра идёт
-//  без звука: playSound() и addLoop() просто ничего не делают.
+//  без звука: playSound() просто ничего не делает.
 // =====================================================================
 
 // Ключи звуков: по ним объекты их проигрывают.
@@ -16,9 +16,7 @@ export const SOUNDS = {
   hit: 'sound-hit', // удар дубиной или оружием
   pickup: 'sound-pickup', // предмет лёг на спину
   tusk: 'sound-tusk', // клык упал в счётчик или ушёл на покупку
-  crackle: 'sound-crackle', // треск костра (повторяется по кругу)
   howl: 'sound-howl', // вой волка, выходящего из леса
-  wind: 'sound-wind', // ветер ночью (повторяется по кругу)
   star: 'sound-star', // звезда «впечаталась» на экране итогов
 } as const;
 
@@ -27,14 +25,9 @@ export const SOUND_VOLUMES = {
   hit: 0.45,
   pickup: 0.3,
   tusk: 0.35,
-  crackle: 0.3,
   howl: 0.4,
-  wind: 0.35,
   star: 0.55,
 };
-
-// Звук, который повторяется по кругу: у него можно менять громкость.
-export type LoopSound = Phaser.Sound.WebAudioSound | Phaser.Sound.HTML5AudioSound | Phaser.Sound.NoAudioSound;
 
 // Звук в виде формулы: t — секунды от начала, dt — длина одного шага (1 / частота дискретизации).
 // Возвращает значение волны от −1 до 1. Внутри может хранить своё состояние (фазу, фильтр).
@@ -48,12 +41,10 @@ export function createSounds(scene: Phaser.Scene): void {
   // Звуки общие для всей игры и переживают перезапуск сцены — второй раз не создаём.
   if (scene.cache.audio.exists(SOUNDS.hit)) return;
 
-  bake(scene, SOUNDS.hit, 0.18, hitSynth());
+  bake(scene, SOUNDS.hit, 0.22, hitSynth());
   bake(scene, SOUNDS.pickup, 0.12, pickupSynth());
   bake(scene, SOUNDS.tusk, 0.3, tuskSynth());
-  bake(scene, SOUNDS.crackle, 2, crackleSynth());
   bake(scene, SOUNDS.howl, 1.7, howlSynth());
-  bake(scene, SOUNDS.wind, 4, windSynth(4));
   bake(scene, SOUNDS.star, 0.45, starSynth());
 }
 
@@ -61,16 +52,6 @@ export function createSounds(scene: Phaser.Scene): void {
 export function playSound(scene: Phaser.Scene, key: string, volume: number): void {
   if (!scene.cache.audio.exists(key)) return;
   scene.sound.play(key, { volume });
-}
-
-// Звук, который повторяется по кругу (треск костра, ветер). Сам не начинается:
-// его запускает и останавливает владелец. Нет Web Audio — вернёт undefined.
-// Звук принадлежит сцене: когда сцена выключается, он удаляется.
-export function addLoop(scene: Phaser.Scene, key: string, volume: number): LoopSound | undefined {
-  if (!scene.cache.audio.exists(key)) return undefined;
-  const sound = scene.sound.add(key, { loop: true, volume });
-  scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => sound.destroy());
-  return sound;
 }
 
 // Выключить или включить звук и запомнить это в сохранении. Вернёт, выключен ли звук теперь.
@@ -121,10 +102,12 @@ function softNoise(smooth: (t: number) => number): Synth {
 
 // ===== Звуки =====
 
-// Удар: глухой «бум» — низкий тон быстро падает по частоте и затухает, сверху короткий шорох.
+// Удар: глухой «тук» — низкий тон быстро падает по частоте и затухает,
+// сверху мягкий щелчок из сглаженного (глухого) шума, без шипения.
 function hitSynth(): Synth {
-  const body = tone((t) => 60 + 140 * Math.exp(-t * 25));
-  return (t, dt) => 0.9 * body(t, dt) * Math.exp(-t * 28) + 0.35 * noise() * Math.exp(-t * 70);
+  const body = tone((t) => 55 + 70 * Math.exp(-t * 30));
+  const knock = softNoise(() => 0.18);
+  return (t, dt) => 0.9 * body(t, dt) * Math.exp(-t * 20) * Math.min(1, t / 0.003) + 0.5 * knock(t, dt) * Math.exp(-t * 60);
 }
 
 // Предмет лёг на спину: мягкий «пуп» — тон быстро уходит вверх и затухает.
@@ -145,25 +128,6 @@ function tuskSynth(): Synth {
   };
 }
 
-// Треск костра: тихий глухой гул и случайные короткие щелчки поленьев.
-function crackleSynth(): Synth {
-  const rumble = softNoise(() => 0.02);
-  // Сколько ещё длится текущий щелчок (секунды) и его громкость.
-  let clickLeft = 0;
-  let clickVolume = 0;
-  // В среднем столько щелчков в секунду.
-  const clicksPerSecond = 14;
-  return (_t, dt) => {
-    if (clickLeft <= 0 && Math.random() < clicksPerSecond * dt) {
-      clickLeft = 0.004 + Math.random() * 0.01;
-      clickVolume = 0.3 + Math.random() * 0.6;
-    }
-    clickLeft -= dt;
-    const click = clickLeft > 0 ? noise() * clickVolume : 0;
-    return 1.2 * rumble(_t, dt) + click;
-  };
-}
-
 // Вой волка: тон плавно поднимается и опускается, с лёгким дрожанием голоса;
 // медленно нарастает и затихает.
 function howlSynth(): Synth {
@@ -178,14 +142,6 @@ function howlSynth(): Synth {
     const envelope = Math.min(1, t / 0.35) * Math.min(1, Math.max(0, length - t) / 0.5);
     return envelope * (0.6 * voice(t, dt) + 0.15 * overtone(t, dt));
   };
-}
-
-// Ветер: шум, у которого то ниже, то выше «свист» и то тише, то громче порывы.
-// Волны укладываются в длину звука целое число раз — по кругу он повторяется без шва.
-function windSynth(length: number): Synth {
-  const gust = (t: number): number => 0.5 + 0.5 * Math.sin((2 * Math.PI * t) / length);
-  const air = softNoise((t) => 0.01 + 0.03 * gust(t));
-  return (t, dt) => 2.2 * air(t, dt) * (0.45 + 0.55 * gust(t));
 }
 
 // Звезда на экране итогов: яркое «тинь» — тон взлетает вверх, сверху октава, затухает.
