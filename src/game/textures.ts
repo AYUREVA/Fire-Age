@@ -2346,22 +2346,24 @@ function drawChip(g: Graphics): void {
 
 // ===== Интерфейс =====
 
-// Плашка интерфейса: тёмное дерево со светлой рамкой, скруглённые углы и мягкая тень снизу.
+// Плашка HUD из того же камня, что таблички и кнопки: тонкая светлая кромка сверху,
+// тёмный торец снизу и тёмное «окошко» почти на всю высоту. Середина окошка —
+// на середине картинки: там Hud ставит иконку и цифры.
 function drawHudPanel(g: Graphics): void {
   const { w, h } = HUD_PANEL_SIZE;
-  const radius = 18;
+  const radius = 14;
   const height = h - 6;
+  const windowHeight = 48;
 
-  // Тень плашки чуть ниже неё.
-  g.fillStyle(COLORS.shadow, 0.35);
-  g.fillRoundedRect(2, 6, w - 4, height - 2, radius);
-  // Сама плашка.
-  g.fillStyle(COLORS.hudPanel, 0.9);
+  g.fillStyle(COLORS.tabletDark, 1);
   g.fillRoundedRect(2, 2, w - 4, height - 2, radius);
-  // Блик по верху — плашка выглядит выпуклой.
-  g.fillStyle(COLORS.white, 0.12);
-  g.fillRoundedRect(8, 6, w - 16, height / 3, radius / 2);
-  g.lineStyle(3, COLORS.zoneBorder, 1);
+  g.fillStyle(COLORS.tablet, 1);
+  g.fillRoundedRect(2, 2, w - 4, height - 3, radius);
+  g.lineStyle(2, COLORS.tabletLight, 1);
+  g.lineBetween(14, 5, w - 14, 5);
+  g.fillStyle(COLORS.outline, 0.45);
+  g.fillRoundedRect(6, h / 2 - windowHeight / 2, w - 12, windowHeight, 10);
+  g.lineStyle(OUTLINE_WIDTH, COLORS.outline, 1);
   g.strokeRoundedRect(2, 2, w - 4, height - 2, radius);
 }
 
