@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { COLORS, toCss } from './palette';
-import { FONT_FAMILY } from './textures';
+import { DROP_ZONE_INSET, DROP_ZONE_RADIUS, FONT_FAMILY } from './textures';
 
 // =====================================================================
 //  Простые эффекты. Это функции, а не классы: вызвал — эффект сыграл.
@@ -23,6 +23,13 @@ const FLOAT_TEXT_TIME = 750;
 
 // Встряска: сколько раз объект качнётся туда-обратно.
 const SHAKE_SWINGS = 3;
+
+// Свечение-обводка: сила свечения «дышит» от GLOW_MIN до GLOW_MAX и обратно за GLOW_PULSE_TIME мс.
+const GLOW_MIN = 2;
+const GLOW_MAX = 6;
+const GLOW_PULSE_TIME = 600;
+// Светящаяся рамка площадки: толщина линии.
+const GLOW_FRAME_WIDTH = 5;
 
 // «Пружинка»: насколько объект сплющивается (шире и ниже) и за сколько мс возвращается.
 const POP_SQUASH_X = 1.3;
@@ -139,4 +146,45 @@ export function pop(
     // Back.easeOut чуть проскакивает нужный размер и возвращается — получается пружинка.
     ease: 'Back.easeOut',
   });
+}
+
+// Свечение-обводка вокруг картинки (подсказка обучения): тёплый ореол по контуру,
+// сила которого «дышит». isOn = false — свечение снимается.
+// Это фильтр WebGL: без WebGL (Canvas) картинка просто не светится.
+export function setGlow(
+  scene: Phaser.Scene,
+  object: Phaser.GameObjects.Image | Phaser.GameObjects.Graphics,
+  isOn: boolean,
+): void {
+  if (!isOn) {
+    for (const filter of object.filters?.internal.list ?? []) scene.tweens.killTweensOf(filter);
+    object.filters?.internal.clear();
+    return;
+  }
+  if (!object.filters) object.enableFilters();
+  // Нет WebGL — фильтров нет; уже светится — второй раз не добавляем.
+  if (!object.filters || object.filters.internal.list.length > 0) return;
+  const glow = object.filters.internal.addGlow(COLORS.hintGlow, GLOW_MIN);
+  scene.tweens.add({
+    targets: glow,
+    outerStrength: GLOW_MAX,
+    duration: GLOW_PULSE_TIME,
+    yoyo: true,
+    repeat: -1,
+    ease: 'Sine.easeInOut',
+  });
+}
+
+// Рамка по краю площадки кучи или стола — для свечения подсказки.
+// Саму площадку подсвечивать нельзя: у неё полупрозрачная середина, и свечение
+// залило бы её целиком. Рамка лежит поверх площадки и сначала спрятана.
+export function glowFrame(scene: Phaser.Scene, platform: Phaser.GameObjects.Image): Phaser.GameObjects.Graphics {
+  const width = platform.width - DROP_ZONE_INSET * 2;
+  const height = platform.height - DROP_ZONE_INSET * 2;
+  return scene.add
+    .graphics({ x: platform.x, y: platform.y })
+    .lineStyle(GLOW_FRAME_WIDTH, COLORS.hintGlow, 1)
+    .strokeRoundedRect(-width / 2, -height / 2, width, height, DROP_ZONE_RADIUS)
+    .setDepth(platform.depth + 2)
+    .setVisible(false);
 }

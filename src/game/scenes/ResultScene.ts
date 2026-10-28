@@ -5,6 +5,7 @@ import { LevelStats } from '../analytics';
 import { StoneTablet, TabletButton } from '../ui/StoneTablet';
 import { pop } from '../fx';
 import { SOUNDS, SOUND_VOLUMES, playSound } from '../sounds';
+import { StarGoal } from '../ui/StarGoals';
 
 // Надписи на табличке (раздел 5 плана).
 const WIN_TITLE = 'РАССВЕТ!';
@@ -14,16 +15,18 @@ const LOSE_SUBTITLE = 'Племя замёрзло…';
 
 // ===== Раскладка (от середины большой таблички, пиксели) =====
 
-// Ряд из трёх звёзд под подзаголовком.
+// Ряд из трёх звёзд под подзаголовком. Под каждой — подпись: за что звезда и выполнено ли.
 const STARS_Y = -88;
-const STAR_STEP = 74;
+const STAR_STEP = 150;
 const STAR_SCALE = 1.6;
-// Сколько звёзд можно получить за уровень.
-const MAX_STARS = 3;
+const CAPTION_Y = -46;
+const CAPTION_FONT_SIZE = 18;
+// Подпись невыполненной цели бледнее.
+const CAPTION_MISSED_ALPHA = 0.6;
 // Строки статистики: где первая, расстояние между строками,
 // где начинается название и где кончается число.
-const ROWS_Y = -28;
-const ROW_STEP = 29;
+const ROWS_Y = -8;
+const ROW_STEP = 27;
 const ROW_LABEL_X = -210;
 const ROW_VALUE_X = 210;
 
@@ -39,14 +42,14 @@ const STAR_STAMP_TIME = 260;
 const STAR_STAMP_START_SCALE = 3.2;
 
 // С какими данными GameScene запускает эту сцену.
-// isWin — победа или поражение, stars — сколько звёзд получено (0–3),
+// isWin — победа или поражение, starGoals — цели трёх звёзд и выполнена ли каждая,
 // stats — статистика уровня, days — сколько суток пережито, hasWolves — были ли волки на уровне.
 // Переходы делает GameScene: onRestart — RESULT → READY того же уровня,
 // onMenu — RESULT → меню, onNext — RESULT → READY следующего уровня
 // (его нет, если уровень проигран или он последний).
 export type ResultData = {
   isWin: boolean;
-  stars: number;
+  starGoals: StarGoal[];
   stats: LevelStats;
   days: number;
   hasWolves: boolean;
@@ -87,20 +90,27 @@ export class ResultScene extends Phaser.Scene {
       isLarge: true,
     });
 
-    this.addStars(data.stars);
+    this.addStars(data.starGoals);
     this.addRows(data);
   }
 
   // ===== Звёзды =====
 
-  // Три места для звёзд. Полученные по одной падают на своё место из большого
-  // размера и «пружинят»; остальные остаются тёмными.
-  private addStars(stars: number): void {
-    for (let i = 0; i < MAX_STARS; i++) {
-      const x = (i - (MAX_STARS - 1) / 2) * STAR_STEP;
+  // Три места для звёзд — по одному на цель. Звёзды выполненных целей по одной падают
+  // на своё место из большого размера и «пружинят»; остальные остаются тёмными.
+  // Под каждой звездой — подпись цели: «✓ Рассвет» (янтарная) или «✗ Путники 4/5» (бледная).
+  private addStars(goals: StarGoal[]): void {
+    for (let i = 0; i < goals.length; i++) {
+      const goal = goals[i];
+      const x = (i - (goals.length - 1) / 2) * STAR_STEP;
       const slot = this.add.image(x, STARS_Y, TEXTURES.star).setScale(STAR_SCALE).setTint(COLORS.starOff);
-      this.tablet.add([slot]);
-      if (i >= stars) continue;
+      const caption = this.addRowText(x, CAPTION_Y, (goal.isDone ? '✓ ' : '✗ ') + goal.short)
+        .setOrigin(0.5)
+        .setFontSize(CAPTION_FONT_SIZE)
+        .setColor(toCss(goal.isDone ? COLORS.starOn : COLORS.hudText))
+        .setAlpha(goal.isDone ? 1 : CAPTION_MISSED_ALPHA);
+      this.tablet.add([slot, caption]);
+      if (!goal.isDone) continue;
 
       const star = this.add
         .image(x, STARS_Y, TEXTURES.star)
