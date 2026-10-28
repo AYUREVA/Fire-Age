@@ -43,6 +43,7 @@ import { CycleEvent, DayNightCycle } from '../objects/DayNightCycle';
 import { NightOverlay } from '../objects/NightOverlay';
 import { PhaseBanner } from '../ui/PhaseBanner';
 import { TutorialHint } from '../ui/TutorialHint';
+import { StarGoals } from '../ui/StarGoals';
 import { updateTutorial } from '../systems/Tutorial';
 import { updateDropping, updateGathering, updateHunting, updatePickup } from '../systems/Gathering';
 import { updateCooking } from '../systems/Cooking';
@@ -207,6 +208,8 @@ export class GameScene extends Phaser.Scene {
   private phaseBanner!: PhaseBanner;
   // Обучение стрелками-подсказками — только на уровне с обучением (иначе undefined).
   private tutorial?: TutorialHint;
+  // Плашка «за что звёзды»: три цели и как они выполняются.
+  private starGoals!: StarGoals;
   // Режим игры. Меняют его только функции переходов (раздел «Режим игры» ниже).
   private mode: GameMode = 'ready';
   // Во сколько раз вождь быстрее благодаря мета-улучшению «Быстрые ноги» (1 — не куплено).
@@ -307,6 +310,7 @@ export class GameScene extends Phaser.Scene {
     this.cycle = new DayNightCycle(this.level.dayCount);
     this.hud = new Hud(this, () => this.pauseGame('button'));
     this.hud.setTimeLeft(this.cycle.timeLeft);
+    this.starGoals = new StarGoals(this, this.level.starFed);
 
     this.setupCamera();
     this.createSnowfall();
@@ -381,6 +385,7 @@ export class GameScene extends Phaser.Scene {
     updateTusks(this.player, this.table, this.hud, this.stats, this.cameras.main);
     const purchase = updatePurchases(this.player, this.buyZones, this.hud, this.cameras.main, delta);
     if (purchase) this.onPurchase(purchase);
+    this.starGoals.update(this.stats.fed, this.campfire.wasBelowMark);
 
     if (this.tutorial) {
       updateTutorial(
@@ -424,14 +429,20 @@ export class GameScene extends Phaser.Scene {
         track({ name: 'nightStart', day: this.cycle.dayNumber });
         this.nightOverlay.startNight();
         this.hud.setPhase(true);
+        // Пока едет табличка, плашка звёзд спрятана: на узком экране табличка под ней.
         // Когда табличка уедет, ночные модификаторы остаются в HUD до утра.
-        this.phaseBanner.showNight(this.cycle.dayNumber, () => this.hud.setModifiers(true));
+        this.starGoals.setVisible(false);
+        this.phaseBanner.showNight(this.cycle.dayNumber, () => {
+          this.hud.setModifiers(true);
+          this.starGoals.setVisible(true);
+        });
         break;
       case 'morning':
         this.nightOverlay.startDay();
         this.hud.setPhase(false);
         this.hud.setModifiers(false);
-        this.phaseBanner.showMorning(this.cycle.dayNumber);
+        this.starGoals.setVisible(false);
+        this.phaseBanner.showMorning(this.cycle.dayNumber, () => this.starGoals.setVisible(true));
         break;
       case 'lastDawn':
         this.endGame(true);

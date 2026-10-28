@@ -105,10 +105,10 @@ export class PhaseBanner {
     this.slide(banner, onDone);
   }
 
-  // Наступило утро дня номер day: табличка с солнцем.
-  showMorning(day: number): void {
+  // Наступило утро дня номер day: табличка с солнцем. onDone — когда табличка уехала.
+  showMorning(day: number, onDone?: () => void): void {
     const banner = this.createBanner(TEXTURES.sunIcon, MORNING_TITLE + day);
-    this.slide(banner);
+    this.slide(banner, onDone);
   }
 
   // ===== Табличка =====
