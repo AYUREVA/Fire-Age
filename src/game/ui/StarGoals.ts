@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { COLORS, toCss } from '../palette';
 import { STAR_HEAT_MARK } from '../settings';
-import { FONT_FAMILY, TEXTURES } from '../textures';
+import { FONT_FAMILY, STAR_PANEL_SIZE, TEXTURES } from '../textures';
 import { pop } from '../fx';
 import { SOUNDS, SOUND_VOLUMES, playSound } from '../sounds';
 
@@ -14,8 +14,8 @@ const GOALS_DEPTH = 20000;
 const PANEL_MARGIN = 16;
 const PANEL_TOP = 88;
 // Размер плашки и высота одной строки; середина первой строки — от верха плашки.
-const PANEL_WIDTH = 270;
-const PANEL_HEIGHT = 112;
+const PANEL_WIDTH = STAR_PANEL_SIZE.w;
+const PANEL_HEIGHT = STAR_PANEL_SIZE.h;
 const ROW_STEP = 32;
 const FIRST_ROW_Y = 24;
 // Звезда строки и начало текста — от левого края плашки.
@@ -77,8 +77,8 @@ export class StarGoals {
     this.starFed = starFed;
     this.container = scene.add.container(0, 0).setScrollFactor(0).setDepth(GOALS_DEPTH);
 
-    const plate = scene.add.image(0, 0, TEXTURES.hudPanel).setOrigin(0, 0).setDisplaySize(PANEL_WIDTH, PANEL_HEIGHT);
-    this.container.add(plate);
+    // Фон — каменная плашка, нарисованная сразу нужного размера (не растянутая картинка).
+    this.container.add(scene.add.image(PANEL_WIDTH / 2, PANEL_HEIGHT / 2, TEXTURES.starPanel));
     describeStarGoals(false, false, 0, starFed).forEach((goal, index) => {
       const y = FIRST_ROW_Y + index * ROW_STEP;
       const star = scene.add.image(STAR_X, y, TEXTURES.star).setScale(STAR_SCALE).setTint(COLORS.starOff);

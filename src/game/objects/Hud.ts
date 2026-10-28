@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { COLORS, toCss } from '../palette';
 import { PHASES } from '../settings';
-import { TEXTURES, TITLE_FONT } from '../textures';
+import { MODIFIER_PLATE_SIZE, TEXTURES, TITLE_FONT } from '../textures';
 import { flyArc, pop } from '../fx';
 import { SOUNDS, SOUND_VOLUMES, playSound, toggleMute } from '../sounds';
 import { getProgress } from '../save';
@@ -20,10 +20,10 @@ const PANEL_GAP = 10;
 const TUSK_FLY_TIME = 450;
 const TUSK_FLY_ARC = 80;
 // Плашки ночных модификаторов под плашкой времени: зазор, размер плашки
-// (уменьшенная плашка времени), расстояние между плашками.
+// (картинка TEXTURES.modifierPlate), расстояние между плашками.
 const MODIFIER_GAP = 6;
-const MODIFIER_SCALE_X = 0.5;
-const MODIFIER_SCALE_Y = 0.62;
+const MODIFIER_WIDTH = MODIFIER_PLATE_SIZE.w;
+const MODIFIER_HEIGHT = MODIFIER_PLATE_SIZE.h;
 const MODIFIER_STEP = 92;
 // Иконка и надпись на плашке модификатора (от её середины).
 const MODIFIER_ICON_X = -22;
@@ -36,6 +36,15 @@ const SOUND_BUTTON_GAP = 10;
 // Кнопка паузы чуть темнее, при наведении — светлеет до настоящего цвета.
 const PAUSE_IDLE_TINT = 0xdddddd;
 const PAUSE_HOVER_TINT = 0xffffff;
+
+// Время в виде «минуты:секунды», например «1:59». Округляем вверх:
+// в начале видно «2:00», а «0:00» — только когда время вышло.
+export function formatTime(ms: number): string {
+  const totalSeconds = Math.ceil(ms / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return minutes + ':' + String(seconds).padStart(2, '0');
+}
 
 /**
  * Интерфейс поверх игры: плашка «сколько осталось до конца дня или ночи»
@@ -115,8 +124,8 @@ export class Hud {
     });
 
     // Ночные модификаторы — числа из таблицы PHASES в settings.ts.
-    const modifierY = PANEL_MARGIN + panel.height + MODIFIER_GAP + (panel.height * MODIFIER_SCALE_Y) / 2;
-    const modifierX = PANEL_MARGIN + (panel.width * MODIFIER_SCALE_X) / 2;
+    const modifierY = PANEL_MARGIN + panel.height + MODIFIER_GAP + MODIFIER_HEIGHT / 2;
+    const modifierX = PANEL_MARGIN + MODIFIER_WIDTH / 2;
     this.modifiers = [
       ...this.createModifier(modifierX, modifierY, TEXTURES.flame, FLAME_ICON_SCALE, PHASES.night.fireBurnMultiplier),
       ...this.createModifier(
@@ -208,7 +217,7 @@ export class Hud {
     iconScale: number,
     multiplier: number,
   ): (Phaser.GameObjects.Image | Phaser.GameObjects.Text)[] {
-    const plate = this.scene.add.image(x, y, TEXTURES.hudPanel).setScale(MODIFIER_SCALE_X, MODIFIER_SCALE_Y);
+    const plate = this.scene.add.image(x, y, TEXTURES.modifierPlate);
     const image = this.scene.add.image(x + MODIFIER_ICON_X, y, icon).setScale(iconScale);
     const label = this.scene.add
       .text(x + MODIFIER_TEXT_X, y, '×' + multiplier, {
@@ -225,11 +234,17 @@ export class Hud {
 
   // Показать, сколько мс осталось до конца дня или ночи, в виде «минуты:секунды».
   setTimeLeft(ms: number): void {
-    // Округляем вверх: в начале видно «2:00», а «0:00» — только когда время вышло.
-    const totalSeconds = Math.ceil(ms / 1000);
-    const minutes = Math.floor(totalSeconds / 60);
-    const seconds = totalSeconds % 60;
     // setText перерисовывает надпись, только если текст изменился, — раз в секунду.
-    this.timeText.setText(minutes + ':' + String(seconds).padStart(2, '0'));
+    this.timeText.setText(formatTime(ms));
+  }
+
+  // Где на экране середина цифр времени: сюда прилетает крупный таймер ночи.
+  getTimePoint(): { x: number; y: number } {
+    return { x: this.timeText.x + this.timeText.width / 2, y: this.timeText.y };
+  }
+
+  // Цифры времени «пружинят»: крупный таймер ночи долетел до плашки.
+  popTime(): void {
+    pop(this.scene, this.timeText);
   }
 }

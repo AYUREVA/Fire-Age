@@ -1,6 +1,8 @@
 import Phaser from 'phaser';
 import { COLORS, toCss } from '../palette';
-import { FONT_FAMILY, TEXTURES } from '../textures';
+import { FONT_FAMILY, TEXTURES, TITLE_FONT } from '../textures';
+import { Point, pop } from '../fx';
+import { formatTime } from '../objects/Hud';
 import { addCarvedTitle } from './StoneTablet';
 
 // ===== Табличка =====
@@ -29,15 +31,30 @@ const ICON_SCALE = 1.3;
 // Насколько ниже середины таблички висят плашки и как далеко друг от друга.
 const CHIPS_Y = 108;
 const CHIP_STEP = 216;
-// Плашка — растянутая плашка HUD.
-const CHIP_SCALE_X = 1.2;
-const CHIP_SCALE_Y = 0.75;
 // Иконка слева на плашке и начало надписи.
 const CHIP_ICON_X = -80;
 const CHIP_TEXT_X = -60;
 // Иконки: пламя и нога в сапоге — уменьшенные картинки из игры.
 const FLAME_ICON_SCALE = 0.36;
 const BOOT_ICON_SCALE = 0.95;
+
+// ===== Крупный таймер ночи =====
+
+// Таймер «ДО РАССВЕТА 1:59» под плашками метели. Летит в плашку времени поверх HUD (20000).
+const TIMER_DEPTH = 20001;
+// Середина цифр — на такой высоте от верха экрана; подпись — выше цифр на столько пикселей.
+const TIMER_Y = 345;
+const TIMER_LABEL_Y = -52;
+// Каменная плашка под подписью и цифрами (как у плашек метели): её середина выше середины цифр.
+const TIMER_PLATE_Y = -14;
+const TIMER_FONT_SIZE = 72;
+const TIMER_LABEL = 'ДО РАССВЕТА';
+// Появляется из такого размера, пока выезжает табличка.
+const TIMER_START_SCALE = 0.6;
+// Когда табличка уезжает, таймер за столько мс сжимается до размера цифр HUD (34px)
+// и улетает в плашку времени.
+const TIMER_FLY_TIME = 500;
+const TIMER_END_SCALE = 34 / TIMER_FONT_SIZE;
 
 // ===== Снежный вихрь =====
 
@@ -67,12 +84,18 @@ const MORNING_TITLE = 'РАССВЕТ · ДЕНЬ ';
 const FIRE_CHIP_TEXT = 'горит быстрее';
 const SPEED_CHIP_TEXT = 'идёшь медленнее';
 
+// Крупный таймер ночи: сколько осталось (спрашиваем каждый кадр — время идёт),
+// куда улететь (середина цифр времени в HUD) и что сделать, когда долетел.
+export type NightTimer = { getTimeLeft: () => number; target: Point; onLand: () => void };
+
 /**
  * Уведомление о смене фазы суток.
  *
  * Ночью: по экрану проносится снежный вихрь, сверху выезжает каменная
  * табличка «НОЧЬ 1 · МЕТЕЛЬ!» с луной, под ней — плашки «горит быстрее»
- * и «идёшь медленнее». Утром — «РАССВЕТ · ДЕНЬ 2» с солнцем.
+ * и «идёшь медленнее», ещё ниже — крупный таймер «ДО РАССВЕТА 1:59».
+ * Табличка уезжает — таймер улетает в плашку времени HUD.
+ * Утром — «РАССВЕТ · ДЕНЬ 2» с солнцем.
  *
  * Игра в это время идёт, поэтому табличка не в центре и не модальная:
  * выезжает сверху и уезжает обратно. Всё сделано твинами и частицами
@@ -93,9 +116,11 @@ export class PhaseBanner {
       .setDepth(BANNER_DEPTH);
   }
 
-  // Наступила ночь номер day: вихрь, табличка с луной и плашками.
-  // onDone вызывается, когда табличка уехала (сцена покажет модификаторы в HUD).
-  showNight(day: number, onDone: () => void): void {
+  // Наступила ночь номер day: вихрь, табличка с луной и плашками, под ними — крупный
+  // таймер до рассвета (timer). onDone вызывается, когда табличка уехала
+  // (сцена покажет модификаторы в HUD).
+  showNight(day: number, timer: NightTimer, onDone: () => void): void {
+    this.showTimer(timer);
     this.playSwirl();
     const banner = this.createBanner(TEXTURES.moonIcon, NIGHT_TITLE + ' ' + day + NIGHT_SUFFIX);
     banner.add([
@@ -109,6 +134,74 @@ export class PhaseBanner {
   showMorning(day: number, onDone?: () => void): void {
     const banner = this.createBanner(TEXTURES.sunIcon, MORNING_TITLE + day);
     this.slide(banner, onDone);
+  }
+
+  // ===== Крупный таймер ночи =====
+
+  // «ДО РАССВЕТА» и идущее время посередине экрана. Появляется вместе с табличкой,
+  // висит, пока она висит, а когда она уезжает — сжимается и улетает в плашку времени HUD.
+  private showTimer(timer: NightTimer): void {
+    const label = this.scene.add
+      .text(0, TIMER_LABEL_Y, TIMER_LABEL, {
+        fontFamily: FONT_FAMILY,
+        fontSize: '24px',
+        fontStyle: 'bold',
+        color: toCss(COLORS.titleAmber),
+        stroke: toCss(COLORS.outline),
+        strokeThickness: 5,
+        resolution: 2,
+      })
+      .setOrigin(0.5);
+    const digits = this.scene.add
+      .text(0, 0, formatTime(timer.getTimeLeft()), {
+        fontFamily: TITLE_FONT,
+        fontSize: TIMER_FONT_SIZE + 'px',
+        color: toCss(COLORS.hudText),
+        stroke: toCss(COLORS.outline),
+        strokeThickness: 10,
+        resolution: 2,
+      })
+      .setOrigin(0.5);
+    const plate = this.scene.add.image(0, TIMER_PLATE_Y, TEXTURES.timerPlate);
+    const box = this.scene.add
+      .container(this.scene.scale.width / 2, TIMER_Y, [plate, label, digits])
+      .setScrollFactor(0, 0, true)
+      .setDepth(TIMER_DEPTH)
+      .setScale(TIMER_START_SCALE)
+      .setAlpha(0);
+
+    // Время идёт каждый кадр, пока таймер на экране.
+    const tick = (): void => {
+      digits.setText(formatTime(timer.getTimeLeft()));
+    };
+    this.scene.events.on(Phaser.Scenes.Events.UPDATE, tick);
+    box.once(Phaser.GameObjects.Events.DESTROY, () => this.scene.events.off(Phaser.Scenes.Events.UPDATE, tick));
+
+    // Подпись и плашка тают, когда таймер улетает: в плашку времени HUD прилетают только цифры.
+    this.scene.tweens.add({
+      targets: [label, plate],
+      alpha: 0,
+      delay: BANNER_IN_TIME + BANNER_HOLD_TIME,
+      duration: TIMER_FLY_TIME / 2,
+    });
+    this.scene.tweens.chain({
+      targets: box,
+      tweens: [
+        { scale: 1, alpha: 1, duration: BANNER_IN_TIME, ease: 'Back.easeOut' },
+        {
+          x: timer.target.x,
+          y: timer.target.y,
+          scale: TIMER_END_SCALE,
+          delay: BANNER_HOLD_TIME,
+          duration: TIMER_FLY_TIME,
+          ease: 'Cubic.easeIn',
+        },
+      ],
+      onComplete: () => {
+        box.destroy();
+        timer.onLand();
+      },
+    });
   }
 
   // ===== Табличка =====
@@ -132,7 +225,7 @@ export class PhaseBanner {
 
   // Плашка под табличкой: иконка и надпись. x — середина плашки.
   private createChip(x: number, icon: string, iconScale: number, text: string): Phaser.GameObjects.GameObject[] {
-    const plate = this.scene.add.image(x, CHIPS_Y, TEXTURES.hudPanel).setScale(CHIP_SCALE_X, CHIP_SCALE_Y);
+    const plate = this.scene.add.image(x, CHIPS_Y, TEXTURES.bannerChip);
     const image = this.scene.add.image(x + CHIP_ICON_X, CHIPS_Y, icon).setScale(iconScale);
     const label = this.scene.add
       .text(x + CHIP_TEXT_X, CHIPS_Y, text, {
