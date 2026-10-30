@@ -36,6 +36,12 @@ const SWAY_SPEED = 0.003;
 // Сдвиг фазы между соседними связками: по стопке снизу вверх бежит волна.
 const SWAY_PHASE_STEP = 0.35;
 
+// ===== Стопка «пружинит», когда на неё падает связка =====
+
+// На какую долю стопка сжимается по высоте и за сколько мс сжимается и распрямляется.
+const LAND_SQUASH = 0.12;
+const LAND_SQUASH_TIME = 220;
+
 // ===== Полёт связки на стопку =====
 
 // Сколько мс связка летит от куста до стопки.
@@ -89,6 +95,8 @@ export class CarryStack {
   private leanVelocity = 0;
   // Сколько мс прошло с начала игры — из этого считается покачивание.
   private swayTime = 0;
+  // Сколько мс ещё «пружинит» стопка после того, как на неё упала связка (0 — не пружинит).
+  private landSquashLeft = 0;
 
   // Надпись «МАКС» над полной стопкой.
   private maxLabel: Phaser.GameObjects.Text;
@@ -175,6 +183,7 @@ export class CarryStack {
     this.anchor = anchor;
     this.baseDepth = depth + STACK_DEPTH_SHIFT;
     this.swayTime += delta;
+    this.landSquashLeft = Math.max(0, this.landSquashLeft - delta);
 
     this.updateLean(velocityX, Math.min(delta / 1000, MAX_STEP_SECONDS));
     this.layoutItems();
@@ -187,6 +196,7 @@ export class CarryStack {
   private land(item: Phaser.GameObjects.Image): void {
     this.flyingItems.delete(item);
     pop(this.scene, item);
+    this.landSquashLeft = LAND_SQUASH_TIME;
     playSound(this.scene, SOUNDS.pickup, SOUND_VOLUMES.pickup);
   }
 
@@ -231,9 +241,12 @@ export class CarryStack {
     // Внизу размах маленький, наверху — SWAY_AMPLITUDE.
     const swayOffset = Math.sin(this.swayTime * SWAY_SPEED - index * SWAY_PHASE_STEP) * SWAY_AMPLITUDE * height;
 
+    // Упала связка — стопка на миг сжимается и распрямляется (дуга sin от 0 до π).
+    const squash = Math.sin((this.landSquashLeft / LAND_SQUASH_TIME) * Math.PI) * LAND_SQUASH;
+
     return {
       x: this.anchor.x + leanOffset + swayOffset,
-      y: this.anchor.y - index * ITEM_STEP,
+      y: this.anchor.y - index * ITEM_STEP * (1 - squash),
     };
   }
 

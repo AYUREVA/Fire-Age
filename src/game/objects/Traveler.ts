@@ -3,7 +3,7 @@ import { TRAVELER_PATIENCE, TRAVELER_SPEED } from '../settings';
 import { COLORS, mixColors, toCss } from '../palette';
 import { TEXTURES, TITLE_FONT } from '../textures';
 import { ITEMS, ItemType } from '../items';
-import { flyArc, Point, pop } from '../fx';
+import { flyArc, Point, pop, shakeAngle } from '../fx';
 
 // ===== Вид =====
 
@@ -13,6 +13,15 @@ const SHADOW_DEPTH_SHIFT = -0.5;
 // Ходьба: путник покачивается вверх-вниз (пиксели) с такой скоростью (радиан за мс).
 const WALK_BOB_HEIGHT = 3;
 const WALK_BOB_SPEED = 0.018;
+// На каждом шаге путник переваливается с ноги на ногу — наклон в градусах.
+const WALK_ROCK_ANGLE = 3;
+// Стоя в очереди, путник «дышит» (чуть вытягивается) и покачивается (градусы).
+const IDLE_BREATH = 0.02;
+const IDLE_BREATH_SPEED = 0.0035;
+const IDLE_SWAY_ANGLE = 1.5;
+const IDLE_SWAY_SPEED = 0.0015;
+// Примерно за столько мс походка сменяется стойкой и обратно — без рывка.
+const POSE_BLEND_TIME = 120;
 // Еда: путник «жуёт» — немного сжимается и вытягивается.
 const CHEW_SQUASH = 0.06;
 const CHEW_SPEED = 0.02;
@@ -20,6 +29,13 @@ const CHEW_SPEED = 0.02;
 const MOUTH_HEIGHT = 70;
 const FOOD_FLY_TIME = 300;
 const FOOD_FLY_ARC = 40;
+// Короткие движения-отклики (см. Reaction): сколько мс длится каждое,
+// насколько путник приседает, дойдя до места (доля высоты), на сколько пикселей
+// подпрыгивает от радости, наевшись, и на сколько градусов качается от злости, уходя голодным.
+const REACTION_TIME = 380;
+const SETTLE_SQUASH = 0.08;
+const HAPPY_JUMP_HEIGHT = 16;
+const ANGRY_SHAKE_ANGLE = 8;
 // Дошёл до места, если ближе этого (пиксели).
 const ARRIVE_DISTANCE = 3;
 // Уходя, путник сначала отходит вбок на столько пикселей — чтобы не идти сквозь очередь.
@@ -60,6 +76,10 @@ const LOOKS = [
 // 'waiting' — стоит на месте в очереди, 'eating' — ест, 'leaving' — уходит в лес.
 type TravelerState = 'gone' | 'walking' | 'waiting' | 'eating' | 'leaving';
 
+// Короткое движение-отклик: 'settle' — присел, дойдя до места в очереди;
+// 'jump' — подпрыгнул от радости (наелся); 'angry' — затрясся от злости (ушёл голодным).
+type Reaction = 'settle' | 'jump' | 'angry';
+
 /**
  * Путник: выходит из леса, встаёт в очередь у стола и ждёт еду.
  *
@@ -92,8 +112,14 @@ export class Traveler {
   private target: Point = { x: 0, y: 0 };
   // Куда путник уходит в лес (после шага в сторону) — пока не дошёл, undefined.
   private exit?: Point;
-  // Время для покачивания при ходьбе и «жевания».
+  // Время для покачивания при ходьбе, «дыхания» и «жевания».
+  // Начинается со случайного числа, чтобы путники в очереди дышали вразнобой.
   private animTime = 0;
+  // Насколько путник сейчас идёт: 0 — стоит, 1 — идёт. Меняется плавно (POSE_BLEND_TIME).
+  private walkBlend = 0;
+  // Какой отклик сейчас играет и сколько мс ему ещё осталось (0 — никакого).
+  private reaction: Reaction = 'settle';
+  private reactionTimeLeft = 0;
   // Какую еду хочет (пока только жареное мясо; рыба — в версии 0.8).
   private wantedType: ItemType = 'cookedMeat';
   // Как выглядит этот путник (один из LOOKS).
@@ -191,6 +217,9 @@ export class Traveler {
     this.y = from.y;
     this.target = from;
     this.state = 'walking';
+    this.animTime = Phaser.Math.Between(0, 10000);
+    this.walkBlend = 1;
+    this.reactionTimeLeft = 0;
 
     this.image.setVisible(true);
     this.shadow.setVisible(true);
@@ -247,6 +276,7 @@ export class Traveler {
     this.showOverhead(false);
     this.angryMark.setVisible(!isFed);
     if (!isFed) pop(this.scene, this.angryMark);
+    this.react(isFed ? 'jump' : 'angry');
   }
 
   // ===== Каждый кадр =====
@@ -255,10 +285,12 @@ export class Traveler {
   update(delta: number): void {
     if (this.state === 'gone') return;
     this.animTime += delta;
+    this.reactionTimeLeft = Math.max(0, this.reactionTimeLeft - delta);
 
     const isMoving = this.state === 'walking' || this.state === 'leaving';
     if (isMoving) this.walk(delta);
-    this.place(isMoving);
+    this.walkBlend = Phaser.Math.Linear(this.walkBlend, isMoving ? 1 : 0, Math.min(1, delta / POSE_BLEND_TIME));
+    this.place();
   }
 
   // Шаг к цели. Дошёл до места в очереди — стоит; дошёл до леса — исчезает.
@@ -277,6 +309,7 @@ export class Traveler {
         this.hide();
       } else {
         this.state = 'waiting';
+        this.react('settle');
       }
       return;
     }
@@ -287,15 +320,31 @@ export class Traveler {
   }
 
   // Ставит картинку, тень и всё, что над головой.
-  private place(isMoving: boolean): void {
+  private place(): void {
     if (this.state === 'gone') return;
 
-    const bob = isMoving ? Math.abs(Math.sin(this.animTime * WALK_BOB_SPEED)) * WALK_BOB_HEIGHT : 0;
-    const chew = this.state === 'eating' ? Math.sin(this.animTime * CHEW_SPEED) * CHEW_SQUASH : 0;
+    // Походка: подпрыгивание и переваливание с ноги на ногу (sin меняет знак каждый шаг).
+    const step = Math.sin(this.animTime * WALK_BOB_SPEED);
+    const bob = Math.abs(step) * WALK_BOB_HEIGHT * this.walkBlend;
+    const rock = step * WALK_ROCK_ANGLE * this.walkBlend;
+    // Стойка: «дыхание» и медленное покачивание. Пока ест — вместо дыхания «жуёт».
+    const standShare = 1 - this.walkBlend;
+    const breath = Math.sin(this.animTime * IDLE_BREATH_SPEED) * IDLE_BREATH * standShare;
+    const idleSway = Math.sin(this.animTime * IDLE_SWAY_SPEED) * IDLE_SWAY_ANGLE * standShare;
+    const isEating = this.state === 'eating';
+    const chew = isEating ? Math.sin(this.animTime * CHEW_SPEED) * CHEW_SQUASH : 0;
+    // Насколько путник сейчас шире (widen) и выше (stretch) обычного: доли размера.
+    const reaction = this.getReactionPose();
+    const widen = (isEating ? chew : -breath / 2) + reaction.squash / 2;
+    const stretch = (isEating ? -chew : breath) - reaction.squash;
     // К столу путник идёт и стоит спиной к нам, уходит — лицом к нам.
     const texture = this.state === 'leaving' ? this.look.front : this.look.back;
     if (this.image.texture.key !== texture) this.image.setTexture(texture);
-    this.image.setPosition(this.x, this.y - bob).setScale(1 + chew, 1 - chew).setDepth(this.y);
+    this.image
+      .setPosition(this.x, this.y - bob - reaction.lift)
+      .setScale(1 + widen, 1 + stretch)
+      .setAngle(rock + idleSway + reaction.angle)
+      .setDepth(this.y);
     this.shadow.setPosition(this.x, this.y).setDepth(this.y + SHADOW_DEPTH_SHIFT);
 
     const bubbleY = this.y - BUBBLE_Y;
@@ -314,6 +363,29 @@ export class Traveler {
       .setTint(mixColors(COLORS.patienceLow, COLORS.patienceFull, patienceShare));
 
     this.angryMark.setPosition(this.x, this.y - ANGRY_Y);
+  }
+
+  // Начать короткое движение-отклик.
+  private react(reaction: Reaction): void {
+    this.reaction = reaction;
+    this.reactionTimeLeft = REACTION_TIME;
+  }
+
+  // Поза отклика в этот миг: подъём (пиксели), приседание (доля высоты) и наклон (градусы).
+  // progress — доля прошедшего отклика (1 — кончился, тогда поза ровная),
+  // wave — дуга от 0 через 1 обратно к 0 за время отклика.
+  private getReactionPose(): { lift: number; squash: number; angle: number } {
+    const progress = 1 - this.reactionTimeLeft / REACTION_TIME;
+    const wave = Math.sin(progress * Math.PI);
+    switch (this.reaction) {
+      case 'settle':
+        return { lift: 0, squash: wave * SETTLE_SQUASH, angle: 0 };
+      case 'jump':
+        // В прыжке чуть вытягивается вверх (минус приседания).
+        return { lift: wave * HAPPY_JUMP_HEIGHT, squash: -wave * SETTLE_SQUASH, angle: 0 };
+      case 'angry':
+        return { lift: 0, squash: 0, angle: shakeAngle(progress, ANGRY_SHAKE_ANGLE) };
+    }
   }
 
   // Число в пузыре: сколько кусков ещё нужно.

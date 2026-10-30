@@ -37,7 +37,7 @@ import { Campfire } from '../objects/Campfire';
 import { BuyZone } from '../objects/BuyZone';
 import { Hut } from '../objects/Hut';
 import { Fence } from '../objects/Fence';
-import { CanStep } from '../fx';
+import { CanStep, sway } from '../fx';
 import { Hud } from '../objects/Hud';
 import { CycleEvent, DayNightCycle } from '../objects/DayNightCycle';
 import { NightOverlay } from '../objects/NightOverlay';
@@ -789,7 +789,9 @@ export class GameScene extends Phaser.Scene {
       const texture = rng.frac() < FOREST_ROCK_CHANCE ? TEXTURES.rock : TEXTURES.fir;
       const scale = rng.realInRange(FOREST_SCALE_MIN, FOREST_SCALE_MAX);
 
-      this.addStandingImage(x, y, texture, scale).setFlipX(rng.frac() < 0.5);
+      const image = this.addStandingImage(x, y, texture, scale).setFlipX(rng.frac() < 0.5);
+      // Ели чуть качаются на ветру, скалы стоят.
+      if (texture === TEXTURES.fir) sway(this, image);
     }
   }
 
