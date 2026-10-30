@@ -13,6 +13,8 @@ export const COLORS = {
   snowShade: 0xcadbeb, // голубая тень на снегу
   snowDeep: 0xa7bed8, // глубокая тень: низ сугробов, край шапок
   snowTrodden: 0xd3e0ed, // утоптанный снег
+  snowGlint: 0xbfe2ff, // голубая искорка на снегу
+  icicle: 0xdff1ff, // сосулька: прозрачный голубоватый лёд
 
   // ===== Общие =====
   white: 0xffffff, // чистый белый: для картинок, которые потом красятся (tint)
@@ -29,7 +31,9 @@ export const COLORS = {
   // ===== Ели =====
   fir: 0x2f6b5d, // хвоя
   firDark: 0x1f4a45, // хвоя в тени
+  firLight: 0x3f8270, // хвоя на свету: левая кромка яруса
   trunk: 0x5a3a24, // ствол
+  trunkDark: 0x3f2819, // ствол в тени, трещины коры
 
   // ===== Сухая трава =====
   grass: 0xcfa75c, // сухая трава
@@ -123,6 +127,7 @@ export const COLORS = {
   cookedMeatShade: 0x8a4520, // жареное мясо в тени
   cookedMeatLight: 0xe39a55, // блик на жареном мясе
   bone: 0xfff3dc, // косточка
+  boneShade: 0xe2cfae, // косточка в тени
   tusk: 0xf7f1e3, // эмаль клыка саблезуба — валюта каменного века
   tuskShade: 0xc9cdd6, // холодная тень на эмали
   tuskShine: 0xffffff, // блик на эмали
@@ -150,6 +155,7 @@ export const COLORS = {
   charcoal: 0x2e2328, // угли в кострище
   smoke: 0x8c95aa, // дымок над костром: холодный серо-голубой
   scorched: 0x6b5656, // подтаявшая земля вокруг костра
+  ash: 0x9a9196, // серая зола вокруг углей
 
   // ===== Поленница (зона сдачи) =====
   zoneFill: 0xa86b3c, // заливка площадки

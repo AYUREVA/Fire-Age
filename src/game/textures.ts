@@ -232,6 +232,12 @@ const SNOW_TILE_SEED = 'snow-tile';
 const SNOW_TILE_SHADES = 8;
 const SNOW_TILE_LIGHTS = 6;
 const SNOW_TILE_SPECKS = 60;
+// Сколько на плитке «ряби» от ветра (маленьких снежных волн) и крупных блёсток с ореолом.
+const SNOW_TILE_RIPPLES = 12;
+const SNOW_TILE_STARS = 9;
+// Голубых искорок и цепочек заячьих следов на плитке.
+const SNOW_TILE_GLINTS = 14;
+const SNOW_TILE_TRACKS = 2;
 // Центр кулака на дубине — на столько пикселей выше нижнего края картинки
 // Так же у топора и копья: кулак у всего оружия на одной высоте от низа картинки,
 // вокруг него оружие вращается (Player.ts).
@@ -465,6 +471,8 @@ function drawSnowTile(g: Graphics): void {
     const x = rng.between(width / 2, w - width / 2);
     const y = rng.between(height / 2, h - height / 2);
     softEllipse(g, x, y, width, height, COLORS.snowShade, 0.07, 5);
+    // Над тенью — светлый склон: пятно читается как пологий бугор снега.
+    softEllipse(g, x - width * 0.08, y - height * 0.32, width * 0.7, height * 0.45, COLORS.snowLight, 0.14, 3);
   }
 
   // Светлые пятна — снег блестит.
@@ -485,6 +493,14 @@ function drawSnowTile(g: Graphics): void {
     g.fillCircle(x, y, isSparkle ? 1.6 : 1);
   }
 
+  // Рябь от ветра: волнистые голубые чёрточки с белым бликом над ними.
+  for (let i = 0; i < SNOW_TILE_RIPPLES; i++) {
+    const half = rng.between(16, 30);
+    const x = rng.between(half + 4, w - half - 4);
+    const y = rng.between(12, h - 12);
+    drawSnowRipple(g, x, y, half);
+  }
+
   // Искорки-блёстки: маленькие белые крестики.
   const sparkles = 26;
   g.fillStyle(COLORS.white, 1);
@@ -494,6 +510,65 @@ function drawSnowTile(g: Graphics): void {
     g.fillRect(x - 2, y - 0.5, 4, 1);
     g.fillRect(x - 0.5, y - 2, 1, 4);
   }
+
+  // Крупные блёстки: звёздочка с мягким ореолом — снег искрится на солнце.
+  for (let i = 0; i < SNOW_TILE_STARS; i++) {
+    drawSnowStar(g, rng.between(8, w - 8), rng.between(8, h - 8));
+  }
+
+  // Голубые искорки — снег переливается холодным светом.
+  g.fillStyle(COLORS.snowGlint, 1);
+  for (let i = 0; i < SNOW_TILE_GLINTS; i++) {
+    g.fillCircle(rng.between(4, w - 4), rng.between(4, h - 4), 1.3);
+  }
+
+  // Цепочки заячьих следов: идут наискосок и не выходят за край плитки.
+  for (let i = 0; i < SNOW_TILE_TRACKS; i++) {
+    drawRabbitTracks(g, rng.between(60, w - 200), rng.between(60, h - 140), rng.frac() < 0.5 ? 1 : -1);
+  }
+}
+
+// Цепочка заячьих следов от (x, y): четыре прыжка вправо, вверх или вниз (dir = ±1).
+// Каждый прыжок — два длинных отпечатка задних лап впереди и два круглых передних позади.
+function drawRabbitTracks(g: Graphics, x: number, y: number, dir: number): void {
+  const jumps = 4;
+  for (let i = 0; i < jumps; i++) {
+    const px = x + i * 34;
+    const py = y + i * 18 * dir;
+    g.fillStyle(COLORS.snowShade, 0.9);
+    g.fillEllipse(px + 12, py - 4, 7, 4);
+    g.fillEllipse(px + 12, py + 4, 7, 4);
+    g.fillEllipse(px, py, 4, 4);
+    g.fillEllipse(px + 4, py + 2, 4, 4);
+    // Белый бортик над каждым отпечатком — след вдавлен в снег.
+    g.lineStyle(1, COLORS.white, 0.9);
+    g.strokeEllipse(px + 12, py - 5, 7, 4);
+  }
+}
+
+// Маленькая снежная волна длиной 2·half: голубая волнистая чёрточка, над ней белый блик.
+function drawSnowRipple(g: Graphics, x: number, y: number, half: number): void {
+  const points: number[] = [];
+  const steps = 6;
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    points.push(x - half + 2 * half * t, y + Math.sin(t * Math.PI * 2) * 2 - Math.sin(t * Math.PI) * 3);
+  }
+  smoothLine(g, points, 1.6, COLORS.snowShade, 0.7);
+  g.save();
+  g.translateCanvas(0, -1.5);
+  smoothLine(g, points, 1.2, COLORS.white, 0.9);
+  g.restore();
+}
+
+// Блёстка-звёздочка: ореол, длинный крестик и яркая середина.
+function drawSnowStar(g: Graphics, x: number, y: number): void {
+  g.fillStyle(COLORS.white, 0.35);
+  g.fillCircle(x, y, 3.5);
+  g.fillStyle(COLORS.white, 1);
+  g.fillRect(x - 3.5, y - 0.5, 7, 1);
+  g.fillRect(x - 0.5, y - 3.5, 1, 7);
+  g.fillCircle(x, y, 1.2);
 }
 
 // Пятно утоптанного снега: мягкое серо-голубое пятно.
@@ -503,24 +578,42 @@ function drawSnowPatch(g: Graphics): void {
   softEllipse(g, w / 2, h / 2 + 4, w * 0.6, h * 0.5, COLORS.snowShade, 0.12, 4);
 }
 
-// Сугроб: голубая тень у подножия, тело в тени снизу и светлое сверху, светлый гребень.
+// Сугробы-горбики: x и y середины (от середины низа картинки), ширина, высота.
+const DRIFT_LUMPS = [-14, -22, 70, 34, 22, -17, 54, 26, -38, -13, 34, 18];
+
+// Сугроб из трёх горбиков: мягкая тень на снегу, голубой низ, белый освещённый верх
+// и голубая кромка снизу, на гребне — блёстки.
 function drawSnowDrift(g: Graphics): void {
   const { w, h } = SNOW_DRIFT_SIZE;
-  softEllipse(g, w / 2, h - 14, w, 26, COLORS.snowDeep, 0.1, 5);
+  const cx = w / 2;
+  softEllipse(g, cx + 6, h - 12, w - 4, 22, COLORS.snowDeep, 0.1, 5);
+  // Пологое основание: сугроб лежит на снегу, а не висит облаком.
   g.fillStyle(COLORS.snowShade, 1);
-  g.fillEllipse(w / 2, h * 0.55, w * 0.86, h * 0.62);
-  g.fillStyle(COLORS.snowLight, 1);
-  g.fillEllipse(w / 2 - 4, h * 0.48, w * 0.74, h * 0.5);
+  g.fillEllipse(cx + 2, h - 10, w - 12, 14);
+  crescent(g, cx + 2, h - 10, (w - 12) / 2, 7, 0, -2, COLORS.snowDeep, 0.6);
 
-  // Гребень сугроба: светлая дуга и мягкая тень полумесяцем.
-  g.lineStyle(2, COLORS.white, 1);
-  g.beginPath();
-  g.arc(w / 2 - 4, h * 0.62, w * 0.34, Math.PI * 1.15, Math.PI * 1.75);
-  g.strokePath();
-  crescent(g, w / 2, h * 0.55, w * 0.42, h * 0.3, -6, -4, COLORS.snowShade, 0.8);
+  // Все горбики голубым (тень), потом поверх — светлые, сдвинутые вверх-влево.
+  for (let i = 0; i < DRIFT_LUMPS.length; i += 4) {
+    g.fillStyle(COLORS.snowShade, 1);
+    g.fillEllipse(cx + DRIFT_LUMPS[i], h + DRIFT_LUMPS[i + 1], DRIFT_LUMPS[i + 2], DRIFT_LUMPS[i + 3]);
+  }
+  for (let i = 0; i < DRIFT_LUMPS.length; i += 4) {
+    const width = DRIFT_LUMPS[i + 2];
+    const height = DRIFT_LUMPS[i + 3];
+    crescent(g, cx + DRIFT_LUMPS[i], h + DRIFT_LUMPS[i + 1], width / 2, height / 2, 0, -3, COLORS.snowDeep, 0.6);
+    g.fillStyle(COLORS.snowLight, 1);
+    g.fillEllipse(cx + DRIFT_LUMPS[i] - 3, h + DRIFT_LUMPS[i + 1] - 3, width * 0.84, height * 0.74);
+  }
+
+  // Блёстки на гребне.
+  g.fillStyle(COLORS.white, 1);
+  for (const [x, y] of [[cx - 26, h - 34], [cx + 2, h - 36], [cx + 22, h - 26]]) {
+    g.fillRect(x - 2.5, y - 0.5, 5, 1);
+    g.fillRect(x - 0.5, y - 2.5, 1, 5);
+  }
 }
 
-// Камешек: тёмный низ, светлый верх, снежная шапка и обводка.
+// Камешек: тёмный низ, светлый верх, трещинка, снежная шапка и обводка.
 function drawPebble(g: Graphics): void {
   const { w, h } = PEBBLE_SIZE;
   const cx = w / 2;
@@ -529,28 +622,40 @@ function drawPebble(g: Graphics): void {
   const height = h - 8;
 
   softEllipse(g, cx, h - 5, w - 2, 8, COLORS.shadow, 0.1, 4);
+  // Плотная тень у самого камня — он лежит на снегу, а не висит.
+  softEllipse(g, cx + 1, cy + height / 2 - 1, width, 5, COLORS.shadow, 0.16, 2);
   g.fillStyle(COLORS.stoneDark, 1);
   g.fillEllipse(cx, cy, width, height);
   g.fillStyle(COLORS.stone, 1);
   g.fillEllipse(cx - 2, cy - 2, width - 6, height - 5);
+  g.fillStyle(COLORS.stoneLight, 1);
+  g.fillEllipse(cx - 5, cy - 1, 5, 3);
+  g.lineStyle(1, COLORS.stoneDark, 1);
+  g.lineBetween(cx + 3, cy - 1, cx + 6, cy + 3);
   g.fillStyle(COLORS.snowLight, 1);
   g.fillEllipse(cx - 2, cy - height * 0.28, width * 0.6, height * 0.35);
   g.lineStyle(THIN_OUTLINE_WIDTH, COLORS.outline, 1);
   g.strokeEllipse(cx, cy, width, height);
 }
 
-// Пучок сухой травы: травинки веером и снежный холмик у основания.
+// Пучок сухой травы: травинки веером с тонкой обводкой и снежный холмик у основания.
 function drawGrassTuft(g: Graphics): void {
   const { w, h } = GRASS_TUFT_SIZE;
   const baseY = h - 8;
   // Кончики травинок: x, y.
   const tips = [4, 9, 10, 2, 17, 7, 23, 0, 29, 5, 33, 13];
 
+  softEllipse(g, w / 2 + 1, baseY + 3, w - 2, 9, COLORS.snowDeep, 0.18, 3);
   for (let i = 0; i < tips.length / 2; i++) {
     const baseX = w / 2 - 7 + i * 2.5;
-    g.fillStyle(i % 2 === 0 ? COLORS.grass : COLORS.grassDark, 1);
-    g.fillTriangle(baseX - 2, baseY, baseX + 2, baseY, tips[i * 2], tips[i * 2 + 1]);
+    const blade = [baseX - 2, baseY, baseX + 2, baseY, tips[i * 2], tips[i * 2 + 1]];
+    g.lineStyle(1.6, COLORS.outline, 0.55);
+    g.strokePoints(toPoints(blade), true, true);
+    fillPolygon(g, blade, i % 2 === 0 ? COLORS.grass : COLORS.grassDark);
   }
+  // Метёлки с семенами на трёх травинках.
+  g.fillStyle(COLORS.grassDark, 1);
+  for (const i of [1, 3, 4]) g.fillEllipse(tips[i * 2], tips[i * 2 + 1] + 2, 3, 5);
 
   g.fillStyle(COLORS.snowShade, 1);
   g.fillEllipse(w / 2, baseY + 2, w - 6, 10);
@@ -565,17 +670,30 @@ function drawFir(g: Graphics): void {
   const { w, h } = FIR_SIZE;
   const cx = w / 2;
 
-  // Ствол виден снизу, под нижним ярусом.
+  // Ствол виден снизу, под нижним ярусом: правая половина в тени, трещины коры.
+  softEllipse(g, cx + 2, h - 3, 44, 8, COLORS.shadow, 0.12, 3);
   g.fillStyle(COLORS.trunk, 1);
   g.fillRect(cx - 8, h - 32, 16, 30);
+  g.fillStyle(COLORS.trunkDark, 1);
+  g.fillRect(cx + 1, h - 32, 7, 30);
+  g.lineStyle(1.2, COLORS.trunkDark, 1);
+  g.lineBetween(cx - 4, h - 22, cx - 4, h - 8);
   g.lineStyle(OUTLINE_WIDTH, COLORS.outline, 1);
   g.strokeRect(cx - 8, h - 32, 16, 30);
 
   // Ярусы снизу вверх: низ яруса, его высота и половина ширины.
-  drawFirTier(g, cx, h - 24, 70, 58);
-  drawFirTier(g, cx, h - 62, 62, 46);
-  drawFirTier(g, cx, h - 96, 54, 34);
-  drawFirTier(g, cx, h - 128, 48, 22);
+  // Каждый ярус бросает тень на ярус под ним.
+  const tiers = [
+    [h - 24, 70, 58],
+    [h - 62, 62, 46],
+    [h - 96, 54, 34],
+    [h - 128, 48, 22],
+  ];
+  for (let i = 0; i < tiers.length; i++) {
+    const [bottom, height, half] = tiers[i];
+    if (i > 0) drawFirTierShadow(g, cx, bottom, tiers[i - 1]);
+    drawFirTier(g, cx, bottom, height, half);
+  }
 
   // Иголки: короткие тёмные штрихи по нижнему краю ярусов (низ яруса, половина ширины).
   g.lineStyle(1.5, COLORS.firDark, 1);
@@ -585,6 +703,18 @@ function drawFir(g: Graphics): void {
   // Блёстки на снежных шапках.
   g.fillStyle(COLORS.white, 1);
   for (const [x, y] of [[cx - 6, 30], [cx - 10, 62], [cx - 14, 96]]) g.fillCircle(x, y, 1.4);
+}
+
+// Тень от яруса (его низ — upperBottom) на ярус под ним (lower: низ, высота, половина ширины):
+// тёмная полоса по форме нижнего яруса сразу под краем верхнего.
+function drawFirTierShadow(g: Graphics, cx: number, upperBottom: number, lower: number[]): void {
+  const [bottom, height, half] = lower;
+  // Половина ширины нижнего яруса на высоте y (у острия — 0, внизу — half).
+  const halfAt = (y: number): number => (half * (y - (bottom - height))) / height - 2;
+  const band = 9;
+  const top = upperBottom;
+  const low = upperBottom + band;
+  fillPolygon(g, [cx - halfAt(top), top, cx + halfAt(top), top, cx + halfAt(low), low, cx - halfAt(low), low], COLORS.firDark);
 }
 
 // Один ярус ели: треугольник хвои (правая половина в тени) и снежная шапка.
@@ -598,6 +728,9 @@ function drawFirTier(g: Graphics, cx: number, bottom: number, height: number, ha
   g.fillTriangle(cx, top, left, bottom, right, bottom);
   g.fillStyle(COLORS.firDark, 1);
   g.fillTriangle(cx, top, cx, bottom, right, bottom);
+  // Светлая кромка хвои вдоль левого края — сюда падает свет.
+  g.fillStyle(COLORS.firLight, 1);
+  g.fillTriangle(cx, top, left, bottom, left + halfWidth * 0.28, bottom);
 
   // Снежная шапка на верхней половине яруса, правая часть в голубой тени.
   const capBottom = top + height * 0.5;
@@ -607,14 +740,29 @@ function drawFirTier(g: Graphics, cx: number, bottom: number, height: number, ha
   g.fillStyle(COLORS.snowShade, 1);
   g.fillTriangle(cx, top, cx, capBottom, cx + capHalf, capBottom);
 
-  // Снег свисает «каплями» по нижнему краю шапки.
+  // Снег свисает «каплями» по нижнему краю шапки; под каплями — тень на хвое.
   const dropCount = 3;
   const dropRadius = capHalf / dropCount;
+  for (let i = 0; i < dropCount; i++) {
+    const x = cx - capHalf + dropRadius + i * 2 * dropRadius;
+    g.fillStyle(COLORS.firDark, 0.6);
+    g.fillCircle(x + 1, capBottom + 2, dropRadius);
+  }
   for (let i = 0; i < dropCount; i++) {
     const x = cx - capHalf + dropRadius + i * 2 * dropRadius;
     g.fillStyle(x < cx ? COLORS.snowLight : COLORS.snowShade, 1);
     g.fillCircle(x, capBottom, dropRadius);
   }
+
+  // Комок снега на ветке посередине освещённой стороны.
+  const clumpX = cx - halfWidth * 0.55;
+  const clumpY = bottom - height * 0.22;
+  g.fillStyle(COLORS.firDark, 0.6);
+  g.fillEllipse(clumpX + 1, clumpY + 2, 12, 4);
+  g.fillStyle(COLORS.snowShade, 1);
+  g.fillEllipse(clumpX, clumpY + 0.5, 12, 4);
+  g.fillStyle(COLORS.snowLight, 1);
+  g.fillEllipse(clumpX - 1, clumpY - 0.5, 9, 3);
 
   // Снег на концах нижних веток.
   g.fillStyle(COLORS.snowLight, 1);
@@ -626,17 +774,25 @@ function drawFirTier(g: Graphics, cx: number, bottom: number, height: number, ha
   g.strokeTriangle(cx, top, left, bottom, right, bottom);
 }
 
-// Скала: камень с тёмной и светлой гранями и трещинами, сверху снежная шапка.
+// Скала: камень с тёмной и светлой гранями и трещинами, сверху снежная шапка,
+// у подножия — снег. Крапинки и светлые рёбра граней — фактура камня.
 function drawRock(g: Graphics): void {
+  const { w, h } = ROCK_SIZE;
   const body = [10, 76, 4, 50, 16, 26, 40, 10, 66, 8, 86, 22, 96, 48, 90, 76];
   const darkSide = [66, 8, 86, 22, 96, 48, 90, 76, 58, 76, 62, 40];
   const lightSide = [16, 26, 40, 10, 52, 30, 30, 46, 6, 50];
   const snowCap = [14, 30, 38, 11, 66, 9, 85, 22, 78, 30, 64, 25, 50, 32, 34, 34, 20, 38];
   const snowCapShade = [66, 9, 85, 22, 78, 30, 64, 25];
 
+  // Тень на снегу у подножия.
+  softEllipse(g, w / 2 + 3, h - 5, w - 4, 9, COLORS.shadow, 0.12, 3);
   fillPolygon(g, body, COLORS.stone);
   fillPolygon(g, darkSide, COLORS.stoneDark);
   fillPolygon(g, lightSide, COLORS.stoneLight);
+  // Светлое ребро между гранями.
+  g.lineStyle(1.5, COLORS.stoneLight, 1);
+  g.strokePoints(toPoints([62, 40, 58, 74]), false);
+  drawStoneSpecks(g);
   fillPolygon(g, snowCap, COLORS.snowLight);
   fillPolygon(g, snowCapShade, COLORS.snowShade);
   strokePolygon(g, body);
@@ -647,6 +803,21 @@ function drawRock(g: Graphics): void {
   g.strokePoints(toPoints([70, 44, 64, 54]), false);
   g.fillStyle(COLORS.white, 1);
   g.fillCircle(40, 18, 1.5);
+
+  // Снег у подножия: камень «сидит» в снегу.
+  g.fillStyle(COLORS.snowShade, 1);
+  g.fillEllipse(26, h - 5, 34, 7);
+  g.fillEllipse(78, h - 4, 26, 6);
+  g.fillStyle(COLORS.snowLight, 1);
+  g.fillEllipse(24, h - 6, 28, 5);
+}
+
+// Крапинки на скале: тёмные на свету и светлые в тени.
+function drawStoneSpecks(g: Graphics): void {
+  g.fillStyle(COLORS.stoneDark, 0.7);
+  for (const [x, y] of [[22, 58], [44, 64], [48, 46], [18, 68], [52, 70]]) g.fillCircle(x, y, 1.3);
+  g.fillStyle(COLORS.stone, 1);
+  for (const [x, y] of [[76, 52], [84, 64], [70, 66], [80, 38]]) g.fillCircle(x, y, 1.3);
 }
 
 // ===== Общие картинки =====
@@ -655,6 +826,8 @@ function drawRock(g: Graphics): void {
 function drawShadow(g: Graphics): void {
   const { w, h } = SHADOW_SIZE;
   softEllipse(g, w / 2, h / 2, w, h, COLORS.shadow, 0.08, 8);
+  // Плотная серединка — там, где предмет касается снега.
+  softEllipse(g, w / 2, h / 2, w * 0.55, h * 0.5, COLORS.shadow, 0.05, 3);
 }
 
 // ===== Вождь =====
@@ -1365,9 +1538,10 @@ function drawBush(g: Graphics): void {
   const { w, h } = BUSH_SIZE;
   const cx = w / 2;
 
-  // 1. Снег у корней — тень.
+  // 1. Снег у корней — тень, у самого ствола гуще.
   g.fillStyle(COLORS.snowShade, 1);
   g.fillEllipse(cx, h - 8, 70, 12);
+  softEllipse(g, cx + 4, h - 7, 50, 9, COLORS.shadow, 0.12, 3);
 
   // 2. Короткий ствол с корнями-«лапками»: левая сторона светлее, правая в тени.
   const trunk = [cx - 7, 74, cx + 7, 74, cx + 9, h - 9, cx + 15, h - 5, cx - 15, h - 5, cx - 9, h - 9];
@@ -1419,7 +1593,9 @@ function drawLeaves(g: Graphics): void {
 
     // light > 0 — сторона к свету (вверх-влево), light < 0 — теневая сторона.
     const light = (lobeX - x + (lobeY - y)) / r;
-    const color = light > 0.45 ? COLORS.leafHighlight : light > -0.3 ? COLORS.leafLight : COLORS.leaf;
+    let color = light > 0.45 ? COLORS.leafHighlight : light > -0.3 ? COLORS.leafLight : COLORS.leaf;
+    // Внизу справа на шапке — тёмные листья в тени.
+    if (light < -0.75) color = COLORS.leafDark;
     drawLeaf(g, x, y, rng.realInRange(0, Math.PI), color);
   }
 }
@@ -1461,6 +1637,13 @@ function drawBushSnow(g: Graphics): void {
   g.fillCircle(BUSH_CX - 26, 50, 2);
   g.fillStyle(COLORS.snowShade, 1);
   g.fillCircle(BUSH_CX + 28, 50, 2);
+
+  // Блёстки на снегу.
+  g.fillStyle(COLORS.white, 1);
+  for (const [x, y] of [[BUSH_CX - 18, 18], [BUSH_CX + 10, 10], [BUSH_CX - 34, 40]]) {
+    g.fillRect(x - 2.5, y - 0.5, 5, 1);
+    g.fillRect(x - 0.5, y - 2.5, 1, 5);
+  }
 }
 
 // Снежная шапка на верхушке шапки кроны номер lobe: сверху дуга по краю шапки,
@@ -1510,9 +1693,10 @@ function drawStump(g: Graphics): void {
   const { w, h } = STUMP_SIZE;
   const cx = w / 2;
 
-  // Снег у подножия — тень.
+  // Снег у подножия — тень, у самого ствола гуще.
   g.fillStyle(COLORS.snowShade, 1);
   g.fillEllipse(cx, h - 7, w - 6, 12);
+  softEllipse(g, cx + 3, h - 6, 44, 8, COLORS.shadow, 0.12, 3);
 
   // Обломки веток торчат в стороны (позади ствола).
   drawTwig(g, cx - 10, 34, cx - 30, 18);
@@ -1533,15 +1717,26 @@ function drawStump(g: Graphics): void {
   g.lineStyle(THIN_OUTLINE_WIDTH, COLORS.woodDark, 1);
   g.lineBetween(cx - 8, 30, cx - 9, h - 9);
   g.lineBetween(cx - 1, 32, cx - 1, h - 11);
+  g.lineBetween(cx + 9, 30, cx + 10, h - 12);
   g.lineStyle(THIN_OUTLINE_WIDTH, COLORS.woodLight, 1);
   g.lineBetween(cx - 13, 30, cx - 14, h - 12);
+  drawBarkScales(g, cx);
+  // Зарубка от топора: светлый клин свежего дерева.
+  const notch = [cx - 17, 36, cx - 8, 40, cx - 17, 44];
+  fillPolygon(g, notch, COLORS.woodEnd);
+  g.lineStyle(1.2, COLORS.woodDark, 1);
+  g.strokePoints(toPoints(notch), false);
   strokePolygon(g, trunk);
 
-  // Срез сверху с годовыми кольцами.
+  // Срез сверху с годовыми кольцами, тёмной серединкой и трещиной.
   outlinedEllipse(g, cx, 24, 34, 14, COLORS.woodEnd);
   g.lineStyle(1.5, COLORS.woodLight, 1);
   g.strokeEllipse(cx, 24, 22, 8);
   g.strokeEllipse(cx, 24, 10, 4);
+  g.fillStyle(COLORS.wood, 1);
+  g.fillEllipse(cx, 24, 3, 1.6);
+  g.lineStyle(1.2, COLORS.wood, 1);
+  g.lineBetween(cx + 2, 24, cx + 13, 27);
 
   // Шапка снега на краю среза: голубая тень и белый снег.
   g.fillStyle(COLORS.snowDeep, 1);
@@ -1550,10 +1745,23 @@ function drawStump(g: Graphics): void {
   g.fillEllipse(cx - 7, 20, 20, 8);
   g.fillCircle(cx - 12, 25, 2);
 
-  // Бугристый снег у подножия.
+  // Бугристый снег у подножия и блёстка на нём.
   g.fillCircle(cx - 18, h - 8, 6);
   g.fillCircle(cx + 16, h - 8, 5);
   g.fillEllipse(cx - 2, h - 6, w - 26, 7);
+  g.fillStyle(COLORS.white, 1);
+  g.fillRect(cx - 22, h - 11.5, 5, 1);
+  g.fillRect(cx - 20, h - 13.5, 1, 5);
+}
+
+// Чешуйки коры на стволе пенька: короткие тёмные дужки, на свету — светлые.
+function drawBarkScales(g: Graphics, cx: number): void {
+  for (const [x, y, color] of [[-11, 38, COLORS.woodDark], [-4, 46, COLORS.woodDark], [-10, 50, COLORS.woodDark], [12, 40, COLORS.trunkDark], [6, 50, COLORS.trunkDark]]) {
+    g.lineStyle(1.2, color, 1);
+    g.beginPath();
+    g.arc(cx + x, y, 3, 0.2, Math.PI - 0.2);
+    g.strokePath();
+  }
 }
 
 // Связка хвороста: четыре палки, перевязанные двумя кожаными ремешками,
@@ -2207,14 +2415,22 @@ function drawTusk(g: Graphics): void {
 // тень снизу, блик и искорки сверху. Цвета разные у сырого и жареного мяса;
 // у жареного ещё капля сока и жёлтая искра жара.
 function drawMeat(g: Graphics, color: number, shade: number, light: number, isCooked: boolean): void {
-  // Косточка: палочка и две «шишечки» на конце.
+  // Косточка: палочка и две «шишечки» на конце, снизу в тени.
   limb(g, 8, 23, 20, 18, 6, COLORS.bone);
   outlinedCircle(g, 6, 19, 4, COLORS.bone);
   outlinedCircle(g, 8, 27, 4, COLORS.bone);
+  g.fillStyle(COLORS.boneShade, 1);
+  g.fillEllipse(9, 29, 4, 2);
+  g.fillStyle(COLORS.white, 1);
+  g.fillCircle(5, 18, 1);
   // Окорок-капля и тень по нижнему краю.
   const ham = [18, 12, 24, 5, 34, 2, 42, 5, 46, 13, 44, 22, 36, 28, 26, 28, 18, 22];
   fillPolygon(g, ham, color);
   fillPolygon(g, [26, 28, 36, 28, 44, 22, 46, 13, 40, 18, 30, 22], shade);
+  // Прожилки: у сырого — светлые волокна, у жареного — тёмные полоски корочки.
+  g.lineStyle(1.2, isCooked ? shade : light, isCooked ? 1 : 0.9);
+  g.strokePoints(toPoints([24, 18, 30, 15, 36, 16]), false);
+  g.strokePoints(toPoints([30, 24, 36, 21, 41, 21]), false);
   strokePolygon(g, ham);
   g.fillStyle(light, 1);
   g.fillEllipse(30, 8, 12, 5);
@@ -2234,10 +2450,17 @@ function drawStick(g: Graphics, x: number, y: number, length: number, color: num
   const height = 7;
   g.fillStyle(color, 1);
   g.fillRoundedRect(x, y, length, height, 3);
+  // Тень по низу палки и прожилка коры — палка круглая, а не плоская.
+  g.fillStyle(COLORS.woodDark, 0.55);
+  g.fillRect(x + 3, y + height - 2.5, length - 6, 1.5);
+  g.lineStyle(1, COLORS.woodDark, 0.8);
+  g.lineBetween(x + length * 0.55, y + 2.5, x + length * 0.8, y + 3);
   g.lineStyle(THIN_OUTLINE_WIDTH, COLORS.outline, 1);
   g.strokeRoundedRect(x, y, length, height, 3);
   g.fillStyle(COLORS.woodEnd, 1);
   g.fillEllipse(x + 3, y + height / 2, 4, 5);
+  g.fillStyle(COLORS.woodLight, 1);
+  g.fillCircle(x + 3, y + height / 2, 0.8);
 }
 
 // Ремешок поперёк связки, в точке x.
@@ -2268,6 +2491,21 @@ function drawDropZone(g: Graphics): void {
   g.strokeRoundedRect(inset, inset, width, height, radius);
   g.lineStyle(6, COLORS.zoneBorder, 1);
   g.strokeRoundedRect(inset, inset, width, height, radius);
+  // Внутри у верхнего края — мягкая тень: площадка чуть утоплена в снег.
+  // Слои всё уже книзу: тень плавно сходит на нет.
+  g.fillStyle(COLORS.outline, 0.035);
+  for (const depth of [22, 16, 11, 7]) {
+    g.fillRoundedRect(inset + 6, inset + 6, width - 12, depth, { tl: radius - 6, tr: radius - 6, bl: depth / 2, br: depth / 2 });
+  }
+  // Вмятины следов в утоптанном снегу.
+  g.fillStyle(COLORS.outline, 0.07);
+  for (const [x, y, angle] of [[40, 92, -0.3], [56, 100, -0.2], [168, 44, 0.3], [182, 54, 0.2]]) {
+    g.save();
+    g.translateCanvas(x, y);
+    g.rotateCanvas(angle);
+    g.fillEllipse(0, 0, 9, 15);
+    g.restore();
+  }
   // Внутренняя тонкая рамка — площадка как рамка-ковёр.
   const innerInset = 10;
   g.lineStyle(2, COLORS.zoneBorder, 0.6);
@@ -2285,6 +2523,8 @@ function drawBuyZone(g: Graphics): void {
 
   g.fillStyle(COLORS.zoneFill, 0.5);
   g.fillEllipse(cx, cy, rx * 2, ry * 2);
+  // Тень у дальнего (верхнего) края — круг утоптан, чуть ниже снега вокруг.
+  crescent(g, cx, cy, rx - 4, ry - 4, 0, 8, COLORS.outline, 0.1);
   g.lineStyle(12, COLORS.outline, 0.35);
   g.strokeEllipse(cx, cy, rx * 2, ry * 2);
   // Пунктир: короткие светлые дуги по краю.
@@ -2308,9 +2548,10 @@ function drawFenceStake(g: Graphics): void {
   const tipY = 6;
   const shoulderY = 22;
 
-  // Голубая тень на снегу у подножия.
+  // Голубая тень на снегу у подножия, у самого бревна гуще.
   g.fillStyle(COLORS.snowShade, 1);
   g.fillEllipse(cx, h - 5, w - 4, 8);
+  softEllipse(g, cx + 2, h - 5, w - 8, 6, COLORS.shadow, 0.12, 2);
 
   // Бревно: светлая левая сторона, тёмная правая, остриё сверху.
   const log = [cx - half, h - 5, cx - half, shoulderY, cx, tipY, cx + half, shoulderY, cx + half, h - 5];
@@ -2322,14 +2563,23 @@ function drawFenceStake(g: Graphics): void {
   g.lineStyle(1.5, COLORS.woodDark, 1);
   g.lineBetween(cx - 3, shoulderY + 12, cx - 4, shoulderY + 26);
   g.lineBetween(cx - 1, h - 26, cx - 2, h - 14);
+  g.lineStyle(1.2, COLORS.trunkDark, 1);
+  g.lineBetween(cx + 5, shoulderY + 6, cx + 5, shoulderY + 18);
+  g.lineBetween(cx + 6, h - 30, cx + 6, h - 12);
   strokePolygon(g, log);
 
-  // Верёвка: колья связаны между собой.
+  // Верёвка: колья связаны между собой, на ней — косые витки.
   limb(g, cx - half, 44, cx + half, 46, 3, COLORS.rope);
+  g.lineStyle(1, COLORS.ropeDark, 1);
+  for (const x of [cx - 5, cx, cx + 5]) g.lineBetween(x - 1, 43.5, x + 1, 46.5);
+  // Полоска снега на верёвке.
+  g.fillStyle(COLORS.snowLight, 1);
+  g.fillEllipse(cx - 2, 41.5, 12, 3);
 
   // Снежная шапка на острие.
   const cap = [cx - 6, 16, cx, tipY - 2, cx + 6, 16, cx + 3, 19, cx - 1, 17, cx - 4, 20];
   fillPolygon(g, cap, COLORS.snowLight);
+  fillPolygon(g, [cx, tipY - 2, cx + 6, 16, cx + 3, 19, cx + 1, 17], COLORS.snowShade);
   // Снег у подножия.
   g.fillStyle(COLORS.snowLight, 1);
   g.fillEllipse(cx - 2, h - 6, 22, 7);
@@ -2374,6 +2624,8 @@ function drawHut(g: Graphics): void {
   limb(g, cx - 2, top + 8, cx - 20, 10, 5, COLORS.woodDark);
   limb(g, cx + 2, top + 8, cx + 19, 9, 5, COLORS.wood);
   limb(g, cx, top + 8, cx + 3, 6, 5, COLORS.woodLight);
+  g.fillStyle(COLORS.woodEnd, 1);
+  for (const [x, y] of [[cx - 20, 10], [cx + 19, 9], [cx + 3, 6]]) g.fillCircle(x, y, 1.6);
 
   // Конус из шкур: стороны чуть выпуклые, низ — дуга (мы смотрим сверху под углом).
   const cone = [
@@ -2390,6 +2642,11 @@ function drawHut(g: Graphics): void {
   for (const [x, y, rx, ry] of [[-34, 104, 7, 5], [-18, 80, 5, 4], [22, 96, 6, 4], [44, 122, 7, 5], [-52, 128, 6, 4]]) {
     g.fillEllipse(cx + x, y, rx * 2, ry * 2);
   }
+  // Ворс шкур: короткие штрихи по склону, на свету тёмные, в тени — ещё темнее.
+  drawHutFur(g, cx, top, base);
+  // Низ шалаша в тени — шкура уходит в снег.
+  g.fillStyle(COLORS.furDark, 0.35);
+  g.fillPoints(toPoints([cx - 74, base - 6, cx - 50, base + 2, cx, base + 6, cx + 50, base + 2, cx + 74, base - 6, cx + 70, base - 14, cx + 40, base - 6, cx, base - 3, cx - 40, base - 6, cx - 70, base - 14]), true);
   // Швы между шкурами — от вершины вниз, с поперечными стежками.
   for (const [x1, x2] of [[-4, -38], [5, 30]]) {
     g.lineStyle(2, COLORS.furDark, 1);
@@ -2421,6 +2678,11 @@ function drawHut(g: Graphics): void {
   fillPolygon(g, cap(0), COLORS.snowLight);
   g.lineStyle(THIN_OUTLINE_WIDTH, COLORS.outline, 0.6);
   g.strokePoints(toPoints(cap(4)), true, true);
+  g.fillStyle(COLORS.snowShade, 1);
+  g.fillPoints(toPoints([cx + 4, top - 1, cx + 10, top - 2, cx + 28, 50, cx + 22, 58, cx + 14, 54]), true);
+  g.fillStyle(COLORS.white, 1);
+  g.fillRect(cx - 14, 47.5, 5, 1);
+  g.fillRect(cx - 12, 45.5, 1, 5);
 
   // Сугробы у подножия, по бокам от входа.
   g.fillStyle(COLORS.snowDeep, 1);
@@ -2439,10 +2701,36 @@ function drawHut(g: Graphics): void {
   for (const [x, y] of [[cx - 44, 115], [cx - 38, 111], [cx - 31, 114], [cx - 42, 124], [cx - 33, 122]]) {
     g.lineBetween(x - 1, y, x + 1, y);
   }
+  // Сосульки под снежной шапкой.
+  for (const [x, y, length] of [[-18, 59, 7], [-2, 61, 9], [12, 57, 6], [22, 60, 5]]) drawIcicle(g, cx + x, y, length);
+  // Тёплый отсвет очага в глубине входа.
+  g.fillStyle(COLORS.ember, 0.35);
+  g.fillEllipse(cx, base, 30, 12);
+  g.fillStyle(COLORS.fireGlow, 0.45);
+  g.fillEllipse(cx, base + 1, 18, 6);
+  g.fillStyle(COLORS.fireYellow, 0.5);
+  g.fillEllipse(cx, base + 2, 8, 3);
   // Дымовое отверстие у вершины и тень у входа — вход глубже.
   g.fillStyle(COLORS.charcoal, 1);
   g.fillEllipse(cx + 1, 40, 8, 4);
   crescent(g, cx, 102, 18, 16, 2, 4, COLORS.outline, 0.5);
+}
+
+// Ворс на шкурах хижины: короткие штрихи вдоль склона от вершины (cx, top) к низу base.
+function drawHutFur(g: Graphics, cx: number, top: number, base: number): void {
+  const strokes = [
+    [-50, 0.62], [-30, 0.5], [-58, 0.85], [-20, 0.78], [-42, 0.95], [-8, 0.6], [-14, 0.92],
+    [16, 0.55], [34, 0.7], [52, 0.88], [24, 0.9], [44, 0.6], [62, 0.97], [8, 0.8],
+  ];
+  for (const [shift, t] of strokes) {
+    // Точка на склоне: чем ниже (t ближе к 1), тем дальше от середины.
+    const x = cx + shift * t;
+    const y = Phaser.Math.Linear(top + 10, base, t);
+    const tilt = shift * 0.06;
+    g.lineStyle(1.6, shift < 0 ? COLORS.furDark : COLORS.furSpot, 0.7);
+    g.lineBetween(x, y, x + tilt, y + 7);
+    g.lineBetween(x + 3, y + 1, x + 3 + tilt, y + 6);
+  }
 }
 
 // Точки дуги эллипса [x1, y1, …]: центр (cx, cy), полуоси rx и ry, от угла from до to.
@@ -2463,6 +2751,13 @@ function drawFirePit(g: Graphics): void {
   const cx = w / 2;
 
   softEllipse(g, cx, h - 16, w, 34, COLORS.scorched, 0.18, 5);
+  // Подтаявший снег: светлый влажный ободок вокруг тёмного круга.
+  g.lineStyle(2, COLORS.snowLight, 0.6);
+  g.strokeEllipse(cx, h - 16, w - 14, 30);
+  // Блики талой воды на мокром снегу.
+  g.fillStyle(COLORS.white, 0.8);
+  g.fillEllipse(14, h - 14, 6, 1.6);
+  g.fillEllipse(w - 12, h - 18, 5, 1.4);
 
   // Дальние камни (за поленьями).
   drawPitStone(g, 20, 38, 18, 12);
@@ -2471,13 +2766,16 @@ function drawFirePit(g: Graphics): void {
   drawPitStone(g, 74, 31, 18, 12);
   drawPitStone(g, 90, 38, 18, 12);
 
-  // Угли с тлеющими точками.
+  // Зола вокруг углей, угли с тлеющими точками и их красноватый ореол.
+  softEllipse(g, cx, 45, 76, 24, COLORS.ash, 0.3, 3);
   g.fillStyle(COLORS.charcoal, 1);
   g.fillEllipse(cx, 44, 66, 18);
-  g.fillStyle(COLORS.ember, 0.8);
-  g.fillCircle(cx - 8, 45, 3);
-  g.fillCircle(cx + 10, 43, 2.5);
-  g.fillCircle(cx + 2, 48, 2);
+  for (const [x, y, r] of [[-8, 45, 3], [10, 43, 2.5], [2, 48, 2], [-18, 42, 1.5]]) {
+    g.fillStyle(COLORS.ember, 0.3);
+    g.fillCircle(cx + x, y, r * 2);
+    g.fillStyle(COLORS.ember, 0.85);
+    g.fillCircle(cx + x, y, r);
+  }
 
   drawLog(g, cx, 42, -0.35);
   drawLog(g, cx, 42, 0.35);
@@ -2489,12 +2787,15 @@ function drawFirePit(g: Graphics): void {
   drawPitStone(g, 86, 51, 20, 13);
 }
 
-// Камень кострища со снежной шапкой.
+// Камень кострища со снежной шапкой и бликом.
 function drawPitStone(g: Graphics, x: number, y: number, width: number, height: number): void {
   g.fillStyle(COLORS.stoneDark, 1);
   g.fillEllipse(x, y, width, height);
   g.fillStyle(COLORS.stone, 1);
   g.fillEllipse(x - 1, y - 1.5, width - 4, height - 4);
+  crescent(g, x, y, width / 2 - 1, height / 2 - 1, -2, -2, COLORS.stoneDark, 0.9);
+  g.fillStyle(COLORS.stoneLight, 1);
+  g.fillEllipse(x - width * 0.25, y + 1, width * 0.25, height * 0.22);
   g.fillStyle(COLORS.snowLight, 1);
   g.fillEllipse(x - 1, y - height * 0.3, width * 0.55, height * 0.35);
   g.lineStyle(THIN_OUTLINE_WIDTH, COLORS.outline, 1);
@@ -2512,15 +2813,24 @@ function drawLog(g: Graphics, x: number, y: number, angle: number): void {
   g.fillRoundedRect(-30, -6, 60, 12, 5);
   g.fillStyle(COLORS.woodDark, 1);
   g.fillRect(-26, 1, 52, 4);
+  // Светлый блик по верху полена и прожилки коры.
+  g.fillStyle(COLORS.woodLight, 1);
+  g.fillRect(-24, -4, 20, 1.5);
+  g.lineStyle(1, COLORS.woodDark, 1);
+  g.lineBetween(10, -3, 22, -2);
+  g.lineBetween(-22, -1, -16, -1);
   // Тлеющая полоска на полене.
   g.fillStyle(COLORS.ember, 1);
   g.fillRect(-12, -2, 18, 2);
   g.lineStyle(THIN_OUTLINE_WIDTH, COLORS.outline, 1);
   g.strokeRoundedRect(-30, -6, 60, 12, 5);
-  // Светлые срезы на концах.
+  // Светлые срезы на концах с годовым кольцом.
   g.fillStyle(COLORS.woodEnd, 1);
   g.fillEllipse(-27, 0, 6, 10);
   g.fillEllipse(27, 0, 6, 10);
+  g.lineStyle(1, COLORS.woodLight, 1);
+  g.strokeEllipse(-27, 0, 3, 5);
+  g.strokeEllipse(27, 0, 3, 5);
 
   g.restore();
 }
@@ -2530,14 +2840,20 @@ function drawSpit(g: Graphics): void {
   const { w, h } = SPIT_SIZE;
   const skewerY = 16;
 
-  // Рогатины: столб и два рожка развилки.
+  // Рогатины: столб и два рожка развилки, на столбе — светлый блик и сучок.
   for (const x of [14, w - 14]) {
     limb(g, x, h - 2, x, skewerY + 4, 7, COLORS.wood);
     limb(g, x, skewerY + 6, x - 7, skewerY - 8, 5, COLORS.wood);
     limb(g, x, skewerY + 6, x + 7, skewerY - 8, 5, COLORS.wood);
+    g.lineStyle(1.5, COLORS.woodLight, 1);
+    g.lineBetween(x - 1.5, skewerY + 10, x - 1.5, h - 8);
+    g.lineStyle(1.5, COLORS.woodDark, 1);
+    g.lineBetween(x + 2, skewerY + 16, x + 2, skewerY + 30);
   }
-  // Палка вертела поверх рогатин.
+  // Палка вертела поверх рогатин, с бликом сверху.
   limb(g, 4, skewerY, w - 4, skewerY, 5, COLORS.woodLight);
+  g.lineStyle(1.2, COLORS.woodEnd, 1);
+  g.lineBetween(10, skewerY - 1, w - 10, skewerY - 1);
 }
 
 // Стол лагеря (ключ картинки по-прежнему stoneTable): столешница из трёх досок
@@ -2576,14 +2892,44 @@ function drawStoneTable(g: Graphics): void {
     const plank = [16 - widen, top, w - 16 + widen, top, w - 10, bottom, 10, bottom];
     fillPolygon(g, plank, color);
     strokePolygon(g, plank);
-    // Волокна дерева.
+    // Светлая кромка доски и волокна дерева.
+    g.lineStyle(1.5, COLORS.woodEnd, 0.5);
+    g.lineBetween(18 - widen, top + 2.5, w - 18 + widen, top + 2.5);
     g.lineStyle(1.2, COLORS.woodDark, 0.8);
     g.lineBetween(40, (top + bottom) / 2, 90, (top + bottom) / 2 + 1);
     g.lineBetween(150, (top + bottom) / 2 - 1, 200, (top + bottom) / 2);
+    g.lineBetween(100 + widen * 4, (top + bottom) / 2 + 3, 130, (top + bottom) / 2 + 3);
   }
-  // Деревянные гвозди-колышки на брусе.
-  g.fillStyle(COLORS.woodEnd, 1);
-  for (const x of [30, 80, 160, 210]) g.fillCircle(x, 90, 2.4);
+  // Сучки на досках.
+  for (const [x, y] of [[118, 52], [64, 36]]) {
+    g.fillStyle(COLORS.woodDark, 1);
+    g.fillEllipse(x, y, 7, 3.5);
+    g.lineStyle(1, COLORS.woodDark, 0.8);
+    g.strokeEllipse(x, y, 12, 6);
+  }
+  // Блик по верху бруса, волокна и деревянные гвозди-колышки с тенью.
+  g.lineStyle(1.5, COLORS.wood, 1);
+  g.lineBetween(14, 79, w - 14, 79);
+  g.lineStyle(1, COLORS.trunkDark, 0.8);
+  g.lineBetween(46, 94, 120, 95);
+  g.lineBetween(176, 86, 222, 86);
+  for (const x of [30, 80, 160, 210]) {
+    g.fillStyle(COLORS.trunkDark, 1);
+    g.fillCircle(x + 0.8, 91, 2.6);
+    g.fillStyle(COLORS.woodEnd, 1);
+    g.fillCircle(x, 90, 2.4);
+  }
+
+  // Сосульки под передним брусом.
+  for (const [x, length] of [[40, 9], [48, 6], [186, 8], [196, 5]]) drawIcicle(g, x, 104, length);
+
+  // Снег на углах столешницы: голубая тень и белый снег.
+  for (const [x, y, width] of [[24, 31, 26], [w - 26, 31, 20]]) {
+    g.fillStyle(COLORS.snowShade, 1);
+    g.fillEllipse(x + 1, y + 1.5, width, 7);
+    g.fillStyle(COLORS.snowLight, 1);
+    g.fillEllipse(x, y, width - 4, 5);
+  }
 
   // Деревянная миска справа и косточка слева.
   outlinedEllipse(g, cx + 86, 47, 28, 13, COLORS.wood);
@@ -2655,6 +3001,8 @@ function drawSnowflake(g: Graphics): void {
 function drawChip(g: Graphics): void {
   const chip = [1, 5, 4, 1, 11, 2, 10, 7, 3, 8];
   fillPolygon(g, chip, COLORS.woodEnd);
+  g.lineStyle(1, COLORS.woodLight, 1);
+  g.lineBetween(3, 5, 9, 4);
   g.lineStyle(1.5, COLORS.woodDark, 1);
   g.strokePoints(toPoints(chip), true, true);
 }
@@ -3200,6 +3548,15 @@ function drawSoundButton(g: Graphics, isOn: boolean): void {
 }
 
 // ===== Помощники рисования =====
+
+// Сосулька длиной length, подвешенная за точку (x, y): светлая слева, голубая справа.
+function drawIcicle(g: Graphics, x: number, y: number, length: number): void {
+  const half = 2.2;
+  fillPolygon(g, [x - half, y, x + half, y, x, y + length], COLORS.icicle);
+  fillPolygon(g, [x, y, x + half, y, x, y + length], COLORS.snowShade);
+  g.lineStyle(1, COLORS.outline, 0.6);
+  g.strokePoints(toPoints([x - half, y, x, y + length, x + half, y]), false);
+}
 
 // Рука или нога: толстая линия с круглыми концами от (x1, y1) до (x2, y2), с обводкой.
 function limb(g: Graphics, x1: number, y1: number, x2: number, y2: number, width: number, color: number): void {
