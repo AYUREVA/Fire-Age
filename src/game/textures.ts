@@ -686,11 +686,20 @@ function drawLeg(g: Graphics): void {
   // Тень на правой стороне ноги.
   g.fillStyle(COLORS.skinShade, 1);
   g.fillRect(cx + 1, 4, 3, 16);
+  // Блик на левой стороне ноги.
+  g.fillStyle(COLORS.white, 0.3);
+  g.fillRoundedRect(cx - 3.8, 5, 2.2, 12, 1);
 
-  // Сапог: тёмный мех и блик сверху.
+  // Сапог: тёмный мех, тень снизу справа, блик сверху и штрихи меха.
   outlinedEllipse(g, cx, 26, 21, 12, COLORS.furDark);
+  crescent(g, cx, 26, 9, 4.5, -2, -2, COLORS.furSpot, 0.6);
   g.fillStyle(COLORS.fur, 1);
   g.fillEllipse(cx - 3, 24, 9, 4);
+  g.lineStyle(1, COLORS.furSpot, 0.7);
+  for (const dx of [-5, 1, 6]) g.lineBetween(cx + dx, 26, cx + dx + 1, 29);
+  // Блики на клочках отворота.
+  g.fillStyle(COLORS.white, 0.5);
+  for (const dx of [-7, -1, 5]) g.fillEllipse(cx + dx, 17.2, 2.6, 1.4);
   // Пушистый отворот.
   outlinedBlobs(g, [cx - 6, 19, 3.5, cx, 18, 4, cx + 6, 19, 3.5], COLORS.furLight);
 }
@@ -733,6 +742,10 @@ function drawArmLimb(g: Graphics, joints: number[]): void {
   layer(COLORS.skin, -1.8, -1.6);
   g.fillStyle(COLORS.white, 0.4);
   g.fillEllipse(joints[0] - 2, joints[1] - 1.5, 4.5, 3.5);
+  // Мягкий блик вдоль плеча и складка у локтя.
+  g.lineStyle(1.6, COLORS.white, 0.22);
+  g.lineBetween(joints[0] - 3, joints[1] + 2, joints[3] - 3.4, joints[4] - 1);
+  smoothLine(g, [joints[3] + 0.5, joints[4] - 0.5, joints[3] + 2.2, joints[4] + 0.6, joints[3] + 3, joints[4] + 0.2], 1, COLORS.skinShade);
 }
 
 // Кожаная обмотка поперёк запястья в точке (x, y), с бликом.
@@ -743,6 +756,9 @@ function drawWristBand(g: Graphics, x: number, y: number, halfWidth: number): vo
   g.lineBetween(x - halfWidth, y, x + halfWidth, y - 0.5);
   g.lineStyle(1, COLORS.leatherLight, 1);
   g.lineBetween(x - halfWidth + 0.5, y - 0.8, x + halfWidth - 0.5, y - 1.3);
+  // Стежки на обмотке.
+  g.lineStyle(0.9, COLORS.outline, 0.7);
+  for (const dx of [-halfWidth * 0.45, halfWidth * 0.45]) g.lineBetween(x + dx, y - 1.2, x + dx, y + 1.1);
 }
 
 // Открытая ладонь: висит вниз, пальцы вместе и чуть согнуты вперёд,
@@ -823,8 +839,9 @@ function inMirror(g: Graphics, x: number, y: number, fn: () => void): void {
 // Туловище, большая леопардовая шкура через плечо, пояс из верёвки.
 // Левое плечо — меховое, под ремнём шкуры. Обе руки — отдельные картинки.
 function drawPlayerBody(g: Graphics): void {
-  // Туловище — широкое в плечах.
+  // Туловище — широкое в плечах, правый бок в тени.
   outlinedEllipse(g, 60, 96, 60, 46, COLORS.skin);
+  crescent(g, 60, 96, 28.5, 21.5, -5, -1, COLORS.skinShade, 0.8);
 
   // Шкура через левое плечо: шире тела, закрывает грудь и бёдра, внизу рваный подол.
   const pelt = [
@@ -845,19 +862,47 @@ function drawPlayerBody(g: Graphics): void {
     g.fillCircle(spots[i], spots[i + 1], spots[i + 2]);
     g.fillCircle(spots[i] + spots[i + 2] * 0.7, spots[i + 1] + 1, spots[i + 2] * 0.7);
   }
+  // Полоса тени над рваным подолом: шкура загибается вниз.
+  g.lineStyle(4, COLORS.furShade, 0.7);
+  g.lineBetween(33, 110, 82, 110);
+  // Мягкий блик на груди и короткие штрихи меха: шкура не плоская.
+  softEllipse(g, 46, 92, 18, 9, COLORS.furLight, 0.18, 3);
+  g.lineStyle(1.2, COLORS.furShade, 1);
+  for (let i = 0; i < PELT_STROKES.length; i += 4) {
+    g.lineBetween(PELT_STROKES[i], PELT_STROKES[i + 1], PELT_STROKES[i + 2], PELT_STROKES[i + 3]);
+  }
+  // Шов из стежков вдоль светлой кромки у плеча.
+  g.lineStyle(1.2, COLORS.furSpot, 1);
+  for (const [x, y] of [[38, 84], [42, 81.6], [47, 80.4], [51, 82.4]]) g.lineBetween(x, y, x + 1.2, y + 2.2);
+  // Подол в тени: тёмные штрихи у каждого рваного зубца.
+  g.lineStyle(1.4, COLORS.furSpot, 0.55);
+  for (const x of [36, 47, 58, 69, 79]) g.lineBetween(x, 114, x + 1, 109);
   strokePolygon(g, pelt);
 
-  // Пояс из верёвки: узел и два свисающих конца.
+  // Пояс из верёвки: косые витки, узел и два свисающих конца.
   limb(g, 32, 106, 84, 106, 3, COLORS.rope);
+  g.lineStyle(1, COLORS.ropeDark, 1);
+  for (let x = 35; x <= 82; x += 4) g.lineBetween(x, 104.8, x + 1.6, 107.2);
   limb(g, 57, 108, 54, 117, 2.5, COLORS.rope);
   limb(g, 61, 108, 63, 116, 2.5, COLORS.rope);
   outlinedCircle(g, 59, 107, 3.5, COLORS.rope);
+  g.fillStyle(COLORS.white, 0.5);
+  g.fillCircle(58, 105.8, 1.2);
 
   // Левое плечо под ремнём шкуры — меховое. Правое плечо — на картинке руки с оружием.
   outlinedCircle(g, 30, 86, 8, COLORS.fur);
+  crescent(g, 30, 86, 6.5, 6.5, -2, -2, COLORS.furShade);
   g.fillStyle(COLORS.furLight, 1);
   g.fillEllipse(28, 82, 7, 4);
+  g.lineStyle(1, COLORS.furShade, 1);
+  g.lineBetween(27, 87, 29, 90);
+  g.lineBetween(32, 86, 34, 89);
 }
+
+// Штрихи меха на шкуре вождя: [x1, y1, x2, y2, …] — короткие косые чёрточки.
+const PELT_STROKES = [
+  42, 84, 44, 87, 58, 92, 60, 95, 72, 96, 74, 99, 51, 104, 53, 107, 66, 106, 68, 109, 40, 100, 41, 103, 79, 100, 81, 103,
+];
 
 // Голова почти анфас: растрёпанная грива больше головы, лохматые брови,
 // большие весёлые глаза, нос картошкой, широкая улыбка в лохматой бороде.
@@ -896,6 +941,9 @@ function drawPlayerHead(g: Graphics): void {
   // Мягкий румянец.
   softEllipse(g, 47, 66.5, 12, 8, COLORS.cheek, 0.22, 4);
   softEllipse(g, 78, 66.5, 11, 7.5, COLORS.cheek, 0.22, 4);
+  // Светлый ободок по левому краю лица — свет слева сверху.
+  g.lineStyle(1.6, COLORS.white, 0.35);
+  g.strokePoints(toPoints(ellipsePoints(62, 56, 23.5, 24.5, Math.PI * 0.85, Math.PI * 1.25)), false);
 
   drawPlayerBeard(g);
   drawPlayerNose(g);
@@ -911,7 +959,18 @@ function drawPlayerHair(g: Graphics): void {
   drawLocks(g, hairLightLocks(), COLORS.hairLight);
   drawLocks(g, locksAround(62, 42, 18, [180, 10, 3, -25, 222, 13, 3, -25, 252, 15, 3, -25, 284, 14, 3, 20]), COLORS.hairLight);
   drawLocks(g, locksAround(62, 42, 15, [212, 11, 2.2, -25, 240, 14, 2.4, -30, 270, 13, 2.2, -20]), COLORS.hairShine);
+  // Тонкие тёмные пряди между светлыми — грива не плоская, а из волос.
+  for (const [x1, y1, x2, y2, x3, y3] of HAIR_STRANDS) smoothLine(g, [x1, y1, x2, y2, x3, y3], 1.1, COLORS.hairShade, 0.9);
 }
+
+// Тонкие пряди гривы: каждая — три точки изогнутой линии [x1, y1, x2, y2, x3, y3].
+const HAIR_STRANDS = [
+  [50, 26, 45, 21, 39, 19],
+  [62, 22, 61, 15, 63, 10],
+  [72, 25, 77, 20, 83, 18],
+  [42, 36, 36, 35, 31, 37],
+  [84, 36, 90, 35, 94, 38],
+];
 
 // Ухо с тенью и завитком внутри.
 function drawPlayerEar(g: Graphics, x: number, radius: number): void {
@@ -943,6 +1002,9 @@ function drawPlayerEye(g: Graphics, x: number, y: number, width: number, height:
   g.fillCircle(x - 0.2, y + 2.8, width * 0.06);
   g.lineStyle(THIN_OUTLINE_WIDTH, COLORS.outline, 1);
   g.strokeEllipse(x, y, width, height);
+  // Верхнее веко — линия потолще: взгляд живее и чётче.
+  g.lineStyle(2.8, COLORS.outline, 1);
+  g.strokePoints(toPoints(ellipsePoints(x, y, width / 2, height / 2, Math.PI * 1.12, Math.PI * 1.88)), false);
 }
 
 // Лохматая борода с тенью снизу справа, широкая улыбка внутри неё и пышные усы.
@@ -952,12 +1014,19 @@ function drawPlayerBeard(g: Graphics): void {
   // Светлые и блестящие пряди.
   drawLocks(g, [[52, 84, 100, 9, 2, 15], [63, 89, 90, 10, 2, -10], [74, 84, 80, 9, 2, -15]], COLORS.hairLight);
   drawLocks(g, [[48, 78, 120, 7, 1.6, 15], [57, 88, 100, 7, 1.6, 10]], COLORS.hairShine);
+  // Тонкие тёмные пряди внутри бороды.
+  for (const [x1, y1, x2, y2] of [[47, 83, 50, 89], [69, 89, 67, 95], [77, 81, 75, 87], [58, 92, 59, 97]]) {
+    smoothLine(g, [x1, y1, (x1 + x2) / 2 + 1, (y1 + y2) / 2, x2, y2], 1.2, COLORS.hairShade, 0.9);
+  }
 
   // Широкая улыбка: тёмный рот, ряд верхних зубов и язык с бликом.
   g.fillStyle(COLORS.outline, 1);
   g.fillEllipse(63, 81, 20, 13);
   g.fillStyle(COLORS.eye, 1);
   g.fillRoundedRect(55, 76, 16, 4.5, 2);
+  // Щёлочки между зубами.
+  g.lineStyle(0.9, COLORS.eyeShade, 1);
+  for (const x of [59, 63, 67]) g.lineBetween(x, 76.6, x, 80);
   g.fillStyle(COLORS.tongue, 1);
   g.fillEllipse(63, 85, 11, 4.5);
   g.fillStyle(COLORS.white, 0.35);
@@ -989,17 +1058,22 @@ function drawPlayerNose(g: Graphics): void {
 }
 
 // Большой круглый глаз: белок, карий зрачок смотрит чуть вправо, блик.
+// Тень от века сверху и светлый низ радужки — как у вождя, только проще.
 function drawRoundEye(g: Graphics, x: number, y: number, width: number, height: number): void {
   g.fillStyle(COLORS.eye, 1);
   g.fillEllipse(x, y, width, height);
-  g.lineStyle(THIN_OUTLINE_WIDTH, COLORS.outline, 1);
-  g.strokeEllipse(x, y, width, height);
+  crescent(g, x, y, width / 2, height / 2, 0, 1.8, COLORS.eyeShade);
   g.fillStyle(COLORS.iris, 1);
   g.fillCircle(x + 1.5, y + 0.5, width * 0.32);
+  crescent(g, x + 1.5, y + 0.5, width * 0.32, width * 0.32, 0, -1, COLORS.irisLight);
   g.fillStyle(COLORS.outline, 1);
   g.fillCircle(x + 1.8, y + 0.5, width * 0.16);
   g.fillStyle(COLORS.eye, 1);
   g.fillCircle(x + 3, y - 1.5, width * 0.12);
+  g.lineStyle(THIN_OUTLINE_WIDTH, COLORS.outline, 1);
+  g.strokeEllipse(x, y, width, height);
+  g.lineStyle(2.4, COLORS.outline, 1);
+  g.strokePoints(toPoints(ellipsePoints(x, y, width / 2, height / 2, Math.PI * 1.15, Math.PI * 1.85)), false);
 }
 
 // ===== Лохматые волосы и борода =====
@@ -1137,6 +1211,9 @@ function drawClub(g: Graphics): void {
   g.lineStyle(1.4, COLORS.stoneDark, 1);
   g.strokePoints(toPoints([cx - 9, 22, cx - 4, 25, cx - 5, 30]), false);
   g.strokePoints(toPoints([cx + 5, 12, cx + 8, 17]), false);
+  // Крапинки на камне.
+  g.fillStyle(COLORS.stoneDark, 1);
+  for (const [x, y] of [[cx - 10, 15], [cx + 9, 24], [cx + 2, 30], [cx - 2, 9]]) g.fillCircle(x, y, 1);
   // Ремни крест-накрест держат валун.
   limb(g, cx - 13, 16, cx + 12, 31, 3.4, COLORS.leather);
   limb(g, cx + 13, 16, cx - 12, 31, 3.4, COLORS.leather);
@@ -1161,10 +1238,17 @@ function drawAxe(g: Graphics, withFist: boolean): void {
     fillPolygon(g, [m(14), 36, m(26), 40, m(33), 38, m(34), 43, m(26), 48, m(14), 40], COLORS.stoneDark);
     g.lineStyle(2.6, COLORS.snowLight, 0.95);
     g.strokePoints(toPoints([m(34.5), 11, m(36.5), 26, m(34.5), 41]), false);
+    // Сколы-грани на камне.
+    g.lineStyle(1.3, COLORS.stoneDark, 1);
+    g.strokePoints(toPoints([m(20), 20, m(24), 25, m(22), 31]), false);
+    g.strokePoints(toPoints([m(28), 18, m(30), 22]), false);
     strokePolygon(g, blade);
   }
   outlinedEllipse(g, cx, 26, 12, 22, COLORS.stoneDark);
   for (const [y1, y2] of [[16, 36], [36, 16]]) limb(g, cx - 6, y1, cx + 6, y2, 4, COLORS.leather);
+  g.lineStyle(1, COLORS.leatherLight, 1);
+  g.lineBetween(cx - 5, 17, cx - 1, 23.5);
+  g.lineBetween(cx - 5, 35, cx - 1, 28.5);
   if (withFist) drawFistFront(g, cx, h - WEAPON_GRIP_FROM_BOTTOM);
 }
 
@@ -1189,6 +1273,11 @@ function drawSpear(g: Graphics, withFist: boolean): void {
   }
   g.lineStyle(1.4, COLORS.stoneLight, 1);
   g.lineBetween(cx, 6, cx, 44);
+  // Сколы по краю кремня — маленькие светлые дужки.
+  g.lineStyle(1, COLORS.stoneLight, 1);
+  for (const [x, y] of [[cx - 8, 20], [cx - 9, 30], [cx + 6, 26], [cx + 7, 36]]) {
+    g.strokePoints(toPoints(arcPoints(x, y, 2, -Math.PI * 0.5, Math.PI * 0.5)), false);
+  }
   strokePolygon(g, leaf);
   outlinedBlobs(g, [cx - 5, 50, 3.6, cx, 51, 4, cx + 5, 50, 3.6], COLORS.furLight);
   if (withFist) drawFistFront(g, cx, h - WEAPON_GRIP_FROM_BOTTOM);
@@ -1200,6 +1289,11 @@ function drawWoodHandle(g: Graphics, cx: number, h: number, top: number, width: 
   limbChain(g, [cx, h - 6, cx - 1.2, (h + top) / 2, cx, top], width, COLORS.wood);
   g.lineStyle(1.6, COLORS.woodLight, 1);
   g.lineBetween(cx - width / 2 + 1.5, h - 16, cx - width / 2 + 1.5, top + 8);
+  // Волокна дерева — короткие тёмные чёрточки вдоль рукояти.
+  g.lineStyle(1, COLORS.woodDark, 0.8);
+  const mid = (h + top) / 2;
+  g.lineBetween(cx + 1, mid - 10, cx + 1, mid - 3);
+  g.lineBetween(cx - 1.5, mid + 6, cx - 1.5, mid + 12);
 }
 
 // Кожаная обмотка рукояти над кулаком: три косые полоски, первая на высоте y.
@@ -1506,21 +1600,35 @@ function drawTravelerRobe(g: Graphics, color: number, shade: number): void {
   const { h } = TRAVELER_SIZE;
   const cx = TRAVELER_CX;
 
-  outlinedEllipse(g, cx - 11, h - 7, 17, 11, COLORS.furDark);
-  outlinedEllipse(g, cx + 11, h - 7, 17, 11, COLORS.furDark);
+  for (const dx of [-11, 11]) {
+    outlinedEllipse(g, cx + dx, h - 7, 17, 11, COLORS.furDark);
+    g.fillStyle(COLORS.white, 0.2);
+    g.fillEllipse(cx + dx - 3, h - 9, 7, 3);
+  }
   const robe = [cx - 14, 46, cx + 14, 46, cx + 27, h - 16, cx - 27, h - 16];
   fillPolygon(g, robe, color);
   fillPolygon(g, [cx + 5, 47, cx + 14, 46, cx + 27, h - 16, cx + 11, h - 16], shade);
+  // Мягкие складки: одежда расходится от шеи вниз.
+  g.lineStyle(1.5, shade, 0.7);
+  g.lineBetween(cx - 7, 50, cx - 15, h - 20);
+  g.lineBetween(cx - 1, 52, cx - 2, h - 20);
   g.lineStyle(3, COLORS.ochre, 1);
   g.lineBetween(cx - 20, 74, cx + 20, 74);
+  // Свет по левому краю одежды.
+  g.lineStyle(2, COLORS.white, 0.18);
+  g.lineBetween(cx - 12.5, 49, cx - 24, h - 19);
   g.fillStyle(COLORS.white, 1);
   for (let x = cx - 16; x <= cx + 16; x += 8) g.fillCircle(x, 81, 1.5);
   strokePolygon(g, robe);
 
+  // Строчка над оторочкой — мелкие стежки.
+  g.lineStyle(1.2, shade, 1);
+  for (let x = cx - 22; x <= cx + 22; x += 5) g.lineBetween(x, h - 24, x + 2, h - 24);
   // Оторочка из кружков-«клочков» меха.
   const trim: number[] = [];
   for (let x = cx - 26; x <= cx + 26; x += 6.5) trim.push(x, h - 17, 4.4);
   outlinedBlobs(g, trim, COLORS.travelerHideLight);
+  shadeBlobs(g, trim, COLORS.travelerHide);
   limb(g, cx - 17, 64, cx + 17, 64, 3, COLORS.leather);
   outlinedCircle(g, cx - 2, 64, 2.6, COLORS.bone);
 }
@@ -1538,6 +1646,13 @@ function drawTravelerHoodFront(g: Graphics, color: number): void {
     ruff.push(cx + Math.cos(angle) * 17, y + Math.sin(angle) * 17, 5);
   }
   outlinedBlobs(g, ruff, COLORS.travelerRuff);
+  shadeBlobs(g, ruff, COLORS.travelerRuffShade);
+  // Блики на верхних клочках опушки.
+  g.fillStyle(COLORS.white, 0.8);
+  for (let i = 9; i < 13; i++) {
+    const angle = (i / tufts) * Math.PI * 2;
+    g.fillCircle(cx + Math.cos(angle) * 17 - 1.5, y + Math.sin(angle) * 17 - 1.5, 1.4);
+  }
   g.fillStyle(COLORS.travelerHoodInside, 1);
   g.fillCircle(cx, y, 15);
 }
@@ -1548,11 +1663,14 @@ function drawTravelerHoodBack(g: Graphics, color: number, shade: number): void {
   const y = TRAVELER_HEAD_Y;
   outlinedCircle(g, cx, y - 1, 20, color);
   crescent(g, cx, y - 1, 18.5, 18.5, -4, -3, shade);
+  g.fillStyle(COLORS.white, 0.18);
+  g.fillEllipse(cx - 7, y - 11, 12, 7);
   g.lineStyle(1.5, shade, 1);
   g.lineBetween(cx, y - 20, cx, y + 14);
   const ruff: number[] = [];
   for (let x = cx - 16; x <= cx + 16; x += 6.4) ruff.push(x, y + 16, 4.2);
   outlinedBlobs(g, ruff, COLORS.travelerRuff);
+  shadeBlobs(g, ruff, COLORS.travelerRuffShade);
 }
 
 // Палка от земли выше головы: копьё (с каменным наконечником) или посох.
@@ -1579,15 +1697,16 @@ function drawTravelerFace(g: Graphics): void {
   crescent(g, cx, y, 12.5, 12.5, -4, -2, COLORS.skinShade);
   g.fillStyle(COLORS.white, 0.35);
   g.fillEllipse(cx - 5, y - 8, 9, 4);
-  g.fillStyle(COLORS.cheek, 0.7);
-  g.fillCircle(cx - 8, y + 5, 3.5);
-  g.fillCircle(cx + 8, y + 5, 3.5);
+  softEllipse(g, cx - 8, y + 5, 9, 7, COLORS.cheek, 0.3, 3);
+  softEllipse(g, cx + 8, y + 5, 9, 7, COLORS.cheek, 0.3, 3);
   for (const x of [cx - 6, cx + 6]) {
     drawRoundEye(g, x, y - 2, 8, 9);
     g.fillStyle(COLORS.white, 1);
     g.fillCircle(x - 1, y - 0.2, 0.8);
   }
   outlinedCircle(g, cx, y + 3, 3.5, COLORS.nose);
+  g.fillStyle(COLORS.white, 0.7);
+  g.fillCircle(cx - 1.2, y + 1.8, 0.9);
   g.lineStyle(2, COLORS.outline, 1);
   g.beginPath();
   g.arc(cx, y + 6, 4, Math.PI * 0.15, Math.PI * 0.85);
@@ -1676,6 +1795,10 @@ function drawElder(g: Graphics, isFront: boolean): void {
       [cx - 9, y + 11, 7, cx + 9, y + 11, 7, cx, y + 16, 9, cx - 4, y + 26, 7, cx + 4, y + 26, 7, cx, y + 35, 6, cx, y + 42, 4],
       COLORS.elderHair,
     );
+    // Пряди и тень в бороде.
+    g.lineStyle(1.2, COLORS.elderHairShade, 1);
+    for (const [x1, y1, x2, y2] of [[cx - 5, y + 18, cx - 4, y + 28], [cx + 4, y + 20, cx + 3, y + 30], [cx, y + 30, cx, y + 40]]) g.lineBetween(x1, y1, x2, y2);
+    crescent(g, cx, y + 16, 8, 8, -2, -3, COLORS.elderHairShade);
     g.fillStyle(COLORS.skin, 1);
     g.fillEllipse(cx, y + 6, 10, 4);
     outlinedBlobs(g, [cx - 5, y + 9, 4, cx + 5, y + 9, 4], COLORS.elderHair);
@@ -1701,11 +1824,20 @@ function drawGirl(g: Graphics, isFront: boolean): void {
     drawBraid(g, cx + 14, y + 4, cx + 16, y + 30);
     drawTravelerHoodFront(g, COLORS.travelerHide);
     drawTravelerFace(g);
-    // Ожерелье из маленьких клыков.
+    // Ожерелье из маленьких клыков на шнурке, между клыками — бусины.
+    // Обводка тонкая: толстая залила бы мелкие клыки тёмным.
+    smoothLine(g, [cx - 11, 48.5, cx, 51, cx + 11, 48.5], 1.2, COLORS.leather);
     for (const dx of [-8, -3, 3, 8]) {
-      const tooth = [cx + dx - 2, 50, cx + dx + 2, 50, cx + dx, 56];
+      const tooth = [cx + dx - 2, 50, cx + dx + 2, 50, cx + dx, 56.5];
       fillPolygon(g, tooth, COLORS.tusk);
-      strokePolygon(g, tooth);
+      g.lineStyle(1.3, COLORS.outline, 1);
+      g.strokePoints(toPoints(tooth), true, true);
+    }
+    g.lineStyle(1, COLORS.outline, 1);
+    for (const dx of [-5.5, 0, 5.5]) {
+      g.fillStyle(COLORS.bead, 1);
+      g.fillCircle(cx + dx, 51, 1.6);
+      g.strokeCircle(cx + dx, 51, 1.6);
     }
   } else {
     // Плетёная корзина за спиной: обод и прутья.
@@ -1732,7 +1864,12 @@ function drawBraid(g: Graphics, x1: number, y1: number, x2: number, y2: number):
     blobs.push(Phaser.Math.Linear(x1, x2, t), Phaser.Math.Linear(y1, y2, t), 4.5 - t * 1.2);
   }
   outlinedBlobs(g, blobs, COLORS.girlHair);
+  // Плетение: светлая прядка на каждом звене.
+  g.fillStyle(COLORS.hair, 1);
+  for (let i = 0; i < blobs.length; i += 3) g.fillEllipse(blobs[i] - 1, blobs[i + 1] - 1, 3, 1.6);
   outlinedCircle(g, x2, y2 + 6, 3.5, COLORS.bead);
+  g.fillStyle(COLORS.white, 0.7);
+  g.fillCircle(x2 - 1.2, y2 + 4.8, 1.1);
 }
 
 // Пузырь над головой путника: белый овал с хвостиком вниз и тёмной обводкой.
@@ -1740,16 +1877,20 @@ function drawBubble(g: Graphics): void {
   const { w, h } = BUBBLE_SIZE;
   const body = h - 12;
 
-  g.fillStyle(COLORS.bubble, 1);
+  // Весь пузырь — цветом тени, поверх белый, чуть выше и уже:
+  // внизу и по бокам остаётся мягкая голубая тень, как у снежного кома.
+  g.fillStyle(COLORS.bubbleShade, 1);
   g.fillRoundedRect(2, 2, w - 4, body, 16);
-  fillPolygon(g, [w / 2 - 8, body, w / 2 + 8, body, w / 2, h - 2], COLORS.bubble);
+  fillPolygon(g, [w / 2 - 8, body, w / 2 + 8, body, w / 2, h - 2], COLORS.bubbleShade);
+  g.fillStyle(COLORS.bubble, 1);
+  g.fillRoundedRect(4, 3, w - 8, body - 5, 14);
   g.lineStyle(OUTLINE_WIDTH, COLORS.outline, 1);
   g.strokeRoundedRect(2, 2, w - 4, body, 16);
   g.lineBetween(w / 2 - 8, body + 1, w / 2, h - 2);
   g.lineBetween(w / 2 + 8, body + 1, w / 2, h - 2);
   // Закрашиваем обводку там, где хвостик соединяется с пузырём.
-  g.fillStyle(COLORS.bubble, 1);
-  g.fillRect(w / 2 - 6, body - 3, 12, 4);
+  g.fillStyle(COLORS.bubbleShade, 1);
+  g.fillRect(w / 2 - 6, body - 2, 12, 3);
 }
 
 // Заяц-беляк, смотрит вправо. Тело — из нескольких кругов, поэтому по краю
@@ -1770,6 +1911,11 @@ function drawRabbit(g: Graphics): void {
   // Светлое брюхо спереди.
   g.fillStyle(COLORS.rabbitBelly, 1);
   g.fillEllipse(38, 46, 12, 14);
+  // Пушок на груди — светлые зубчики по краю брюха.
+  g.lineStyle(1.1, COLORS.rabbitShade, 1);
+  for (const y of [42, 46, 50]) g.lineBetween(43, y, 44.5, y + 1.5);
+  // Вихры меха на боку — короткие голубые дужки.
+  for (const [x, y] of [[17, 40], [24, 45], [31, 41]]) smoothLine(g, [x, y, x + 2, y + 1.5, x + 4, y + 1], 1.2, COLORS.rabbitShade);
   // Большая задняя лапа с пальчиками и маленькая передняя.
   outlinedEllipse(g, 20, 55, 22, 6, COLORS.rabbitBelly);
   outlinedEllipse(g, 42, 55, 9, 5, COLORS.rabbitBelly);
@@ -1782,15 +1928,26 @@ function drawRabbit(g: Graphics): void {
   g.fillEllipse(42, 22, 12, 5);
   g.fillStyle(COLORS.rabbitBelly, 1);
   g.fillEllipse(53, 36, 12, 9);
+  // Розовая щёчка.
+  softEllipse(g, 51, 34, 7, 4.5, COLORS.rabbitEar, 0.25, 3);
+  // Пушистая щека: два клочка меха под глазом.
+  smoothLine(g, [44, 37, 46, 39, 48, 38.5], 1.1, COLORS.rabbitShade);
+  smoothLine(g, [41, 35, 42.5, 37.5, 44.5, 37.8], 1.1, COLORS.rabbitShade);
   // Большой блестящий глаз: тёмный, с двумя бликами.
   g.fillStyle(COLORS.rabbitEye, 1);
   g.fillEllipse(49, 27, 8, 9);
+  g.fillStyle(COLORS.irisLight, 0.8);
+  g.fillEllipse(49.4, 29.2, 5, 3.4);
+  g.fillStyle(COLORS.rabbitEye, 1);
+  g.fillCircle(49.2, 26.8, 2.4);
   g.fillStyle(COLORS.white, 1);
   g.fillCircle(51, 24.5, 2);
   g.fillCircle(47.6, 29.6, 1);
-  // Нос, рот и усы.
+  // Нос с бликом, рот и усы.
   g.fillStyle(COLORS.rabbitNose, 1);
   g.fillEllipse(58, 33, 5, 4);
+  g.fillStyle(COLORS.white, 0.7);
+  g.fillCircle(57.4, 32.3, 0.9);
   g.lineStyle(1, COLORS.outline, 0.6);
   g.lineBetween(57.5, 35, 57, 37.5);
   g.lineStyle(1, COLORS.outline, 0.45);
@@ -1818,13 +1975,28 @@ function drawWolfBody(g: Graphics): void {
     [22, 32, 36, 26, 54, 27, 72, 25, 88, 18, 100, 14, 104, 20, 92, 28, 76, 32, 58, 34, 42, 34, 28, 38],
     COLORS.wolfDark,
   );
-  // Светлое брюхо под грудью и животом.
+  // Короткие тёмные пряди свисают из-под седловины — шерсть, а не заливка.
+  g.lineStyle(1.6, COLORS.wolfDark, 1);
+  for (const [x, y] of WOLF_SADDLE_FUR) g.lineBetween(x, y, x - 2, y + 4);
+  // Мягкий свет на плече и бедре — волк объёмнее.
+  softEllipse(g, 92, 38, 18, 12, COLORS.wolfLight, 0.16, 3);
+  softEllipse(g, 30, 44, 18, 12, COLORS.wolfLight, 0.14, 3);
+  // Полутень внизу бедра и бока — волк круглее.
+  fillPolygon(g, [14, 42, 20, 50, 30, 56, 42, 54, 52, 50, 62, 50, 60, 52, 48, 54, 40, 60, 28, 62, 16, 52], COLORS.wolfShade);
+  // Светлая полоса шерсти под седловиной — там, куда падает свет.
+  g.lineStyle(2.4, COLORS.wolfLight, 0.8);
+  g.strokePoints(toPoints([30, 41, 42, 37, 58, 37, 76, 35, 90, 31]), false);
+  // Светлое брюхо под грудью и животом, по нижнему краю — клочки шерсти.
   fillPolygon(g, [104, 50, 100, 60, 86, 66, 72, 60, 62, 53, 74, 56, 88, 60], COLORS.wolfBelly);
+  g.lineStyle(1.2, COLORS.wolfLight, 1);
+  for (const [x, y] of [[76, 59], [84, 62], [92, 60], [99, 56]]) g.lineBetween(x, y, x - 1.5, y - 3);
   // Штрихи шерсти на бедре и плече.
   g.lineStyle(1.5, COLORS.wolfDark, 1);
   g.lineBetween(22, 48, 28, 54);
   g.lineBetween(28, 46, 34, 54);
   g.lineBetween(88, 46, 92, 52);
+  g.lineBetween(94, 42, 97, 48);
+  g.lineBetween(50, 42, 54, 47);
   strokePolygon(g, silhouette);
 
   // Грива: короткие тёмные лохмы торчат вверх-назад над загривком и шеей.
@@ -1840,6 +2012,9 @@ function drawWolfBody(g: Graphics): void {
   g.lineStyle(THIN_OUTLINE_WIDTH, COLORS.outline, 1);
   g.strokePoints(toPoints(ruff.slice(4)), false);
 }
+
+// Нижний край седловины волка: отсюда вниз свисают тёмные пряди [x, y].
+const WOLF_SADDLE_FUR = [[30, 37], [38, 35], [47, 35], [56, 35], [65, 34], [74, 33], [83, 29], [92, 26], [99, 21]];
 
 // Голова: узкая длинная морда, уши прижаты назад, оскал с двумя клыками
 // и складкой на носу, жёлтый глаз с узким зрачком под сердитой бровью.
@@ -1863,9 +2038,11 @@ function drawWolfHead(g: Graphics): void {
   strokePolygon(g, snout);
   g.fillStyle(COLORS.wolf, 1);
   g.fillCircle(21, 24, 11);
-  // Светлый верх морды.
+  // Светлый верх морды и тень вдоль низа морды.
   g.fillStyle(COLORS.wolfLight, 1);
   g.fillPoints(toPoints([32, 17, 46, 18, 62, 23, 46, 21]), true);
+  g.fillStyle(COLORS.wolfShade, 1);
+  g.fillPoints(toPoints([30, 31, 46, 29, 64, 27, 66, 30, 52, 31.5, 36, 33.5]), true);
   // Оскал: тёмная губа, верхний клык вниз, нижний — вверх, складка на носу.
   g.lineStyle(3, COLORS.wolfMouth, 1);
   g.lineBetween(36, 34, 62, 31);
@@ -1878,14 +2055,27 @@ function drawWolfHead(g: Graphics): void {
   const cheek = [8, 30, 20, 30, 28, 34, 22, 38, 20, 46, 14, 40, 8, 46, 6, 38];
   fillPolygon(g, cheek, COLORS.wolfBelly);
   strokePolygon(g, cheek);
-  // Нос.
+  // Штрихи шерсти на щеке.
+  g.lineStyle(1.2, COLORS.wolfLight, 1);
+  g.lineBetween(12, 36, 14, 40);
+  g.lineBetween(17, 34, 18, 38);
+  // Нос с бликом.
   outlinedEllipse(g, 68, 26, 7, 6, COLORS.outline);
+  g.fillStyle(COLORS.white, 0.55);
+  g.fillEllipse(67, 24.6, 2.6, 1.4);
+  // Светлый лоб и светлый ободок по макушке.
+  g.fillStyle(COLORS.wolfLight, 0.8);
+  g.fillEllipse(17, 19, 9, 4);
+  g.lineStyle(1.4, COLORS.wolfLight, 0.8);
+  g.strokePoints(toPoints(arcPoints(21, 24, 9.5, Math.PI * 1.05, Math.PI * 1.4)), false);
 
-  // Глаз: жёлтый, с узким зрачком, под низкой сердитой бровью.
+  // Глаз: жёлтый, с узким зрачком и искоркой, под низкой сердитой бровью.
   g.fillStyle(COLORS.wolfEye, 1);
   g.fillPoints(toPoints([29, 20, 34, 17, 40, 19, 35, 23]), true);
   g.fillStyle(COLORS.outline, 1);
   g.fillEllipse(35, 20, 2.5, 5);
+  g.fillStyle(COLORS.white, 0.9);
+  g.fillCircle(37, 19.6, 0.9);
   g.lineStyle(3, COLORS.outline, 1);
   g.lineBetween(26, 14, 42, 19);
 }
@@ -1893,7 +2083,7 @@ function drawWolfHead(g: Graphics): void {
 // Хвост: длинный и пушистый, тёмный сверху и на кончике. Основание — справа.
 function drawWolfTail(g: Graphics): void {
   // Пушистый посередине, сужается к кончику.
-  outlinedBlobs(g, [62, 12, 7, 51, 14, 9, 39, 16, 9, 27, 18, 7, 17, 19, 5, 9, 20, 3], COLORS.wolf);
+  outlinedBlobs(g, [61, 12, 6, 51, 14, 9, 39, 16, 9, 27, 18, 7, 17, 19, 5, 9, 20, 3], COLORS.wolf);
   g.fillStyle(COLORS.wolfDark, 1);
   g.fillEllipse(42, 11, 34, 5);
   g.fillCircle(11, 20, 3.5);
@@ -1902,12 +2092,21 @@ function drawWolfTail(g: Graphics): void {
   fillPolygon(g, tuft, COLORS.wolf);
   g.lineStyle(THIN_OUTLINE_WIDTH, COLORS.outline, 1);
   g.strokePoints(toPoints(tuft.slice(0, 12)), false);
+  // Светлые пряди посередине хвоста и тёмные — по верхней кромке.
+  g.lineStyle(1.2, COLORS.wolfLight, 1);
+  for (const x of [22, 34, 46]) g.lineBetween(x, 17, x + 5, 16);
+  for (const x of [28, 40, 52]) g.lineBetween(x, 20, x + 4, 19.5);
+  g.lineStyle(1.2, COLORS.wolfDark, 1);
+  for (const x of [20, 32, 44, 56]) g.lineBetween(x, 13.5, x + 4, 14.5);
 }
 
 // Передняя лапа: от плеча прямо вниз, тонкое запястье и лапа с когтями.
 function drawWolfFrontLeg(g: Graphics): void {
   limbChain(g, [13, 6, 12, 38, 13, 52], 8, COLORS.wolf);
   limb(g, 13, 4, 12, 24, 12, COLORS.wolf);
+  // Тень по правому краю лапы.
+  g.lineStyle(2.4, COLORS.wolfShade, 1);
+  g.lineBetween(15.2, 26, 14.4, 48);
   drawWolfPaw(g, 15, 54);
 }
 
@@ -1915,12 +2114,17 @@ function drawWolfFrontLeg(g: Graphics): void {
 function drawWolfBackLeg(g: Graphics): void {
   limbChain(g, [16, 6, 22, 30, 11, 44, 13, 55], 9, COLORS.wolf);
   limb(g, 16, 4, 21, 24, 15, COLORS.wolf);
+  // Тень по правому краю голени.
+  g.lineStyle(2.4, COLORS.wolfShade, 1);
+  g.strokePoints(toPoints([23.6, 32.5, 13.4, 45.4, 14.8, 52]), false);
   drawWolfPaw(g, 16, 57);
 }
 
 // Лапа волка: овал с тремя тёмными когтями спереди.
 function drawWolfPaw(g: Graphics, x: number, y: number): void {
   outlinedEllipse(g, x, y, 15, 7, COLORS.wolf);
+  g.fillStyle(COLORS.wolfLight, 0.8);
+  g.fillEllipse(x - 2, y - 1.2, 7, 2.2);
   g.lineStyle(1.5, COLORS.outline, 1);
   for (const dx of [2, 5, 8]) g.lineBetween(x + dx - 1, y - 1, x + dx + 1, y + 3);
 }
@@ -3054,6 +3258,15 @@ function outlinedBlobs(g: Graphics, blobs: number[], color: number): void {
   g.fillStyle(color, 1);
   for (let i = 0; i < blobs.length; i += 3) {
     g.fillCircle(blobs[i], blobs[i + 1], blobs[i + 2]);
+  }
+}
+
+// Тень внизу каждого кружка-клочка (опушка, оторочка): мех выглядит пушистым и объёмным.
+// blobs — тот же список [x, y, радиус, …], что и у outlinedBlobs.
+function shadeBlobs(g: Graphics, blobs: number[], color: number): void {
+  for (let i = 0; i < blobs.length; i += 3) {
+    const r = blobs[i + 2] - 0.6;
+    crescent(g, blobs[i], blobs[i + 1], r, r, -1, -2, color);
   }
 }
 
