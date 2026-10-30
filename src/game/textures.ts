@@ -73,6 +73,9 @@ export const TEXTURES = {
   glow: 'glow', // мягкий белый круг; его красят в цвет света
   spark: 'spark', // искра костра (белая, цвет задаёт частица)
   nightLight: 'night-light', // ночная тьма со светлым пятном посередине (белая, красится tint)
+  fireLight: 'fire-light', // плавное пятно света без ступенек: ореол огня и тёплый свет ночью (белое, красится tint)
+  smoke: 'smoke', // клуб дыма над костром: мягкое белое облачко (цвет задаёт частица)
+  vignette: 'vignette', // ночная виньетка: середина прозрачная, к углам экрана темнеет (белая, красится tint)
   heatBarBack: 'heat-bar-back', // подложка шкалы жара над костром
   heatBarFill: 'heat-bar-fill', // заливка шкалы жара (белая, красится tint)
   hudPanel: 'hud-panel', // плашка интерфейса со скруглёнными углами
@@ -177,6 +180,25 @@ const FLAME_SIZE: Size = { w: 64, h: 96 };
 const GLOW_SIZE: Size = { w: 128, h: 128 };
 const SPARK_SIZE: Size = { w: 8, h: 8 };
 const NIGHT_LIGHT_SIZE: Size = { w: 256, h: 256 };
+const FIRE_LIGHT_SIZE: Size = { w: 256, h: 256 };
+const SMOKE_SIZE: Size = { w: 40, h: 32 };
+// Клуб дыма — три мягких круга: середина (x, y) в долях картинки и радиус в долях ширины.
+// Круги целиком внутри картинки — иначе у облачка был бы срезанный край.
+const SMOKE_BLOBS = [
+  { x: 0.34, y: 0.6, r: 0.3 },
+  { x: 0.66, y: 0.6, r: 0.3 },
+  { x: 0.5, y: 0.4, r: 0.3 },
+];
+// Плотность середины каждого круга (там, где круги накладываются, дым гуще).
+const SMOKE_BLOB_ALPHA = 0.55;
+const VIGNETTE_SIZE: Size = { w: 256, h: 256 };
+// Виньетка начинает темнеть на этой доле радиуса (до неё — совсем прозрачно).
+// Радиус — до угла картинки, поэтому к углам экрана тьма гуще всего.
+const VIGNETTE_CLEAR = 0.45;
+// Ночная тьма начинает густеть на этой доле радиуса пятна (ближе к середине — совсем светло).
+const NIGHT_LIGHT_CLEAR = 0.3;
+// Из скольких ступеней-цветов состоит плавный переход градиента (больше — глаже).
+const GRADIENT_STEPS = 12;
 const HEAT_BAR_BACK_SIZE: Size = { w: 116, h: 24 };
 const HEAT_BAR_FILL_SIZE: Size = { w: 104, h: 12 };
 const HUD_PANEL_SIZE: Size = { w: 170, h: 66 };
@@ -295,6 +317,9 @@ export function createTextures(scene: Phaser.Scene): void {
   bake(scene, TEXTURES.glow, GLOW_SIZE, drawGlow);
   bake(scene, TEXTURES.spark, SPARK_SIZE, drawSpark);
   bakeNightLight(scene);
+  bakeFireLight(scene);
+  bakeVignette(scene);
+  bakeSmoke(scene);
   bake(scene, TEXTURES.heatBarBack, HEAT_BAR_BACK_SIZE, drawHeatBarBack);
   bake(scene, TEXTURES.heatBarFill, HEAT_BAR_FILL_SIZE, drawHeatBarFill);
   bake(scene, TEXTURES.hudPanel, HUD_PANEL_SIZE, drawHudPanel);
@@ -345,12 +370,80 @@ function bakeNightLight(scene: Phaser.Scene): void {
   const context = canvas.getContext();
   const radius = w / 2;
   const gradient = context.createRadialGradient(radius, radius, 0, radius, radius, radius);
-  // До 35% радиуса — совсем светло, дальше тьма плавно густеет до края круга.
+  // До NIGHT_LIGHT_CLEAR радиуса — совсем светло, дальше тьма густеет до края круга.
+  // Густеет по плавной S-кривой: сначала еле заметно, у края — мягко упирается в полную тьму.
+  // Так у светлого пятна нет резкой «кромки».
   gradient.addColorStop(0, 'rgba(255, 255, 255, 0)');
-  gradient.addColorStop(0.35, 'rgba(255, 255, 255, 0)');
-  gradient.addColorStop(1, 'rgba(255, 255, 255, 1)');
+  for (let i = 0; i <= GRADIENT_STEPS; i++) {
+    const t = i / GRADIENT_STEPS;
+    const stop = Phaser.Math.Linear(NIGHT_LIGHT_CLEAR, 1, t);
+    gradient.addColorStop(stop, `rgba(255, 255, 255, ${Phaser.Math.SmoothStep(t, 0, 1)})`);
+  }
   context.fillStyle = gradient;
   context.fillRect(0, 0, w, h);
+  canvas.refresh();
+}
+
+// Плавное пятно света: в середине белое и плотное, к краю тает до нуля.
+// Рисуется на canvas градиентом, как ночная тьма, — у Graphics круг вышел бы ступеньками.
+// Тает по квадрату расстояния: свет быстро слабеет у огня и долго «тянется» к краю.
+function bakeFireLight(scene: Phaser.Scene): void {
+  const { w, h } = FIRE_LIGHT_SIZE;
+  const canvas = scene.textures.createCanvas(TEXTURES.fireLight, w, h);
+  if (!canvas) return;
+
+  const context = canvas.getContext();
+  const radius = w / 2;
+  const gradient = context.createRadialGradient(radius, radius, 0, radius, radius, radius);
+  for (let i = 0; i <= GRADIENT_STEPS; i++) {
+    const t = i / GRADIENT_STEPS;
+    gradient.addColorStop(t, `rgba(255, 255, 255, ${(1 - t) * (1 - t)})`);
+  }
+  context.fillStyle = gradient;
+  context.fillRect(0, 0, w, h);
+  canvas.refresh();
+}
+
+// Виньетка: середина прозрачная, к краям и углам плавно темнеет.
+// Радиус градиента — до угла квадрата, поэтому темнее всего именно углы экрана.
+function bakeVignette(scene: Phaser.Scene): void {
+  const { w, h } = VIGNETTE_SIZE;
+  const canvas = scene.textures.createCanvas(TEXTURES.vignette, w, h);
+  if (!canvas) return;
+
+  const context = canvas.getContext();
+  const center = w / 2;
+  const gradient = context.createRadialGradient(center, center, 0, center, center, Math.hypot(center, h / 2));
+  gradient.addColorStop(0, 'rgba(255, 255, 255, 0)');
+  for (let i = 0; i <= GRADIENT_STEPS; i++) {
+    const t = i / GRADIENT_STEPS;
+    const stop = Phaser.Math.Linear(VIGNETTE_CLEAR, 1, t);
+    gradient.addColorStop(stop, `rgba(255, 255, 255, ${t * t})`);
+  }
+  context.fillStyle = gradient;
+  context.fillRect(0, 0, w, h);
+  canvas.refresh();
+}
+
+// Клуб дыма: три мягких круга внахлёст — пушистое облачко без обводки и без кромки.
+// Рисуется на canvas: у мягких кругов из Graphics на тёмном фоне проступал край картинки.
+// Белый — цвет и прозрачность задаёт эмиттер частиц (Campfire.ts).
+function bakeSmoke(scene: Phaser.Scene): void {
+  const { w, h } = SMOKE_SIZE;
+  const canvas = scene.textures.createCanvas(TEXTURES.smoke, w, h);
+  if (!canvas) return;
+
+  const context = canvas.getContext();
+  for (const blob of SMOKE_BLOBS) {
+    const x = blob.x * w;
+    const y = blob.y * h;
+    const radius = blob.r * w;
+    const gradient = context.createRadialGradient(x, y, 0, x, y, radius);
+    gradient.addColorStop(0, `rgba(255, 255, 255, ${SMOKE_BLOB_ALPHA})`);
+    gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+    context.fillStyle = gradient;
+    context.fillRect(0, 0, w, h);
+  }
   canvas.refresh();
 }
 
