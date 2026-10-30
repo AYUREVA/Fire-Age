@@ -3016,16 +3016,32 @@ function drawHudPanel(g: Graphics): void {
 }
 
 // Каменная плашка — как таблички и кнопки. Скругление углов (у низкой плашки —
-// не больше половины высоты), светлая кромка сверху с отступом от углов,
-// тёмное «окошко» под цифры и текст: отступ по бокам и сверху, ниже краёв на столько.
+// не больше половины высоты), тёмное «окошко» под цифры и текст:
+// отступ по бокам и сверху, ниже краёв на столько.
 const PLATE_RADIUS = 14;
-const PLATE_RIM_INSET = 12;
 const PLATE_WINDOW_SIDE = 4;
 const PLATE_WINDOW_TOP = 7;
 const PLATE_WINDOW_SHRINK = 10;
 // Запас вокруг плашки в картинке: обводка ложится по краю, и без запаса половина
 // её обрезалась бы (на прямых сторонах линия стала бы тоньше, чем на углах).
 const PLATE_MARGIN = 2;
+// Тёмный торец снизу плашки: на столько пикселей лицевая сторона короче плиты.
+const PLATE_LIP = 2;
+// Окошко «вырезано» в камне: тень по верхнему краю (толщина и прозрачность)
+// и светлый отблеск по нижнему.
+const PLATE_WINDOW_SHADOW = 3;
+const PLATE_WINDOW_SHADOW_ALPHA = 0.3;
+const PLATE_WINDOW_LIP_ALPHA = 0.35;
+// Снег на верхней кромке плашки, как на табличках: ровный слой такой толщины
+// с лёгкими волнами (размах, пиксели), а по углам он свисает наплывами
+// с круглым низом — радиусы левого и правого наплыва.
+const PLATE_SNOW_DEPTH = 7.5;
+const PLATE_SNOW_WAVE = 1.2;
+const PLATE_DROOP_LEFT_RADIUS = 6;
+const PLATE_DROOP_RIGHT_RADIUS = 5;
+// Крапинки на камне окошка: одна на столько квадратных пикселей.
+const PLATE_SPECK_AREA = 420;
+const PLATE_SPECKS_SEED = 'stone-plate';
 
 // Каменная плашка размером width × height — в картинку key (с запасом PLATE_MARGIN
 // со всех сторон, середина картинки — середина плашки). Рисуется так же, как
@@ -3038,26 +3054,106 @@ export function bakeStonePlate(scene: Phaser.Scene, key: string, width: number, 
   );
 }
 
-// Каменная плашка любого размера: тонкая светлая кромка сверху, тёмный торец снизу
-// и тёмное «окошко» почти на всю высоту. Рисуется сразу нужного размера, а не
-// растягивается, — поэтому углы и кромка у всех плашек одинаковые, длиннее
-// становятся только прямые линии. (left, top) — левый верхний угол.
+// Каменная плашка любого размера: снег на верхней кромке, тёмный торец снизу
+// и тёмное «окошко», вырезанное в камне, почти на всю высоту. Рисуется сразу
+// нужного размера, а не растягивается, — поэтому углы и кромка у всех плашек
+// одинаковые, длиннее становятся только прямые линии. (left, top) — левый верхний угол.
 // Так рисуются плашка HUD, плашка подсказки, плашка звёзд, плашки метели и модификаторов.
 function drawStonePlate(g: Graphics, left: number, top: number, width: number, height: number): void {
   const radius = Math.min(PLATE_RADIUS, height / 2);
+  const windowLeft = left + PLATE_WINDOW_SIDE;
+  const windowTop = top + PLATE_WINDOW_TOP;
+  const windowWidth = width - PLATE_WINDOW_SIDE * 2;
   const windowHeight = height - PLATE_WINDOW_SHRINK;
   const windowRadius = Math.min(radius - PLATE_WINDOW_SIDE, windowHeight / 2);
 
+  // Плита: тёмный торец снизу, сверху — лицевая сторона.
   g.fillStyle(COLORS.tabletDark, 1);
   g.fillRoundedRect(left, top, width, height, radius);
   g.fillStyle(COLORS.tablet, 1);
-  g.fillRoundedRect(left, top, width, height - 1, radius);
-  g.lineStyle(2, COLORS.tabletLight, 1);
-  g.lineBetween(left + PLATE_RIM_INSET, top + 3, left + width - PLATE_RIM_INSET, top + 3);
+  g.fillRoundedRect(left, top, width, height - PLATE_LIP, radius);
+
+  // Окошко: тёмное, с тенью от верхнего края и светлым отблеском по нижнему.
+  g.fillStyle(COLORS.tablet, 1);
+  g.fillRoundedRect(windowLeft, windowTop, windowWidth, windowHeight, windowRadius);
   g.fillStyle(COLORS.outline, 0.45);
-  g.fillRoundedRect(left + PLATE_WINDOW_SIDE, top + PLATE_WINDOW_TOP, width - PLATE_WINDOW_SIDE * 2, windowHeight, windowRadius);
+  g.fillRoundedRect(windowLeft, windowTop, windowWidth, windowHeight, windowRadius);
+  drawPlateSpecks(g, windowLeft, windowTop, windowWidth, windowHeight);
+  const shadowInset = PLATE_WINDOW_SHADOW / 2;
+  g.lineStyle(PLATE_WINDOW_SHADOW, COLORS.outline, PLATE_WINDOW_SHADOW_ALPHA);
+  g.strokePoints(
+    toPoints(roundedEdge(windowLeft + shadowInset, windowTop + shadowInset, windowWidth - shadowInset * 2, windowHeight, windowRadius, true)),
+    false,
+  );
+  g.lineStyle(1.5, COLORS.tabletLight, PLATE_WINDOW_LIP_ALPHA);
+  g.strokePoints(toPoints(roundedEdge(windowLeft + 1, windowTop, windowWidth - 2, windowHeight - 1, windowRadius, false)), false);
+
+  drawPlateSnow(g, left, top, width, radius);
   g.lineStyle(OUTLINE_WIDTH, COLORS.outline, 1);
   g.strokeRoundedRect(left, top, width, height, radius);
+}
+
+// Снег на верхней кромке плашки — один многоугольник: сверху он повторяет
+// скруглённый край плиты, снизу — волнистая кромка, а на углах снег свисает
+// наплывами с круглым низом (слева наплыв больше). Обход — по часовой стрелке.
+function drawPlateSnow(g: Graphics, left: number, top: number, width: number, radius: number): void {
+  const right = left + width;
+  const droopY = top + radius;
+  const leftR = PLATE_DROOP_LEFT_RADIUS;
+  const rightR = PLATE_DROOP_RIGHT_RADIUS;
+
+  // Нижняя кромка слоя справа налево: между наплывами — лёгкие волны.
+  const lowerEdge: number[] = [];
+  for (let x = right - rightR * 2 - 4; x > left + leftR * 2 + 4; x -= 8) {
+    lowerEdge.push(x, top + PLATE_SNOW_DEPTH + PLATE_SNOW_WAVE * Math.sin(x * 0.25));
+  }
+  const bottomEdge = [
+    ...arcPoints(right - rightR, droopY, rightR, 0, Math.PI),
+    ...lowerEdge,
+    ...arcPoints(left + leftR, droopY, leftR, 0, Math.PI),
+  ];
+  const outline = [...roundedEdge(left, top, width, radius * 2, radius, true), ...bottomEdge];
+  fillPolygon(g, outline, COLORS.snow);
+
+  // Голубая тень вдоль нижней кромки, тёмная обводка по ней же
+  // (верх слоя обведёт контур плашки) и светлая полоса по верху.
+  g.lineStyle(3, COLORS.snowShade, 1);
+  g.strokePoints(toPoints(bottomEdge.map((v, i) => (i % 2 === 0 ? v : v - 2))), false);
+  g.lineStyle(THIN_OUTLINE_WIDTH, COLORS.outline, 1);
+  g.strokePoints(toPoints(bottomEdge), false);
+  g.lineStyle(2, COLORS.snowLight, 1);
+  g.lineBetween(left + radius, top + 3.5, right - radius, top + 3.5);
+}
+
+// Крапинки на камне: тёмные и светлые точки, чтобы камень не был гладким, как пластик.
+// Места крапинок всегда одни и те же (случайные числа с постоянным «зерном»).
+function drawPlateSpecks(g: Graphics, left: number, top: number, width: number, height: number): void {
+  const rng = new Phaser.Math.RandomDataGenerator([PLATE_SPECKS_SEED]);
+  const count = Math.round((width * height) / PLATE_SPECK_AREA);
+  for (let i = 0; i < count; i++) {
+    const x = left + 5 + rng.frac() * (width - 10);
+    const y = top + 5 + rng.frac() * (height - 10);
+    const isDark = i % 2 === 0;
+    g.fillStyle(isDark ? COLORS.outline : COLORS.tabletLight, isDark ? 0.22 : 0.16);
+    g.fillCircle(x, y, 0.8 + rng.frac() * 0.8);
+  }
+}
+
+// Верхняя (isTop) или нижняя половина контура скруглённого прямоугольника:
+// угол, прямая сторона, другой угол. Нужна для тени и отблеска вдоль края.
+function roundedEdge(left: number, top: number, width: number, height: number, radius: number, isTop: boolean): number[] {
+  const right = left + width;
+  const bottom = top + height;
+  if (isTop) {
+    return [
+      ...arcPoints(left + radius, top + radius, radius, Math.PI, Math.PI * 1.5),
+      ...arcPoints(right - radius, top + radius, radius, Math.PI * 1.5, Math.PI * 2),
+    ];
+  }
+  return [
+    ...arcPoints(right - radius, bottom - radius, radius, 0, Math.PI / 2),
+    ...arcPoints(left + radius, bottom - radius, radius, Math.PI / 2, Math.PI),
+  ];
 }
 
 // Подложка шкалы жара: тёмная скруглённая полоска со светлой рамкой и тёмной обводкой.
@@ -3069,6 +3165,9 @@ function drawHeatBarBack(g: Graphics): void {
   g.fillRoundedRect(0, 0, w, h, radius + 2);
   g.fillStyle(COLORS.heatBarBack, 1);
   g.fillRoundedRect(2, 2, w - 4, h - 4, radius);
+  // Тень по верху жёлоба: заливка будто лежит в углублении.
+  g.lineStyle(3, COLORS.outline, 0.5);
+  g.strokePoints(toPoints(roundedEdge(5, 5, w - 10, h - 10, radius - 3, true)), false);
   g.lineStyle(2, COLORS.zoneBorder, 0.8);
   g.strokeRoundedRect(3, 3, w - 6, h - 6, radius - 1);
 }
@@ -3131,9 +3230,20 @@ const TABLET_DROOP_LEFT_Y = 46;
 const TABLET_DROOP_LEFT_RADIUS = 13;
 const TABLET_DROOP_RIGHT_Y = 34;
 const TABLET_DROOP_RIGHT_RADIUS = 11;
+// Искорки на снегу таблички: одна через столько пикселей.
+const TABLET_SPARKLE_STEP = 70;
+
+// Объём плиты: светлая полоса вдоль левого края (свет падает слева сверху)
+// и тень вдоль правого — ширина полос и их прозрачность.
+const TABLET_BEVEL_WIDTH = 8;
+const TABLET_LIGHT_ALPHA = 0.8;
+const TABLET_SHADE_ALPHA = 0.35;
+// Крапинки на плите: одна на столько квадратных пикселей.
+const TABLET_SPECK_AREA = 900;
+const TABLET_SPECKS_SEED = 'stone-tablet';
 
 // Каменная табличка любого размера: плита со скошенными углами, тёмная снизу,
-// пара трещин и снег по верху, который на углах свисает за край плиты.
+// пара трещин, сколы на углах и снег по верху, который на углах свисает за край плиты.
 // Из неё сделаны и окно паузы и итогов, и баннер смены дня и ночи.
 function drawStoneSlab(g: Graphics, size: Size): void {
   const { w, h } = size;
@@ -3155,23 +3265,73 @@ function drawStoneSlab(g: Graphics, size: Size): void {
   g.fillEllipse(w / 2, bottom + 2, right - left - 30, 22);
 
   fillPolygon(g, slab, COLORS.tablet);
-  // Тёмная нижняя часть — плита выглядит толстой.
-  fillPolygon(
-    g,
-    [left + 2, darkTop, right - 3, darkTop + 4, right - 4, bottom - 22, right - 24, bottom, left + 18, bottom - 4, left, bottom - 28],
-    COLORS.tabletDark,
-  );
-  // Трещины.
-  g.lineStyle(THIN_OUTLINE_WIDTH, COLORS.tabletDark, 1);
+  // Мягкий свет на середине плиты, ближе к левому верхнему углу: плита чуть выпуклая.
+  const faceWidth = right - left;
+  const faceHeight = darkTop - top;
+  softEllipse(g, left + faceWidth * 0.42, top + faceHeight * 0.42, faceWidth * 0.8, faceHeight * 0.75, COLORS.tabletLight, 0.025, 14);
+  drawTabletSpecks(g, left, top, faceWidth, faceHeight);
+  // Мягкий объём: свет вдоль левого и верхнего края, тень вдоль правого.
+  const half = TABLET_BEVEL_WIDTH / 2;
+  g.lineStyle(TABLET_BEVEL_WIDTH, COLORS.tabletLight, TABLET_LIGHT_ALPHA);
+  g.strokePoints(toPoints([left + half + 2, darkTop, left + half + 2, top + 30, left + 14, top + 4 + half, right - 22, top + half]), false);
+  g.lineStyle(TABLET_BEVEL_WIDTH, COLORS.tabletDark, TABLET_SHADE_ALPHA);
+  g.strokePoints(toPoints([right - 4, top + 26, right - half - 4, darkTop]), false);
+  // Тёмная нижняя часть — плита выглядит толстой. Над ней — светлое ребро.
+  const ledge = [left + 2, darkTop, right - 3, darkTop + 4];
+  fillPolygon(g, [...ledge, right - 4, bottom - 22, right - 24, bottom, left + 18, bottom - 4, left, bottom - 28], COLORS.tabletDark);
+  g.lineStyle(THIN_OUTLINE_WIDTH, COLORS.tabletLight, 0.8);
+  g.lineBetween(ledge[0] + 2, ledge[1] - 1, ledge[2] - 2, ledge[3] - 1);
+  g.lineStyle(THIN_OUTLINE_WIDTH, COLORS.outline, 0.5);
+  g.lineBetween(ledge[0] + 2, ledge[1] + 1, ledge[2] - 2, ledge[3] + 1);
+
+  // Трещины: тёмная линия и светлая рядом — будто край трещины поймал свет.
   const crack = (share: number): number => top + slabHeight * share;
-  g.strokePoints(toPoints([left + 22, crack(0.24), left + 40, crack(0.33), left + 34, crack(0.42)]), false);
-  g.strokePoints(
-    toPoints([right - 32, crack(0.28), right - 52, crack(0.37), right - 44, crack(0.49), right - 62, crack(0.57)]),
-    false,
-  );
+  const cracks = [
+    [left + 22, crack(0.24), left + 40, crack(0.33), left + 34, crack(0.42)],
+    [right - 32, crack(0.28), right - 52, crack(0.37), right - 44, crack(0.49), right - 62, crack(0.57)],
+  ];
+  for (const points of cracks) {
+    g.lineStyle(THIN_OUTLINE_WIDTH, COLORS.tabletLight, 0.7);
+    g.strokePoints(toPoints(points.map((v) => v + 1.5)), false);
+    g.lineStyle(THIN_OUTLINE_WIDTH, COLORS.tabletDark, 1);
+    g.strokePoints(toPoints(points), false);
+  }
+  drawSlabChips(g, left, right, top, bottom);
   strokePolygon(g, slab);
 
   drawTabletSnow(g, left, right, top);
+}
+
+// Крапинки на плите таблички: тёмные и светлые точки разного размера.
+// Места всегда одни и те же (случайные числа с постоянным «зерном»).
+function drawTabletSpecks(g: Graphics, left: number, top: number, width: number, height: number): void {
+  const rng = new Phaser.Math.RandomDataGenerator([TABLET_SPECKS_SEED]);
+  const count = Math.round((width * height) / TABLET_SPECK_AREA);
+  for (let i = 0; i < count; i++) {
+    const x = left + 12 + rng.frac() * (width - 24);
+    const y = top + 24 + rng.frac() * (height - 30);
+    const isDark = i % 3 !== 0;
+    g.fillStyle(isDark ? COLORS.tabletDark : COLORS.tabletLight, isDark ? 0.35 : 0.6);
+    g.fillCircle(x, y, 1 + rng.frac() * 1.4);
+  }
+}
+
+// Сколы на углах плиты: маленькие светлые грани с тёмным краем — камень старый, битый.
+function drawSlabChips(g: Graphics, left: number, right: number, top: number, bottom: number): void {
+  const chips = [
+    // Скол на левом ребре под снегом.
+    [left + 1, top + 62, left + 11, top + 72, left + 1, top + 84],
+    // Скол на нижнем правом углу.
+    [right - 34, bottom - 2, right - 24, bottom - 16, right - 12, bottom - 12],
+    // Скол на правом ребре под снегом.
+    [right - 1, top + 58, right - 12, top + 70, right - 2, top + 80],
+  ];
+  for (const chip of chips) {
+    fillPolygon(g, chip, COLORS.tabletLight);
+    g.lineStyle(THIN_OUTLINE_WIDTH, COLORS.tabletDark, 1);
+    // Тёмный край грани — внутри плиты (наружный край обведёт контур плиты).
+    g.strokePoints(toPoints(chip), false);
+  }
 }
 
 // Снег на табличке — один многоугольник: ровный слой с лёгкими волнами по верху,
@@ -3237,44 +3397,90 @@ function drawTabletSnow(g: Graphics, left: number, right: number, top: number): 
     g.fillPath();
   }
 
+  // Под тенью — полоска глубокой тени у самого края: слой снега толще.
+  g.lineStyle(THIN_OUTLINE_WIDTH, COLORS.snowDeep, 0.8);
+  g.strokePoints(toPoints(lowerEdge.map((v, i) => (i % 2 === 0 ? v : v - 2))), false);
+
   strokePolygon(g, outline);
 
-  // Блики на верху слоя.
+  // Светлая полоса вдоль верха слоя (снег освещён сверху) и блики на ней.
+  g.lineStyle(3, COLORS.snowLight, 1);
+  g.strokePoints(toPoints(upperEdge.map((v, i) => (i % 2 === 0 ? v : v + 4))), false);
   g.fillStyle(COLORS.snowLight, 1);
   g.fillRoundedRect(left + 50, top - 12, 120, 4, 2);
   g.fillRoundedRect(right - 210, top - 15, 90, 4, 2);
+  drawSnowSparkles(g, left + 40, right - 40, top - 8);
+}
+
+// Искорки на снегу таблички: маленькие белые крестики вдоль слоя, через равные промежутки.
+function drawSnowSparkles(g: Graphics, from: number, to: number, y: number): void {
+  g.fillStyle(COLORS.white, 1);
+  for (let x = from; x < to; x += TABLET_SPARKLE_STEP) {
+    // Чуть выше и ниже по очереди, чтобы искорки не стояли в линию.
+    const sparkleY = y + 3 * Math.sin(x * 0.3);
+    g.fillRect(x - 2.5, sparkleY - 0.6, 5, 1.2);
+    g.fillRect(x - 0.6, sparkleY - 2.5, 1.2, 5);
+  }
 }
 
 // Каменная кнопка: скруглённая плита с тёмным «торцом» снизу — будто её можно нажать.
+// Лицевая сторона чуть выпуклая: светлая сверху, с тенью по нижнему краю и крапинками.
 function drawStoneButton(g: Graphics): void {
   const { w, h } = STONE_BUTTON_SIZE;
   const radius = 16;
   const lip = 8;
+  const faceHeight = h - lip - 4;
 
   // Торец кнопки (видно снизу).
   g.fillStyle(COLORS.tabletDark, 1);
   g.fillRoundedRect(2, lip, w - 4, h - lip - 2, radius);
-  // Лицевая сторона.
+  // Лицевая сторона: мягкая светлая верхняя половина и крапинки.
   g.fillStyle(COLORS.tablet, 1);
-  g.fillRoundedRect(2, 2, w - 4, h - lip - 4, radius);
+  g.fillRoundedRect(2, 2, w - 4, faceHeight, radius);
+  g.fillStyle(COLORS.tabletLight, 0.35);
+  g.fillRoundedRect(5, 4, w - 10, faceHeight / 2, 12);
+  drawPlateSpecks(g, 6, 6, w - 12, faceHeight - 8);
+  // Тень по нижнему краю лицевой стороны — грань между ней и торцом.
+  g.lineStyle(3, COLORS.outline, 0.35);
+  g.strokePoints(toPoints(roundedEdge(3.5, 2, w - 7, faceHeight - 1.5, radius - 1.5, false)), false);
   // Светлая кромка по верху.
   g.fillStyle(COLORS.tabletLight, 1);
-  g.fillRoundedRect(10, 5, w - 20, 8, 4);
+  g.fillRoundedRect(12, 5, w - 24, 6, 3);
+  g.fillStyle(COLORS.white, 0.35);
+  g.fillRoundedRect(20, 6, w / 3, 3, 1.5);
   g.lineStyle(OUTLINE_WIDTH, COLORS.outline, 1);
   g.strokeRoundedRect(2, 2, w - 4, h - 4, radius);
 }
 
-// Кнопка паузы: круглый камень с тёмным «торцом» снизу и двумя светлыми полосками.
-function drawPauseButton(g: Graphics): void {
+// Круглый камень кнопок паузы и звука: тёмный «торец» снизу, лицевая сторона
+// со светом слева сверху, тенью справа снизу и крапинками. Значок кладут сверху.
+function drawRoundButtonStone(g: Graphics): void {
   const { w } = PAUSE_BUTTON_SIZE;
   const cx = w / 2;
   const radius = cx - OUTLINE_WIDTH;
   const lip = 4;
+  const faceY = cx - lip / 2;
+  const faceRadius = radius - lip;
 
-  // Торец снизу и лицевая сторона.
   outlinedCircle(g, cx, cx + lip / 2, radius - lip / 2, COLORS.tabletDark);
   g.fillStyle(COLORS.tablet, 1);
-  g.fillCircle(cx, cx - lip / 2, radius - lip);
+  g.fillCircle(cx, faceY, faceRadius);
+  crescent(g, cx, faceY, faceRadius, faceRadius, 3, 3, COLORS.tabletLight, 0.7);
+  crescent(g, cx, faceY, faceRadius, faceRadius, -3, -3, COLORS.outline, 0.25);
+  drawPlateSpecks(g, cx - faceRadius * 0.7, faceY - faceRadius * 0.7, faceRadius * 1.4, faceRadius * 1.4);
+  // Блик на верхнем краю.
+  g.lineStyle(2, COLORS.white, 0.45);
+  g.beginPath();
+  g.arc(cx, faceY, faceRadius - 3, Math.PI * 1.15, Math.PI * 1.45);
+  g.strokePath();
+}
+
+// Кнопка паузы: круглый камень с двумя светлыми полосками.
+function drawPauseButton(g: Graphics): void {
+  const { w } = PAUSE_BUTTON_SIZE;
+  const cx = w / 2;
+
+  drawRoundButtonStone(g);
   // Две полоски «пауза».
   g.fillStyle(COLORS.outline, 1);
   g.fillRoundedRect(cx - 12, cx - 15, 9, 24, 3);
@@ -3297,16 +3503,25 @@ function drawRoundStone(g: Graphics): void {
   const rivets = 8;
 
   outlinedCircle(g, cx, cx, radius, COLORS.bronze);
+  // Объём обода: тень справа снизу, блик слева сверху.
+  crescent(g, cx, cx, radius - 1, radius - 1, -3, -3, COLORS.bronzeDark, 0.7);
   g.lineStyle(2, COLORS.bronzeLight, 1);
   g.beginPath();
   g.arc(cx, cx, radius - 3, Math.PI * 1.05, Math.PI * 1.6);
   g.strokePath();
   outlinedCircle(g, cx, cx + 1, radius - rim, COLORS.tablet);
+  drawPlateSpecks(g, cx - radius * 0.55, cx - radius * 0.55, radius * 1.1, radius * 1.1);
+  crescent(g, cx, cx + 1, radius - rim - 2, radius - rim - 2, 4, 4, COLORS.tabletLight, 0.5);
   crescent(g, cx, cx + 1, radius - rim - 2, radius - rim - 2, -4, -4, COLORS.tabletDark, 0.6);
-  g.fillStyle(COLORS.bronzeDark, 1);
   for (let i = 0; i < rivets; i++) {
     const angle = (i / rivets) * Math.PI * 2 + Math.PI / rivets;
-    g.fillCircle(cx + Math.cos(angle) * (radius - 4), cx + Math.sin(angle) * (radius - 4), 1.8);
+    const x = cx + Math.cos(angle) * (radius - 4);
+    const y = cx + Math.sin(angle) * (radius - 4);
+    // Заклёпка: тёмная шляпка со светлой точкой-бликом.
+    g.fillStyle(COLORS.bronzeDark, 1);
+    g.fillCircle(x, y, 1.8);
+    g.fillStyle(COLORS.bronzeLight, 1);
+    g.fillCircle(x - 0.6, y - 0.6, 0.7);
   }
 }
 
@@ -3326,6 +3541,9 @@ function drawLock(g: Graphics): void {
   // Корпус.
   g.fillStyle(COLORS.bronze, 1);
   g.fillRoundedRect(3, 14, w - 6, h - 17, 4);
+  // Низ корпуса в тени, сверху — светлая полоска блика.
+  g.fillStyle(COLORS.bronzeDark, 1);
+  g.fillRoundedRect(3, h - 10, w - 6, 7, { tl: 0, tr: 0, bl: 4, br: 4 });
   g.fillStyle(COLORS.bronzeLight, 1);
   g.fillRect(6, 17, w - 12, 3);
   g.lineStyle(OUTLINE_WIDTH, COLORS.outline, 1);
@@ -3336,7 +3554,10 @@ function drawLock(g: Graphics): void {
   g.fillRect(cx - 1.5, 24, 3, 6);
 }
 
-// Пятиконечная звезда: белая (цвет задаёт tint), с тёмной обводкой.
+// Насколько темнее теневые грани звезды.
+const STAR_FACET_ALPHA = 0.2;
+
+// Пятиконечная звезда: белая (цвет задаёт tint), гранёная, с тёмной обводкой.
 function drawStar(g: Graphics): void {
   const { w } = STAR_SIZE;
   const cx = w / 2;
@@ -3350,6 +3571,13 @@ function drawStar(g: Graphics): void {
     points.push(cx + r * Math.cos(angle), cx + 1 + r * Math.sin(angle));
   }
   fillPolygon(g, points, COLORS.white);
+  // Грани: у каждого луча правая половина в тени — звезда выглядит гранёной.
+  // Звезда белая и красится tint, поэтому после покраски тень — того же цвета, только темнее.
+  g.fillStyle(COLORS.outline, STAR_FACET_ALPHA);
+  for (let i = 0; i < 10; i += 2) {
+    const next = i + 1;
+    g.fillPoints(toPoints([cx, cx + 1, points[i * 2], points[i * 2 + 1], points[next * 2], points[next * 2 + 1]]), true);
+  }
   strokePolygon(g, points);
 
   // Искорка у вершины.
@@ -3491,13 +3719,15 @@ function drawEpochFuture(g: Graphics): void {
 
 // ===== Обучение =====
 
-// Стрелка обучения: толстая янтарная стрелка остриём вниз, со светлым бликом.
+// Стрелка обучения: толстая янтарная стрелка остриём вниз. Правая половина в тени,
+// на левой — светлый блик: стрелка выглядит объёмной, как заголовки табличек.
 function drawTutorialArrow(g: Graphics): void {
   const { w, h } = TUTORIAL_ARROW_SIZE;
   const cx = w / 2;
   const arrow = [cx - 9, 4, cx + 9, 4, cx + 9, 26, w - 4, 26, cx, h - 4, 4, 26, cx - 9, 26];
-  fillPolygon(g, arrow, COLORS.titleAmber);
-  fillPolygon(g, [cx - 5, 8, cx - 1, 8, cx - 1, 30, cx - 5, 30], COLORS.titleHighlight);
+  fillPolygon(g, arrow, COLORS.titleAmberTop);
+  fillPolygon(g, [cx + 1, 4, cx + 9, 4, cx + 9, 26, w - 4, 26, cx, h - 4, cx + 1, h - 6], COLORS.titleAmberBottom);
+  fillPolygon(g, [cx - 6, 7, cx - 2, 7, cx - 2, 29, cx - 6, 29], COLORS.titleHighlight);
   strokePolygon(g, arrow);
 }
 
@@ -3506,13 +3736,8 @@ function drawTutorialArrow(g: Graphics): void {
 function drawSoundButton(g: Graphics, isOn: boolean): void {
   const { w } = PAUSE_BUTTON_SIZE;
   const cx = w / 2;
-  const radius = cx - OUTLINE_WIDTH;
-  const lip = 4;
 
-  // Торец снизу и лицевая сторона.
-  outlinedCircle(g, cx, cx + lip / 2, radius - lip / 2, COLORS.tabletDark);
-  g.fillStyle(COLORS.tablet, 1);
-  g.fillCircle(cx, cx - lip / 2, radius - lip);
+  drawRoundButtonStone(g);
 
   // Динамик: коробочка и раструб.
   const speaker = [cx - 15, cx - 8, cx - 8, cx - 8, cx + 1, cx - 15, cx + 1, cx + 11, cx - 8, cx + 4, cx - 15, cx + 4];

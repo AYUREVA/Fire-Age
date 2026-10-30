@@ -48,11 +48,28 @@ const CLOSE_TIME = 150;
 // Кнопка обычно чуть темнее, при наведении — светлеет до настоящего цвета.
 const BUTTON_IDLE_TINT = 0xd8d8d8;
 const BUTTON_HOVER_TINT = 0xffffff;
+// Под курсором кнопка чуть подрастает за столько мс — видно, что её можно нажать.
+const BUTTON_HOVER_SCALE = 1.04;
+const BUTTON_HOVER_TIME = 120;
 // Нажатая кнопка «вдавливается»: уменьшается и опускается.
 const BUTTON_PRESS_SCALE = 0.95;
 const BUTTON_PRESS_SHIFT = 3;
 // Надпись на кнопке чуть выше середины картинки: снизу у кнопки тёмный «торец».
 const BUTTON_LABEL_Y = -3;
+// Тень под надписями на камне (кнопки, подзаголовки, плашки HUD): сдвиг вниз в пикселях.
+// Буквы будто выбиты в камне — так они лучше читаются.
+const TEXT_SHADOW_SHIFT = 2;
+// Эту же тень берут все надписи на каменных плашках — чтобы весь интерфейс был одинаковым.
+export const CARVED_TEXT_SHADOW: Phaser.Types.GameObjects.Text.TextShadow = {
+  offsetY: TEXT_SHADOW_SHIFT,
+  color: toCss(COLORS.outline),
+  fill: true,
+  stroke: true,
+};
+// Заголовок залит янтарём сверху вниз: светлее у верхнего края букв, темнее у нижнего.
+// Где (доля высоты надписи) кончается светлая часть и начинается тёмная.
+const TITLE_GRADIENT_LIGHT_STOP = 0.3;
+const TITLE_GRADIENT_DARK_STOP = 0.75;
 
 // Кнопка на табличке: надпись и что делать по нажатию.
 export type TabletButton = { label: string; onClick: () => void };
@@ -97,6 +114,11 @@ export function addCarvedTitle(
       },
     })
     .setOrigin(0.5);
+  // Заливка градиентом: рисуется на холсте надписи, координаты — от её верха вниз.
+  const gradient = title.context.createLinearGradient(0, 0, 0, title.height);
+  gradient.addColorStop(TITLE_GRADIENT_LIGHT_STOP, toCss(COLORS.titleAmberTop));
+  gradient.addColorStop(TITLE_GRADIENT_DARK_STOP, toCss(COLORS.titleAmberBottom));
+  title.setFill(gradient);
   return [highlight, title];
 }
 
@@ -210,6 +232,7 @@ export class StoneTablet {
         color: toCss(COLORS.hudText),
         stroke: toCss(COLORS.outline),
         strokeThickness: 5,
+        shadow: CARVED_TEXT_SHADOW,
         resolution: 2,
       })
       .setOrigin(0.5);
@@ -230,6 +253,7 @@ export class StoneTablet {
         color: toCss(COLORS.hudText),
         stroke: toCss(COLORS.outline),
         strokeThickness: 5,
+        shadow: CARVED_TEXT_SHADOW,
         resolution: 2,
       })
       .setOrigin(0.5)
@@ -242,17 +266,29 @@ export class StoneTablet {
     // Показать кнопку нажатой или отпущенной: и картинка, и надпись двигаются вместе.
     const setPressed = (pressed: boolean): void => {
       isPressed = pressed;
+      this.scene.tweens.killTweensOf([image, label]);
       const scale = baseScale * (pressed ? BUTTON_PRESS_SCALE : 1);
       const shift = pressed ? BUTTON_PRESS_SHIFT : 0;
       image.setScale(scale).setY(y + shift);
       label.setScale(scale).setY(y + BUTTON_LABEL_Y + shift);
     };
+    // Плавно подрасти под курсором (isOver) или вернуться к обычному размеру.
+    const setHover = (isOver: boolean): void => {
+      image.setTint(isOver ? BUTTON_HOVER_TINT : BUTTON_IDLE_TINT);
+      this.scene.tweens.killTweensOf([image, label]);
+      this.scene.tweens.add({
+        targets: [image, label],
+        scale: baseScale * (isOver ? BUTTON_HOVER_SCALE : 1),
+        duration: BUTTON_HOVER_TIME,
+        ease: 'Sine.easeOut',
+      });
+    };
 
     image.setInteractive({ useHandCursor: true });
-    image.on('pointerover', () => image.setTint(BUTTON_HOVER_TINT));
+    image.on('pointerover', () => setHover(true));
     image.on('pointerout', () => {
-      image.setTint(BUTTON_IDLE_TINT);
       setPressed(false);
+      setHover(false);
     });
     image.on('pointerdown', () => setPressed(true));
     image.on('pointerup', () => {
