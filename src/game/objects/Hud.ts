@@ -5,6 +5,7 @@ import { MODIFIER_PLATE_SIZE, TEXTURES, TITLE_FONT } from '../textures';
 import { flyArc, pop } from '../fx';
 import { SOUNDS, SOUND_VOLUMES, playSound, toggleMute } from '../sounds';
 import { getProgress } from '../save';
+import { CARVED_TEXT_SHADOW } from '../ui/StoneTablet';
 
 // HUD рисуется поверх всего мира (джойстик — на том же уровне, см. Player.ts).
 const HUD_DEPTH = 20000;
@@ -33,9 +34,12 @@ const FLAME_ICON_SCALE = 0.28;
 const BOOT_ICON_SCALE = 0.75;
 // Кнопка звука стоит левее кнопки паузы с таким зазором.
 const SOUND_BUTTON_GAP = 10;
-// Кнопка паузы чуть темнее, при наведении — светлеет до настоящего цвета.
+// Кнопка паузы чуть темнее, при наведении — светлеет до настоящего цвета
+// и чуть подрастает за столько мс.
 const PAUSE_IDLE_TINT = 0xdddddd;
 const PAUSE_HOVER_TINT = 0xffffff;
+const BUTTON_HOVER_SCALE = 1.08;
+const BUTTON_HOVER_TIME = 120;
 
 // Время в виде «минуты:секунды», например «1:59». Округляем вверх:
 // в начале видно «2:00», а «0:00» — только когда время вышло.
@@ -84,6 +88,7 @@ export class Hud {
         color: toCss(COLORS.hudText),
         stroke: toCss(COLORS.outline),
         strokeThickness: 6,
+        shadow: CARVED_TEXT_SHADOW,
         resolution: 2,
       })
       .setOrigin(0, 0.5);
@@ -99,6 +104,7 @@ export class Hud {
         color: toCss(COLORS.hudText),
         stroke: toCss(COLORS.outline),
         strokeThickness: 6,
+        shadow: CARVED_TEXT_SHADOW,
         resolution: 2,
       })
       .setOrigin(0, 0.5);
@@ -106,17 +112,21 @@ export class Hud {
     const pauseButton = scene.add.image(0, 0, TEXTURES.pauseButton).setTint(PAUSE_IDLE_TINT);
     this.pauseButton = pauseButton;
     pauseButton.setInteractive({ useHandCursor: true });
-    pauseButton.on('pointerover', () => pauseButton.setTint(PAUSE_HOVER_TINT));
-    pauseButton.on('pointerout', () => pauseButton.setTint(PAUSE_IDLE_TINT));
-    pauseButton.on('pointerdown', onPause);
+    this.addHover(pauseButton);
+    // Перед паузой кнопка сразу возвращается к обычному виду: на паузе твины стоят,
+    // и плавный возврат замер бы на полпути.
+    pauseButton.on('pointerdown', () => {
+      this.scene.tweens.killTweensOf(pauseButton);
+      pauseButton.setScale(1).setTint(PAUSE_IDLE_TINT);
+      onPause();
+    });
 
     const soundButton = scene.add
       .image(0, 0, getProgress().isMuted ? TEXTURES.soundOffButton : TEXTURES.soundOnButton)
       .setTint(PAUSE_IDLE_TINT);
     this.soundButton = soundButton;
     soundButton.setInteractive({ useHandCursor: true });
-    soundButton.on('pointerover', () => soundButton.setTint(PAUSE_HOVER_TINT));
-    soundButton.on('pointerout', () => soundButton.setTint(PAUSE_IDLE_TINT));
+    this.addHover(soundButton);
     soundButton.on('pointerdown', () => {
       const isMuted = toggleMute(scene);
       soundButton.setTexture(isMuted ? TEXTURES.soundOffButton : TEXTURES.soundOnButton);
@@ -164,6 +174,24 @@ export class Hud {
       this.pauseButton.x - this.pauseButton.width / 2 - SOUND_BUTTON_GAP - this.soundButton.width / 2,
       this.pauseButton.y,
     );
+  }
+
+  // Круглая кнопка светлеет и подрастает под курсором, уходит курсор — возвращается.
+  private addHover(button: Phaser.GameObjects.Image): void {
+    button.on('pointerover', () => this.setHover(button, true));
+    button.on('pointerout', () => this.setHover(button, false));
+  }
+
+  // Вид кнопки под курсором (isOver) или обычный: цвет сразу, размер — плавно.
+  private setHover(button: Phaser.GameObjects.Image, isOver: boolean): void {
+    button.setTint(isOver ? PAUSE_HOVER_TINT : PAUSE_IDLE_TINT);
+    this.scene.tweens.killTweensOf(button);
+    this.scene.tweens.add({
+      targets: button,
+      scale: isOver ? BUTTON_HOVER_SCALE : 1,
+      duration: BUTTON_HOVER_TIME,
+      ease: 'Sine.easeOut',
+    });
   }
 
   // Показать или спрятать плашки ночных модификаторов.
@@ -226,6 +254,7 @@ export class Hud {
         color: toCss(COLORS.hudText),
         stroke: toCss(COLORS.outline),
         strokeThickness: 4,
+        shadow: CARVED_TEXT_SHADOW,
         resolution: 2,
       })
       .setOrigin(0, 0.5);

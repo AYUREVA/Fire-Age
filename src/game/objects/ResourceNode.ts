@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { BUSH_REGROW_TIME, BUSH_STOCK } from '../settings';
 import { TEXTURES } from '../textures';
-import { Point, pop, setGlow, shake } from '../fx';
+import { Point, pop, setGlow, shakeAngle } from '../fx';
 
 // ===== Внешний вид куста =====
 
@@ -15,10 +15,17 @@ const STUMP_SHADOW_WIDTH = 64;
 // Куст редеет: с полным запасом его размер 1, с последней связкой — эта доля.
 const MIN_BUSH_SCALE = 0.75;
 // За сколько мс куст «худеет» после удара.
-const THIN_OUT_TIME = 180;
+const THIN_OUT_TIME = 220;
+// От удара куст сначала сплющивается (шире и ниже, доли размера), потом с отскоком «худеет».
+const HIT_SQUASH_X = 1.1;
+const HIT_SQUASH_Y = 0.86;
 // Встряска при ударе: самый большой наклон (градусы) и длительность (мс).
 const HIT_SHAKE_ANGLE = 9;
 const HIT_SHAKE_TIME = 320;
+// Качание на ветру: самый большой наклон (градусы) и скорость (радиан за мс).
+// Пенёк не качается.
+const BREEZE_ANGLE = 1.5;
+const BREEZE_SPEED = 0.0022;
 // На какой высоте над землёй из куста вылетает связка и сыплются частицы.
 const LOOT_HEIGHT = 50;
 // Отрастание: с какого размера куст вырастает и за сколько мс.
@@ -82,6 +89,10 @@ export class ResourceNode {
   private regrowTimeLeft = 0;
   // Лежит ли ещё снег на кусте. Первый удар его стряхивает.
   private isSnowy = true;
+  // Время качания на ветру (мс). Начинается со случайного числа — кусты качаются вразнобой.
+  private breezeTime = 0;
+  // Сколько мс ещё длится встряска от удара (0 — куст не трясётся).
+  private shakeTimeLeft = 0;
 
   private image: Phaser.GameObjects.Image;
   // Снег на кроне — отдельная картинка поверх куста.
@@ -94,6 +105,7 @@ export class ResourceNode {
     this.scene = scene;
     this.x = x;
     this.y = y;
+    this.breezeTime = Phaser.Math.Between(0, 10000);
 
     this.shadow = scene.add.image(x, y, TEXTURES.shadow).setDepth(y + SHADOW_DEPTH_SHIFT);
     this.setShadowWidth(BUSH_SHADOW_WIDTH);
@@ -136,7 +148,7 @@ export class ResourceNode {
     if (this.isSnowy) {
       this.shakeOffSnow();
     }
-    shake(this.scene, this.image, HIT_SHAKE_ANGLE, HIT_SHAKE_TIME);
+    this.shakeTimeLeft = HIT_SHAKE_TIME;
     this.snowBurst.explode(SNOW_BURST_COUNT);
     this.chipBurst.explode(CHIP_BURST_COUNT);
 
@@ -147,14 +159,28 @@ export class ResourceNode {
     }
   }
 
-  // Вызывается сценой каждый кадр: отсчитывает время до отрастания.
+  // Вызывается сценой каждый кадр: качает куст и отсчитывает время до отрастания.
   update(delta: number): void {
+    this.updateSway(delta);
     if (this.regrowTimeLeft <= 0) return;
 
     this.regrowTimeLeft -= delta;
     if (this.regrowTimeLeft <= 0) {
       this.regrow();
     }
+  }
+
+  // Наклон куста: лёгкое качание на ветру плюс встряска от удара.
+  // Снег на кроне наклоняется вместе с кустом.
+  private updateSway(delta: number): void {
+    this.breezeTime += delta;
+    this.shakeTimeLeft = Math.max(0, this.shakeTimeLeft - delta);
+    const breeze = this.hasStock() ? Math.sin(this.breezeTime * BREEZE_SPEED) * BREEZE_ANGLE : 0;
+    // Доля прошедшей встряски: 0 — только что ударили, 1 — встряска кончилась.
+    const shakeShare = 1 - this.shakeTimeLeft / HIT_SHAKE_TIME;
+    const angle = breeze + shakeAngle(shakeShare, HIT_SHAKE_ANGLE);
+    this.image.setAngle(angle);
+    this.snowLayer.setAngle(angle);
   }
 
   // Снег слетает с куста: сползает вниз и вбок и тает, вверх взлетают снежинки.
@@ -178,9 +204,12 @@ export class ResourceNode {
     const scale = Phaser.Math.Linear(MIN_BUSH_SCALE, 1, this.stock / BUSH_STOCK);
     // Убираем прошлые твины размера, чтобы они не спорили с новым.
     this.scene.tweens.killTweensOf(this.image);
+    this.image.setScale(this.image.scaleX * HIT_SQUASH_X, this.image.scaleY * HIT_SQUASH_Y);
+    // Ширину и высоту ведём отдельно: после сплющивания они разные.
     this.scene.tweens.add({
       targets: this.image,
-      scale,
+      scaleX: scale,
+      scaleY: scale,
       duration: THIN_OUT_TIME,
       ease: 'Back.easeOut',
     });

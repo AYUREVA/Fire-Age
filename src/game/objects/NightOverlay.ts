@@ -5,10 +5,12 @@ import { TEXTURES } from '../textures';
 
 // ===== Слои =====
 
-// Розовый закат и ночная тьма — выше летящих связок (10000) и «+1» (11000),
+// Розовый закат, ночная тьма и виньетка — выше летящих связок (10000) и «+1» (11000),
 // но ниже падающего снега (12000, GameScene) и HUD (20000).
 const SUNSET_DEPTH = 11400;
 const DARKNESS_DEPTH = 11500;
+// Виньетка — сразу над тьмой, под снегом.
+const VIGNETTE_DEPTH = 11600;
 // Метель — поверх обычного снега.
 const BLIZZARD_DEPTH = 12100;
 
@@ -32,6 +34,18 @@ const LIGHT_WIDTH = 1600;
 const LIGHT_FLATTEN = 0.85;
 // При слабом жаре пятно сжимается до этой доли — стол уходит в темноту.
 const LIGHT_MIN_SIZE = 0.45;
+// Тёплый свет костра ночью: снег, вождь и кучи у огня окрашиваются в цвет огня.
+// Свет умножается на цвет под ним (режим MULTIPLY), как цветная лампа: белый снег
+// становится персиковым, а тёмные обводки остаются тёмными — всё хорошо видно.
+// Размер — доля светлого пятна, сила — в середине (ещё умножается на NIGHT_ALPHA).
+const WARMTH_SIZE = 0.9;
+const WARMTH_ALPHA = 1;
+
+// ===== Виньетка =====
+
+// Ночью углы экрана темнеют сильнее — взгляд сам тянется к огню.
+// Прозрачность виньетки ночью (в самых углах); днём её нет.
+const VIGNETTE_ALPHA = 0.5;
 
 // ===== Метель =====
 
@@ -41,7 +55,11 @@ const BLIZZARD: Phaser.Types.GameObjects.Particles.ParticleEmitterConfig = {
   speedX: { min: -320, max: -200 },
   speedY: { min: 90, max: 170 },
   lifespan: { min: 1800, max: 2600 },
-  scale: { min: 0.4, max: 0.95 },
+  // Снежинки на ветру вытянуты вдоль полёта, как смазанные: длиннее, чем шире,
+  // и повёрнуты по ветру (летят влево-вниз).
+  scaleX: { min: 0.6, max: 1.3 },
+  scaleY: { min: 0.35, max: 0.7 },
+  rotate: 153,
   alpha: { values: [0, 0.95, 0.95, 0] }, // появляется, летит, тает
   frequency: 20, // новая снежинка раз в 20 мс
   maxAliveParticles: 110,
@@ -52,7 +70,7 @@ const BLIZZARD: Phaser.Types.GameObjects.Particles.ParticleEmitterConfig = {
 const BLIZZARD_SPAWN_SHIFT_X = 300;
 
 /**
- * Вид ночи: розовый закат, тьма со светлым пятном у костра и метель.
+ * Вид ночи: розовый закат, тьма со светлым пятном у костра, виньетка и метель.
  *
  * Только оформление — на правила игры не влияет (ночные правила —
  * таблица PHASES в settings.ts). Про костёр ничего не знает: сцена каждый
@@ -63,14 +81,18 @@ export class NightOverlay {
   private scene: Phaser.Scene;
   // Розовая пелена заката на весь экран.
   private sunset: Phaser.GameObjects.Rectangle;
-  // Тьма: светлое пятно и четыре тёмных прямоугольника вокруг него до краёв мира.
+  // Тьма: тёплый свет, светлое пятно и четыре тёмных прямоугольника вокруг него до краёв мира.
   // Всё в одном контейнере — прозрачность общая.
   private darkness: Phaser.GameObjects.Container;
+  // Тёплая оранжевая дымка у костра: ночью снег и всё рядом с огнём теплеет.
+  private warmth: Phaser.GameObjects.Image;
   private light: Phaser.GameObjects.Image;
   private shadeLeft: Phaser.GameObjects.Rectangle;
   private shadeRight: Phaser.GameObjects.Rectangle;
   private shadeTop: Phaser.GameObjects.Rectangle;
   private shadeBottom: Phaser.GameObjects.Rectangle;
+  // Ночная виньетка: тёмные углы экрана.
+  private vignette: Phaser.GameObjects.Image;
   // Метель: включается ночью, выключается утром.
   private blizzard: Phaser.GameObjects.Particles.ParticleEmitter;
 
@@ -87,15 +109,31 @@ export class NightOverlay {
       .setAlpha(0);
 
     // Тьма — в координатах мира: пятно стоит на костре, прямоугольники закрывают остальное.
+    // Тёплый свет — первым в контейнере, под тьмой.
+    this.warmth = scene.add
+      .image(0, 0, TEXTURES.fireLight)
+      .setTint(COLORS.nightWarmth)
+      .setBlendMode(Phaser.BlendModes.MULTIPLY)
+      .setAlpha(WARMTH_ALPHA);
     this.light = scene.add.image(0, 0, TEXTURES.nightLight).setTint(COLORS.nightShade);
     this.shadeLeft = this.createShade();
     this.shadeRight = this.createShade();
     this.shadeTop = this.createShade();
     this.shadeBottom = this.createShade();
     this.darkness = scene.add
-      .container(0, 0, [this.light, this.shadeLeft, this.shadeRight, this.shadeTop, this.shadeBottom])
+      .container(0, 0, [this.warmth, this.light, this.shadeLeft, this.shadeRight, this.shadeTop, this.shadeBottom])
       .setDepth(DARKNESS_DEPTH)
       .setAlpha(0);
+
+    // Виньетка — в координатах экрана, на весь экран, сначала невидима.
+    this.vignette = scene.add
+      .image(0, 0, TEXTURES.vignette)
+      .setOrigin(0, 0)
+      .setTint(COLORS.nightShade)
+      .setScrollFactor(0)
+      .setDepth(VIGNETTE_DEPTH)
+      .setAlpha(0);
+    this.layout();
 
     this.blizzard = this.createBlizzard();
 
@@ -107,9 +145,11 @@ export class NightOverlay {
     });
   }
 
-  // Розовая пелена заката — размером с текущий экран.
+  // Розовая пелена заката и виньетка — размером с текущий экран.
   private layout(): void {
-    this.sunset.setSize(this.scene.scale.width, this.scene.scale.height);
+    const { width, height } = this.scene.scale;
+    this.sunset.setSize(width, height);
+    this.vignette.setDisplaySize(width, height);
   }
 
   // Закат: экран за SUNSET_TIME плавно розовеет.
@@ -121,6 +161,7 @@ export class NightOverlay {
   startNight(): void {
     this.fade(this.sunset, 0, NIGHT_FADE_TIME);
     this.fade(this.darkness, NIGHT_ALPHA, NIGHT_FADE_TIME);
+    this.fade(this.vignette, VIGNETTE_ALPHA, NIGHT_FADE_TIME);
     this.blizzard.start();
   }
 
@@ -128,6 +169,7 @@ export class NightOverlay {
   startDay(): void {
     this.fade(this.sunset, 0, DAY_FADE_TIME);
     this.fade(this.darkness, 0, DAY_FADE_TIME);
+    this.fade(this.vignette, 0, DAY_FADE_TIME);
     this.blizzard.stop();
   }
 
@@ -143,6 +185,7 @@ export class NightOverlay {
     const lightX = Math.round(x);
     const centerY = Math.round(y);
     this.light.setPosition(lightX, centerY).setDisplaySize(lightWidth, lightHeight);
+    this.warmth.setPosition(lightX, centerY).setDisplaySize(lightWidth * WARMTH_SIZE, lightHeight * WARMTH_SIZE);
 
     // Края пятна. Прямоугольники закрывают всё, что вокруг, до краёв мира.
     const left = lightX - lightWidth / 2;
@@ -169,7 +212,7 @@ export class NightOverlay {
   }
 
   // Плавно поменять прозрачность объекта. Прошлый переход этого объекта отменяется.
-  private fade(target: Phaser.GameObjects.Rectangle | Phaser.GameObjects.Container, alpha: number, duration: number): void {
+  private fade(target: Phaser.GameObjects.Rectangle | Phaser.GameObjects.Container | Phaser.GameObjects.Image, alpha: number, duration: number): void {
     this.scene.tweens.killTweensOf(target);
     this.scene.tweens.add({ targets: target, alpha, duration, ease: 'Sine.easeInOut' });
   }
