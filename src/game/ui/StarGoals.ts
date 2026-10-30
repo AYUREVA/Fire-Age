@@ -4,6 +4,7 @@ import { STAR_HEAT_MARK } from '../settings';
 import { FONT_FAMILY, STAR_PANEL_SIZE, TEXTURES } from '../textures';
 import { pop } from '../fx';
 import { SOUNDS, SOUND_VOLUMES, playSound } from '../sounds';
+import { CARVED_TEXT_SHADOW } from './StoneTablet';
 
 // ===== Раскладка (пиксели экрана) =====
 
@@ -90,6 +91,7 @@ export class StarGoals {
           color: toCss(COLORS.hudText),
           stroke: toCss(COLORS.outline),
           strokeThickness: 4,
+          shadow: CARVED_TEXT_SHADOW,
           resolution: 2,
         })
         .setOrigin(0, 0.5);

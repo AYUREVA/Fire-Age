@@ -62,6 +62,13 @@ const TUSK_DEPTH_SHIFT = 0.2;
 // Клык летит от путника к кучке.
 const TUSK_FLY_TIME = 420;
 const TUSK_FLY_ARC = 70;
+// Клыки на столе подпрыгивают — зовут их забрать: высота подскока (пиксели),
+// длительность подскока (мс), пауза между подскоками (мс) и запаздывание соседнего клыка
+// (мс) — по кучке бежит волна.
+const TUSK_HOP_HEIGHT = 5;
+const TUSK_HOP_TIME = 160;
+const TUSK_HOP_PAUSE = 1400;
+const TUSK_HOP_WAVE_STEP = 70;
 
 // Еда на столе: картинка и что это за еда.
 type Food = { image: Phaser.GameObjects.Image; type: ItemType };
@@ -229,9 +236,26 @@ export class StoneTable {
           this.flyingTusks.delete(tusk);
           tusk.setDepth(this.y + TUSK_DEPTH_SHIFT).setAngle(TUSK_LYING_ANGLE);
           pop(this.scene, tusk, TUSK_LYING_SCALE);
+          this.startTuskHops(tusk, slot);
         },
       });
     }
+  }
+
+  // Клык на столе подпрыгивает снова и снова, пока его не заберут (takeTusks
+  // останавливает твин). Клыки с бо́льшим номером прыгают чуть позже — бежит волна.
+  private startTuskHops(tusk: Phaser.GameObjects.Image, slot: Point): void {
+    const index = this.tusks.indexOf(tusk);
+    this.scene.tweens.add({
+      targets: tusk,
+      y: slot.y - TUSK_HOP_HEIGHT,
+      duration: TUSK_HOP_TIME,
+      ease: 'Sine.easeOut',
+      yoyo: true,
+      repeat: -1,
+      repeatDelay: TUSK_HOP_PAUSE,
+      delay: TUSK_HOP_PAUSE / 2 + index * TUSK_HOP_WAVE_STEP,
+    });
   }
 
   // Забрать из кучки все клыки, которые уже долетели. Их дальше двигает тот, кто забрал.

@@ -4,7 +4,7 @@ import { FONT_FAMILY, TEXTURES, TITLE_FONT, createTextures, loadFonts } from '..
 import { EPOCHS, LEVELS, LEVELS_PER_EPOCH, LevelData } from '../data/levels';
 import { buyMetaUpgrade, getProgress, getTotalStars, getAvailableStars, isLevelOpen } from '../save';
 import { META_UPGRADES, MetaUpgrade } from '../data/metaUpgrades';
-import { StoneTablet } from '../ui/StoneTablet';
+import { CARVED_TEXT_SHADOW, StoneTablet } from '../ui/StoneTablet';
 import { pop, shake } from '../fx';
 import { createSounds, toggleMute } from '../sounds';
 import { GameData } from './GameScene';
@@ -500,6 +500,7 @@ export class MenuScene extends Phaser.Scene {
         color: toCss(color),
         stroke: toCss(COLORS.outline),
         strokeThickness: 4,
+        shadow: CARVED_TEXT_SHADOW,
         resolution: 2,
       })
       .setOrigin(0.5);

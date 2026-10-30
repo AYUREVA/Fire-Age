@@ -12,6 +12,9 @@ import { DROP_ZONE_INSET, DROP_ZONE_RADIUS, FONT_FAMILY } from './textures';
 const FLY_DEPTH = 10000;
 // В верхней точке дуги предмет чуть крупнее — будто ближе к нам.
 const FLY_APEX_GROW = 0.2;
+// В полёте предмет наклоняется по ходу полёта (градусы в верхней точке дуги),
+// к приземлению снова ровный.
+const FLY_TILT = 14;
 
 // Всплывающие надписи («+1») — ещё выше летящих предметов.
 const FLOAT_TEXT_DEPTH = 11000;
@@ -20,9 +23,20 @@ const FLOAT_TEXT_DEPTH = 11000;
 const FLOAT_TEXT_APPEAR_TIME = 180;
 const FLOAT_TEXT_RISE = 46;
 const FLOAT_TEXT_TIME = 750;
+// Надпись чуть сносит вбок — на случайное число пикселей до этого (влево или вправо),
+// чтобы несколько «+1» подряд не вставали ровно друг на друга.
+const FLOAT_TEXT_DRIFT = 10;
+// Надпись выскакивает чуть наклонённой (градусы) и с отскоком выпрямляется.
+const FLOAT_TEXT_TILT = 12;
 
 // Встряска: сколько раз объект качнётся туда-обратно.
 const SHAKE_SWINGS = 3;
+
+// Качание на ветру (ели): самый большой наклон (градусы) и сколько мс длится
+// один наклон в сторону — у каждого дерева своё время, чтобы лес не качался строем.
+const SWAY_ANGLE = 1.2;
+const SWAY_TIME_MIN = 1800;
+const SWAY_TIME_MAX = 2800;
 
 // Свечение-обводка: сила свечения «дышит» от GLOW_MIN до GLOW_MAX и обратно за GLOW_PULSE_TIME мс.
 const GLOW_MIN = 2;
@@ -58,6 +72,9 @@ export type ArcFlight = {
 export function flyArc(scene: Phaser.Scene, object: Phaser.GameObjects.Image, flight: ArcFlight): void {
   object.setDepth(FLY_DEPTH);
 
+  // Куда летит предмет по горизонтали: 1 — вправо, -1 — влево. Туда он и наклоняется.
+  const direction = flight.target().x >= flight.from.x ? 1 : -1;
+
   // Твин числа t от 0 до 1. Само число мы каждый кадр превращаем в позицию.
   scene.tweens.addCounter({
     from: 0,
@@ -74,12 +91,14 @@ export function flyArc(scene: Phaser.Scene, object: Phaser.GameObjects.Image, fl
       const y = Phaser.Math.Linear(flight.from.y, target.y, t) - flight.height * arc;
       object.setPosition(x, y);
       object.setScale(1 + FLY_APEX_GROW * arc);
+      object.setAngle(FLY_TILT * arc * direction);
     },
     onComplete: () => {
       // Ставим точно в цель: последний кадр полёта мог чуть не дотянуть.
       const target = flight.target();
       object.setPosition(target.x, target.y);
       object.setScale(1);
+      object.setAngle(0);
       flight.onLand();
     },
   });
@@ -101,12 +120,14 @@ export function floatText(scene: Phaser.Scene, x: number, y: number, text: strin
     .setDepth(FLOAT_TEXT_DEPTH)
     .setScale(0);
 
-  // Выскакивает из точки с отскоком.
-  scene.tweens.add({ targets: label, scale: 1, duration: FLOAT_TEXT_APPEAR_TIME, ease: 'Back.easeOut' });
-  // Поднимается вверх, замедляясь, и в конце удаляется.
+  // Выскакивает из точки с отскоком и выпрямляется из наклона.
+  label.setAngle(Phaser.Math.Between(-FLOAT_TEXT_TILT, FLOAT_TEXT_TILT));
+  scene.tweens.add({ targets: label, scale: 1, angle: 0, duration: FLOAT_TEXT_APPEAR_TIME, ease: 'Back.easeOut' });
+  // Поднимается вверх, замедляясь, чуть уходит вбок и в конце удаляется.
   scene.tweens.add({
     targets: label,
     y: y - FLOAT_TEXT_RISE,
+    x: x + Phaser.Math.Between(-FLOAT_TEXT_DRIFT, FLOAT_TEXT_DRIFT),
     duration: FLOAT_TEXT_TIME,
     ease: 'Cubic.easeOut',
     onComplete: () => label.destroy(),
@@ -122,22 +143,45 @@ export function shake(scene: Phaser.Scene, object: Phaser.GameObjects.Image, ang
     from: 0,
     to: 1,
     duration,
-    onUpdate: (tween) => {
-      const t = tween.getValue() ?? 0;
-      // sin — качание туда-обратно, (1 − t) — затухание: к концу угол становится 0.
-      object.setAngle(Math.sin(t * Math.PI * 2 * SHAKE_SWINGS) * angle * (1 - t));
-    },
+    onUpdate: (tween) => object.setAngle(shakeAngle(tween.getValue() ?? 0, angle)),
+  });
+}
+
+// Угол встряски в момент t (от 0 — начало до 1 — конец), angle — самый большой угол.
+// sin — качание туда-обратно, (1 − t) — затухание: к концу угол становится 0.
+// Отдельной функцией — чтобы куст мог сложить встряску со своим качанием на ветру.
+export function shakeAngle(t: number, angle: number): number {
+  return Math.sin(t * Math.PI * 2 * SHAKE_SWINGS) * angle * (1 - t);
+}
+
+// Качание на ветру: объект медленно наклоняется туда-обратно от точки опоры
+// (у ели — от комля). Твин бесконечный, у каждого объекта своя скорость и начало.
+export function sway(scene: Phaser.Scene, object: Phaser.GameObjects.Image): void {
+  const duration = Phaser.Math.Between(SWAY_TIME_MIN, SWAY_TIME_MAX);
+  object.setAngle(-SWAY_ANGLE);
+  scene.tweens.add({
+    targets: object,
+    angle: SWAY_ANGLE,
+    duration,
+    delay: Phaser.Math.Between(0, duration),
+    yoyo: true,
+    repeat: -1,
+    ease: 'Sine.easeInOut',
   });
 }
 
 // «Пружинка»: объект сплющивается и с отскоком возвращается к своему размеру.
-// baseScale — обычный размер объекта (если он и так увеличен или уменьшен).
+// baseScale — обычный размер объекта (если он и так увеличен или уменьшен),
+// strength — сила сплющивания: 1 — обычная, 0.3 — лёгкий «тычок».
 export function pop(
   scene: Phaser.Scene,
   object: Phaser.GameObjects.Image | Phaser.GameObjects.Text,
   baseScale = 1,
+  strength = 1,
 ): void {
-  object.setScale(baseScale * POP_SQUASH_X, baseScale * POP_SQUASH_Y);
+  const squashX = 1 + (POP_SQUASH_X - 1) * strength;
+  const squashY = 1 + (POP_SQUASH_Y - 1) * strength;
+  object.setScale(baseScale * squashX, baseScale * squashY);
   scene.tweens.add({
     targets: object,
     scaleX: baseScale,
