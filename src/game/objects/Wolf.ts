@@ -74,6 +74,11 @@ const HEAD_NOD = 4;
 const HEAD_LOOT_LIFT = -8;
 // Хвост развевается за спиной (градусы).
 const TAIL_SWAY = 8;
+// И ещё сам по себе виляет — быстро и чуть-чуть, даже когда волк стоит (градусы, радиан за мс).
+const TAIL_WAG = 5;
+const TAIL_WAG_SPEED = 0.012;
+// Удирая с добычей, волк виляет хвостом радостнее: во столько раз сильнее.
+const TAIL_WAG_LOOT = 2.2;
 // Оглушённый волк качается из стороны в сторону (градусы и скорость, радиан за мс),
 // а лапы расставлены (градусы).
 const STUN_WOBBLE = 7;
@@ -133,6 +138,8 @@ export class Wolf {
   private isLootInMouth = false;
   // Фаза шага (радианы): из неё считаются лапы, подъём тела, кивок и хвост.
   private stridePhase = 0;
+  // Сколько мс волк на поле — из этого считается виляние хвоста.
+  private wagTime = 0;
   // Куда смотрит: 1 — вправо, -1 — влево.
   private facing = 1;
   // Проверка шага на этот кадр (её передаёт update()): частокол волков не пускает.
@@ -249,6 +256,7 @@ export class Wolf {
   update(delta: number, playerX: number, playerY: number, canStep: CanStep): boolean {
     if (this.state === 'gone') return false;
     this.canStep = canStep;
+    this.wagTime += delta;
     const startX = this.x;
     const startY = this.y;
 
@@ -400,7 +408,8 @@ export class Wolf {
 
     setPart(this.farFrontLeg, far(SHOULDER), pairB, FAR_LEG_DEPTH_SHIFT);
     setPart(this.farBackLeg, far(HIP), pairA, FAR_LEG_DEPTH_SHIFT);
-    setPart(this.tail, TAIL_BASE, swing * TAIL_SWAY, TAIL_DEPTH_SHIFT);
+    const wag = Math.sin(this.wagTime * TAIL_WAG_SPEED) * TAIL_WAG * (this.loot ? TAIL_WAG_LOOT : 1);
+    setPart(this.tail, TAIL_BASE, swing * TAIL_SWAY + wag, TAIL_DEPTH_SHIFT);
     setPart(this.body, { x: BODY_X, y: BODY_Y }, 0, 0);
     setPart(this.nearFrontLeg, SHOULDER, pairA, NEAR_LEG_DEPTH_SHIFT);
     setPart(this.nearBackLeg, HIP, pairB, NEAR_LEG_DEPTH_SHIFT);
