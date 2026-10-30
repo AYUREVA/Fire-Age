@@ -33,6 +33,11 @@ const ICON_SHADOW_WIDTH = 46;
 const ICON_SHADOW_ALPHA = 0.6;
 const ICON_BOB = 5;
 const ICON_BOB_TIME = 900;
+// Картинка ещё медленно покачивается из стороны в сторону (градусы, мс на один наклон).
+const ICON_SWAY = 4;
+const ICON_SWAY_TIME = 1300;
+// Клык долетел — картинка покупки слегка «пружинит» (доля обычной пружинки, см. pop()).
+const ICON_PAY_POP = 0.4;
 // Цена — клык и число на передней части круга.
 const PRICE_Y = 24;
 const PRICE_TUSK_X = -14;
@@ -76,6 +81,8 @@ export class BuyZone {
   private isHighlighted = false;
 
   private zone: Phaser.GameObjects.Image;
+  // Обычный размер картинки покупки (крупные картинки уменьшены, см. setIcon()).
+  private iconScale = 1;
   private ring: Phaser.GameObjects.Graphics;
   private icon: Phaser.GameObjects.Image;
   private iconShadow: Phaser.GameObjects.Image;
@@ -101,6 +108,15 @@ export class BuyZone {
       targets: this.icon,
       y: y - ICON_LIFT - ICON_BOB,
       duration: ICON_BOB_TIME,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
+    });
+    this.icon.setAngle(-ICON_SWAY);
+    scene.tweens.add({
+      targets: this.icon,
+      angle: ICON_SWAY,
+      duration: ICON_SWAY_TIME,
       yoyo: true,
       repeat: -1,
       ease: 'Sine.easeInOut',
@@ -172,6 +188,7 @@ export class BuyZone {
         this.landed += 1;
         this.showProgress();
         pop(this.scene, this.priceText);
+        pop(this.scene, this.icon, this.iconScale, ICON_PAY_POP);
       },
     });
   }
@@ -185,7 +202,7 @@ export class BuyZone {
     this.payTimer = 0;
     this.setIcon(icon);
     this.showProgress();
-    pop(this.scene, this.icon, this.icon.scale);
+    pop(this.scene, this.icon, this.iconScale);
   }
 
   // Закрыть точку: всё купили. Круг, картинка и цена тают.
@@ -206,7 +223,8 @@ export class BuyZone {
   // Поставить картинку покупки и вписать её в высоту ICON_HEIGHT (крупные — уменьшаются).
   private setIcon(icon: string): void {
     this.icon.setTexture(icon);
-    this.icon.setScale(Math.min(1, ICON_HEIGHT / this.icon.height));
+    this.iconScale = Math.min(1, ICON_HEIGHT / this.icon.height);
+    this.icon.setScale(this.iconScale);
   }
 
   // Все картинки точки — чтобы спрятать их разом.

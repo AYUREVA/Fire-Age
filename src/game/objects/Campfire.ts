@@ -35,6 +35,18 @@ const GLOW_ALPHA = 0.45;
 // Свет «дышит»: на какую долю меняется размер и за сколько мс.
 const GLOW_PULSE = 0.06;
 const GLOW_PULSE_TIME = 700;
+// Поверх медленного дыхания — быстрое неровное мерцание (мс) и его доля:
+// две волны разной длины складываются, и свет дрожит, как живой огонь.
+const GLOW_FLICKER_TIME = 230;
+const GLOW_FLICKER_SHARE = 0.4;
+// Ореол огня: тёплое свечение вокруг пламени. Оно складывается с цветом под ним
+// (режим ADD), поэтому камни, вертел и вождь рядом с огнём ловят оранжевые блики.
+// Размер (ширина в пикселях), подъём над землёй и прозрачность при полном жаре.
+const HALO_WIDTH = 230;
+const HALO_LIFT = 40;
+const HALO_ALPHA = 0.32;
+// Ореол лежит над кострищем и вертелом, но под языками пламени.
+const HALO_DEPTH_SHIFT = 0.08;
 // Свет тускнеет до этой прозрачности и снова разгорается.
 const GLOW_MIN_ALPHA = 0.32;
 // При слабом жаре круг света сжимается до этой доли своего размера.
@@ -42,10 +54,12 @@ const GLOW_MIN_SIZE = 0.4;
 // Искры вылетают из середины пламени.
 const SPARKS_OFFSET_Y = -40;
 // Искры: летят вверх, чуть в стороны, гаснут и меняют цвет от белого к красному.
+// Горячий воздух тянет их вверх (gravityY меньше нуля) — искры разгоняются, как над живым огнём.
 const SPARKS: Phaser.Types.GameObjects.Particles.ParticleEmitterConfig = {
-  speedX: { min: -25, max: 25 },
+  speedX: { min: -35, max: 35 },
   speedY: { min: -110, max: -50 },
-  lifespan: { min: 700, max: 1300 },
+  gravityY: -45,
+  lifespan: { min: 700, max: 1400 },
   scale: { start: 1, end: 0 },
   alpha: { start: 1, end: 0 },
   frequency: 160, // новая искра раз в 160 мс
@@ -54,6 +68,26 @@ const SPARKS: Phaser.Types.GameObjects.Particles.ParticleEmitterConfig = {
 };
 // Сколько искр вылетает разом, когда в огонь падает связка.
 const SPARKS_BURST = 6;
+
+// ===== Дымок =====
+
+// Дымок поднимается из середины пламени. Он стоит за языками пламени (не пачкает огонь),
+// но над кострищем и вертелом.
+const SMOKE_OFFSET_Y = -70;
+const SMOKE_DEPTH_SHIFT = 0.06;
+// Дымок: редкие клубы медленно поднимаются, растут, расплываются и тают.
+// Ветер чуть сносит их влево. Клубов немного — бережём слабые компьютеры.
+const SMOKE: Phaser.Types.GameObjects.Particles.ParticleEmitterConfig = {
+  x: { min: -8, max: 8 },
+  speedX: { min: -18, max: 4 },
+  speedY: { min: -60, max: -40 },
+  lifespan: { min: 2200, max: 3000 },
+  scale: { start: 0.6, end: 2.1 },
+  alpha: { values: [0, 0.75, 0.45, 0] }, // проявляется, редеет, тает
+  tint: COLORS.smoke,
+  frequency: 420, // новый клуб раз в 420 мс
+  maxAliveParticles: 8, // не больше 8 клубов сразу
+};
 
 // ===== Угли =====
 
@@ -122,6 +156,9 @@ export class Campfire {
   // Круг света на снегу и его размер при полном жаре.
   private glow: Phaser.GameObjects.Image;
   private glowScaleX: number;
+  // Ореол вокруг пламени (режим ADD) и его размер при полном жаре.
+  private halo: Phaser.GameObjects.Image;
+  private haloScale: number;
   // Искры над пламенем.
   private sparks: Phaser.GameObjects.Particles.ParticleEmitter;
   // Шкала жара: подложка и заливка, которая укорачивается вместе с жаром.
@@ -140,6 +177,13 @@ export class Campfire {
 
     scene.add.image(x, y, TEXTURES.firePit).setOrigin(0.5, 1).setDepth(y);
 
+    this.halo = scene.add
+      .image(x, y - HALO_LIFT, TEXTURES.fireLight)
+      .setTint(COLORS.fireOrange)
+      .setBlendMode(Phaser.BlendModes.ADD)
+      .setDepth(y + HALO_DEPTH_SHIFT);
+    this.haloScale = HALO_WIDTH / this.halo.width;
+
     FLAMES.forEach((flame, index) => {
       const image = scene.add
         .image(x + flame.x, y - FLAME_BASE_LIFT, TEXTURES.flame)
@@ -148,6 +192,11 @@ export class Campfire {
         .setDepth(y + FLAME_DEPTH_STEP * (index + 1));
       this.flames.push({ image, flame });
     });
+
+    // Дымок идёт всегда — и от пламени, и от тлеющих углей, поэтому его не нужно хранить.
+    scene.add
+      .particles(x, y + SMOKE_OFFSET_Y, TEXTURES.smoke, SMOKE)
+      .setDepth(y + SMOKE_DEPTH_SHIFT);
 
     this.sparks = scene.add
       .particles(x, y + SPARKS_OFFSET_Y, TEXTURES.spark, SPARKS)
@@ -207,6 +256,7 @@ export class Campfire {
 
     this.updateFlames(isEmbers, heatShare);
     this.updateGlow(isEmbers, heatShare);
+    this.updateHalo(isEmbers, heatShare);
 
     // В углях искры не летят.
     if (isEmbers && this.sparks.emitting) this.sparks.stop();
@@ -255,10 +305,26 @@ export class Campfire {
       return;
     }
 
-    const breath = wave(this.time, GLOW_PULSE_TIME);
+    const breath = this.getBreath();
     const scaleX = this.glowScaleX * Phaser.Math.Linear(GLOW_MIN_SIZE, 1, heatShare) * (1 + GLOW_PULSE * breath);
     this.glow.setTint(COLORS.fireGlow);
     this.glow.setScale(scaleX, scaleX * GLOW_FLATTEN);
     this.glow.setAlpha(Phaser.Math.Linear(GLOW_ALPHA, GLOW_MIN_ALPHA, breath));
+  }
+
+  // Ореол вокруг пламени: растёт с жаром и дрожит вместе со светом. В углях его нет.
+  private updateHalo(isEmbers: boolean, heatShare: number): void {
+    this.halo.setVisible(!isEmbers);
+    if (isEmbers) return;
+    const breath = this.getBreath();
+    this.halo.setScale(this.haloScale * Phaser.Math.Linear(FLAME_MIN_SIZE, 1, heatShare) * (1 + GLOW_PULSE * breath));
+    this.halo.setAlpha(HALO_ALPHA * (1 - GLOW_PULSE * 2 * breath));
+  }
+
+  // «Дыхание» огня от 0 до 1: медленная волна плюс быстрое неровное мерцание.
+  private getBreath(): number {
+    const slow = wave(this.time, GLOW_PULSE_TIME);
+    const fast = wave(this.time, GLOW_FLICKER_TIME);
+    return Phaser.Math.Linear(slow, fast, GLOW_FLICKER_SHARE);
   }
 }

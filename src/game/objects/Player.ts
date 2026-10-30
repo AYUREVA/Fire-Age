@@ -107,6 +107,19 @@ const ARM_IDLE_SWAY = 3;
 const CLUB_IDLE_SWAY = 4;
 // На бегу тяжёлая дубина покачивается в такт шагам (градусы).
 const CLUB_RUN_SWAY = 6;
+// В покое тело ещё чуть покачивается из стороны в сторону (градусы) — медленнее дыхания.
+const IDLE_SWAY_ANGLE = 1.2;
+const IDLE_SWAY_SPEED = 0.0017;
+// Переход между бегом и покоем: примерно за столько мс поза меняется на бег или на покой
+// (ноги встают ровно, наклон и подпрыгивание уходят, начинается дыхание).
+// Без него вождь при остановке мгновенно «замирал» в ровной стойке.
+const POSE_BLEND_TIME = 90;
+// На каждом шаге, когда нога встаёт на снег, тело чуть приседает (доля высоты).
+const STEP_SQUASH = 0.035;
+// Разворот: тело на миг становится уже (доля ширины) и за столько мс расправляется —
+// будто вождь поворачивается, а не мгновенно отражается.
+const TURN_SQUASH = 0.25;
+const TURN_TIME = 140;
 
 /**
  * Вождь племени.
@@ -146,6 +159,15 @@ export class Player {
   private legSwing = 0;
   // Сколько мс вождь стоит — из этого считается «дыхание».
   private idleTime = 0;
+  // Насколько вождь сейчас «бежит»: 0 — стоит, 1 — бежит. Меняется плавно (POSE_BLEND_TIME).
+  private runBlend = 0;
+  // Покачивание тела из стороны в сторону в покое (градусы).
+  private idleSway = 0;
+  // Приседание на шаге: доля высоты, на которую тело сейчас ниже.
+  private stepSquash = 0;
+  // Куда вождь смотрел в прошлом кадре и сколько мс ещё длится «разворот».
+  private lastFacing = 1;
+  private turnTimeLeft = 0;
   // Насколько тело сейчас подпрыгнуло вверх, в пикселях.
   private bob = 0;
   // Волна «дыхания» на месте: от -1 (выдох) до 1 (вдох). На бегу — 0.
@@ -378,35 +400,49 @@ export class Player {
     if (this.velocityX < 0) this.facing = -1;
   }
 
-  // Бег настоящими шагами или «дыхание» на месте.
+  // Бег настоящими шагами или «дыхание» на месте. Между ними поза меняется плавно.
   private animate(delta: number, isMoving: boolean): void {
+    // Какую долю пути до новой позы пройти за этот кадр (не больше всего пути).
+    const blend = Math.min(1, delta / POSE_BLEND_TIME);
+    this.runBlend = Phaser.Math.Linear(this.runBlend, isMoving ? 1 : 0, blend);
+
     if (isMoving) {
       this.idleTime = 0;
       this.stepPhase += delta * STEP_SPEED;
-      // legSwing качается от -1 до 1: одна нога вперёд, другая назад, потом наоборот.
-      this.legSwing = Math.sin(this.stepPhase);
-      // Тело выше всего, когда ноги проходят под ним (|cos| — два подъёма за цикл, по одному на шаг).
-      this.bob = Math.abs(Math.cos(this.stepPhase)) * RUN_BOB_HEIGHT;
-      // Тело наклонено вперёд по ходу бега.
-      this.walkTilt = RUN_LEAN * this.facing;
-      this.breathWave = 0;
     } else {
-      this.stepPhase = 0;
-      this.legSwing = 0;
       this.idleTime += delta;
-      this.bob = 0;
-      this.walkTilt = 0;
-      // Медленное «дыхание»: тело чуть вытягивается и возвращается (см. place()).
-      this.breathWave = Math.sin(this.idleTime * IDLE_BREATH_SPEED);
+      // Ноги плавно встают ровно: фаза шага доходит до ближайшего положения «ноги вместе»
+      // (sin = 0 — кратно π), а не прыгает туда сразу.
+      const standPhase = Math.round(this.stepPhase / Math.PI) * Math.PI;
+      this.stepPhase = Phaser.Math.Linear(this.stepPhase, standPhase, blend);
     }
+
+    // legSwing качается от -1 до 1: одна нога вперёд, другая назад, потом наоборот.
+    this.legSwing = Math.sin(this.stepPhase);
+    // Тело выше всего, когда ноги проходят под ним (|cos| — два подъёма за цикл, по одному на шаг).
+    this.bob = Math.abs(Math.cos(this.stepPhase)) * RUN_BOB_HEIGHT * this.runBlend;
+    // Тело наклонено вперёд по ходу бега.
+    this.walkTilt = Phaser.Math.Linear(this.walkTilt, isMoving ? RUN_LEAN * this.facing : 0, blend);
+    // Медленное «дыхание» на месте: тело чуть вытягивается и возвращается (см. place()),
+    // и ещё медленнее покачивается из стороны в сторону. На бегу и то и другое затихает.
+    const idleShare = 1 - this.runBlend;
+    this.breathWave = Math.sin(this.idleTime * IDLE_BREATH_SPEED) * idleShare;
+    this.idleSway = Math.sin(this.idleTime * IDLE_SWAY_SPEED) * IDLE_SWAY_ANGLE * idleShare;
+    // Нога встаёт на снег, когда тело ниже всего (|cos| = 0) — тогда и приседание.
+    this.stepSquash = (1 - Math.abs(Math.cos(this.stepPhase))) * STEP_SQUASH * this.runBlend;
+
+    // Вождь развернулся (на ходу или к кусту для удара) — начинается «разворот».
+    if (this.facing !== this.lastFacing) this.turnTimeLeft = TURN_TIME;
+    this.lastFacing = this.facing;
+    this.turnTimeLeft = Math.max(0, this.turnTimeLeft - delta);
   }
 
   // На сколько пикселей сейчас поднялась точка тела на высоте height над ногами.
   // Картинка тела «дышит», растягиваясь от ног вверх: чем выше точка, тем сильнее
-  // она поднимается. Плюс подъём тела на шагах (bob). По этой высоте ставится
-  // стопка на спине, чтобы она двигалась вместе с телом.
+  // она поднимается; приседая на шаге, опускается. Плюс подъём тела на шагах (bob).
+  // По этой высоте ставится стопка на спине, чтобы она двигалась вместе с телом.
   private bodyLiftAt(height: number): number {
-    return height * this.breathWave * IDLE_BREATH + this.bob;
+    return height * (this.breathWave * IDLE_BREATH - this.stepSquash) + this.bob;
   }
 
   // Точка на теле: (offsetX, offsetY) от ног, когда вождь смотрит вправо и стоит ровно.
@@ -432,12 +468,16 @@ export class Player {
     this.shadow.setScale(this.shadowScale * (1 - (this.bob / RUN_BOB_HEIGHT) * SHADOW_SHRINK_IN_JUMP));
     this.ring.setPosition(this.x, this.y).setDepth(this.y + RING_DEPTH_SHIFT);
 
-    // Тело: наклон от шагов и от удара (зеркально, если вождь смотрит влево),
-    // «дыхание» на месте и присед при ударе.
-    const bodyAngle = this.walkTilt + this.swingLean * this.facing;
+    // Тело: наклон от шагов, покачивание на месте и наклон от удара (зеркально,
+    // если вождь смотрит влево), «дыхание» на месте, присед при ударе и на шагах,
+    // сужение при развороте.
+    const bodyAngle = this.walkTilt + this.idleSway + this.swingLean * this.facing;
     const breath = this.breathWave * IDLE_BREATH;
-    const scaleX = (1 - breath / 2) * (1 + this.swingSquash * SQUASH_WIDEN);
-    const scaleY = (1 + breath) * (1 - this.swingSquash);
+    // Разворот: тело уже всего в первый миг и расправляется к концу TURN_TIME.
+    const turn = 1 - TURN_SQUASH * (this.turnTimeLeft / TURN_TIME);
+    const squash = this.swingSquash + this.stepSquash;
+    const scaleX = (1 - breath / 2) * (1 + squash * SQUASH_WIDEN) * turn;
+    const scaleY = (1 + breath) * (1 - squash);
     this.bodyImage
       .setPosition(this.x, this.y - this.bob)
       .setAngle(bodyAngle)
