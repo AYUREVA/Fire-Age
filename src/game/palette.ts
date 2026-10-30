@@ -185,6 +185,8 @@ export const COLORS = {
   tabletDark: 0x5f554f, // камень в тени, трещины
   tabletLight: 0xb3a79c, // освещённая кромка камня
   titleAmber: 0xffb33b, // «высеченный» заголовок: тёплый янтарь
+  titleAmberTop: 0xffd166, // верх букв заголовка: янтарь на свету
+  titleAmberBottom: 0xf5962a, // низ букв заголовка: янтарь в тени
   hintGlow: 0xffc24a, // свечение-обводка подсказки обучения
   titleHighlight: 0xffe3a3, // светлый блик над заголовком
   moon: 0xfff1c9, // луна на плашке таймера

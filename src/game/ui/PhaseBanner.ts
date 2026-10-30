@@ -3,7 +3,7 @@ import { COLORS, toCss } from '../palette';
 import { FONT_FAMILY, TEXTURES, TITLE_FONT } from '../textures';
 import { Point, pop } from '../fx';
 import { formatTime } from '../objects/Hud';
-import { addCarvedTitle } from './StoneTablet';
+import { CARVED_TEXT_SHADOW, addCarvedTitle } from './StoneTablet';
 
 // ===== Табличка =====
 
@@ -149,6 +149,7 @@ export class PhaseBanner {
         color: toCss(COLORS.titleAmber),
         stroke: toCss(COLORS.outline),
         strokeThickness: 5,
+        shadow: CARVED_TEXT_SHADOW,
         resolution: 2,
       })
       .setOrigin(0.5);
@@ -159,6 +160,7 @@ export class PhaseBanner {
         color: toCss(COLORS.hudText),
         stroke: toCss(COLORS.outline),
         strokeThickness: 10,
+        shadow: CARVED_TEXT_SHADOW,
         resolution: 2,
       })
       .setOrigin(0.5);
@@ -235,6 +237,7 @@ export class PhaseBanner {
         color: toCss(COLORS.hudText),
         stroke: toCss(COLORS.outline),
         strokeThickness: 4,
+        shadow: CARVED_TEXT_SHADOW,
         resolution: 2,
       })
       .setOrigin(0, 0.5);

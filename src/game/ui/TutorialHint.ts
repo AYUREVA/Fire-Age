@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { COLORS, toCss } from '../palette';
 import { TEXTURES, TITLE_FONT, bakeStonePlate } from '../textures';
 import { Point, pop, setGlow } from '../fx';
+import { CARVED_TEXT_SHADOW } from './StoneTablet';
 
 // Подсказка поверх мира, но под HUD (20000, Hud.ts).
 const HINT_DEPTH = 19000;
@@ -71,6 +72,7 @@ export class TutorialHint {
         color: toCss(COLORS.titleAmber),
         stroke: toCss(COLORS.outline),
         strokeThickness: 5,
+        shadow: CARVED_TEXT_SHADOW,
         resolution: 2,
       })
       .setOrigin(0.5)
