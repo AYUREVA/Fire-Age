@@ -41,6 +41,9 @@ const FLY_TIME = 300;
 const FLY_ARC_HEIGHT = 70;
 // «+1» появляется над предметом, который лёг в кучу.
 const PLUS_ONE_OFFSET_Y = 30;
+// Предмет шлёпнулся в кучу — вся куча чуть приседает: сила «пружинки» у остальных
+// предметов (доля обычной, см. pop() в fx.ts).
+const PILE_THUMP = 0.25;
 
 /**
  * Куча одного типа ресурса у костра с лимитом: поленница (хворост),
@@ -185,11 +188,14 @@ export class ItemPile {
 
   // ===== Куча =====
 
-  // Предмет лёг в кучу: «пружинка» и «+1».
+  // Предмет лёг в кучу: «пружинка», «+1», и вся куча чуть приседает от удара.
   private store(item: Phaser.GameObjects.Image, slotIndex: number): void {
     this.flyingItems.delete(item);
     floatText(this.scene, item.x, item.y - PLUS_ONE_OFFSET_Y, '+1', COLORS.plusOne);
     item.setDepth(this.getPileDepth(slotIndex));
+    for (const other of this.pile) {
+      if (other !== item && !this.flyingItems.has(other)) pop(this.scene, other, 1, PILE_THUMP);
+    }
     pop(this.scene, item);
   }
 

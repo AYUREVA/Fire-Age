@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { COLORS, toCss } from '../palette';
 import { FONT_FAMILY, TEXTURES } from '../textures';
 import { LevelStats } from '../analytics';
-import { StoneTablet, TabletButton } from '../ui/StoneTablet';
+import { CARVED_TEXT_SHADOW, StoneTablet, TabletButton } from '../ui/StoneTablet';
 import { pop } from '../fx';
 import { SOUNDS, SOUND_VOLUMES, playSound } from '../sounds';
 import { StarGoal } from '../ui/StarGoals';
@@ -173,6 +173,7 @@ export class ResultScene extends Phaser.Scene {
       color: toCss(COLORS.hudText),
       stroke: toCss(COLORS.outline),
       strokeThickness: 4,
+      shadow: CARVED_TEXT_SHADOW,
       resolution: 2,
     });
   }
