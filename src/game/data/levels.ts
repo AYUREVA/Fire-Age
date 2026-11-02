@@ -109,6 +109,7 @@ export const LEVELS: LevelData[] = [
     // Точки найма — во дворе, внизу по бокам от кучи жареного мяса.
     helpers: {
       gatherer: { price: 10, spot: { x: 1340, y: 1150 } },
+      hunter: { price: 14, spot: { x: 900, y: 1150 } },
     },
     starFed: 12,
     hasTutorial: false,

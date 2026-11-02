@@ -409,7 +409,16 @@ export class GameScene extends Phaser.Scene {
     updateHunting(this.player, this.backpack, this.rabbits);
     updateHelpers(
       this.helpers,
-      { bushes: this.bushes, woodpile: this.woodpile, fence: this.fence, stats: this.stats },
+      {
+        bushes: this.bushes,
+        wolves: this.wolves,
+        rabbits: this.rabbits,
+        woodpile: this.woodpile,
+        rawMeatPile: this.rawMeatPile,
+        backpack: this.backpack,
+        fence: this.fence,
+        stats: this.stats,
+      },
       delta,
     );
     updateDropping(this.player, this.backpack, [this.woodpile, this.rawMeatPile], delta);
