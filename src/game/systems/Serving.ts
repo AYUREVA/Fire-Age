@@ -16,6 +16,7 @@ import { Traveler } from '../objects/Traveler';
 import { Hut } from '../objects/Hut';
 import { LevelStats } from '../analytics';
 import { LevelData } from '../data/levels';
+import { ItemType } from '../items';
 
 // =====================================================================
 //  Стол и путники: вождь выкладывает еду на стол, путники едят
@@ -28,15 +29,20 @@ import { LevelData } from '../data/levels';
 
 // ===== Еда на стол =====
 
+// Какая еда идёт на стол: жареное мясо и жареная рыба (с 0.8).
+const FOOD_TYPES: ItemType[] = ['cookedMeat', 'cookedFish'];
+
 // Вождь у стола — вся жареная еда со спины почти разом перелетает на стол
 // (по куску каждые TABLE_DROP_INTERVAL мс), пока на столе есть место.
+// Сначала мясо, потом рыба.
 export function updateTable(player: Player, backpack: Backpack, table: StoneTable, delta: number): void {
   const isInZone = table.contains(player.x, player.y);
   const canDrop = isInZone && !table.isFull();
   table.setHighlighted(canDrop);
+  const type = FOOD_TYPES.find((food) => backpack.has(food));
 
   // Вождь не у стола, стол полный или нести нечего — таймер не копится.
-  if (!canDrop || !backpack.has('cookedMeat')) {
+  if (!canDrop || !type) {
     table.dropTimer = 0;
     return;
   }
@@ -46,10 +52,10 @@ export function updateTable(player: Player, backpack: Backpack, table: StoneTabl
   table.dropTimer -= TABLE_DROP_INTERVAL;
 
   // Верхний кусок может ещё лететь на спину — тогда его пока не отдаём.
-  const item = backpack.takeTop('cookedMeat');
+  const item = backpack.takeTop(type);
   if (!item) return;
 
-  table.receive(item, 'cookedMeat');
+  table.receive(item, type);
 }
 
 // ===== Путники =====
@@ -58,15 +64,17 @@ export function updateTable(player: Player, backpack: Backpack, table: StoneTabl
 // ест, оставляет клыки и уходит. Нет нужной еды — убывает его терпение.
 // huts — хижины: каждая построенная ускоряет приход путников.
 // stats — статистика уровня: сюда считаются накормленные и голодные.
+// fishShare — доля путников, которые просят рыбу (0 — на уровне нет рыбы).
 export function updateTravelers(
   table: StoneTable,
   travelers: Traveler[],
   huts: Hut[],
   stats: LevelStats,
   arrivals: LevelData['travelers'],
+  fishShare: number,
   delta: number,
 ): void {
-  callTraveler(table, travelers, huts, arrivals, delta);
+  callTraveler(table, travelers, huts, arrivals, fishShare, delta);
 
   // Очередь — путники по порядку талонов: кто пришёл раньше, тот ближе к столу.
   const queue = travelers.filter((traveler) => traveler.isInQueue()).sort((a, b) => a.ticket - b.ticket);
@@ -82,12 +90,14 @@ export function updateTravelers(
 // Раз в arrivals.interval (первый — через arrivals.firstDelay; числа уровня) из леса выходит
 // новый путник, если в очереди есть место. Путники созданы заранее — зовём свободного.
 // Каждая построенная хижина умножает интервал на HUT_SPAWN_FACTOR — путники приходят чаще.
-// arrivals — как приходят путники на этом уровне (data/levels.ts).
+// arrivals — как приходят путники на этом уровне (data/levels.ts),
+// fishShare — доля путников, которые просят рыбу (0 — на уровне нет рыбы).
 function callTraveler(
   table: StoneTable,
   travelers: Traveler[],
   huts: Hut[],
   arrivals: LevelData['travelers'],
+  fishShare: number,
   delta: number,
 ): void {
   const builtHuts = huts.filter((hut) => hut.isBuilt()).length;
@@ -107,7 +117,10 @@ function callTraveler(
     isFirst && arrivals.firstOrder !== undefined
       ? arrivals.firstOrder
       : Phaser.Math.Between(TRAVELER_ORDER_MIN, TRAVELER_ORDER_MAX);
-  free.arrive(table.nextTicket, order, table.getForestPoint());
+  // Чего хочет: рыбу — с вероятностью fishShare, иначе мясо. Первый путник всегда хочет мясо:
+  // его заказ задаёт уровень (на уровне 1 — для обучения).
+  const type: ItemType = !isFirst && Math.random() < fishShare ? 'cookedFish' : 'cookedMeat';
+  free.arrive(table.nextTicket, order, type, table.getForestPoint());
   table.nextTicket += 1;
 }
 

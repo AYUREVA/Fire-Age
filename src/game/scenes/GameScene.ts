@@ -413,7 +413,15 @@ export class GameScene extends Phaser.Scene {
     for (const traveler of this.travelers) {
       traveler.update(delta);
     }
-    updateTravelers(this.table, this.travelers, this.huts, this.stats, this.level.travelers, delta);
+    updateTravelers(
+      this.table,
+      this.travelers,
+      this.huts,
+      this.stats,
+      this.level.travelers,
+      this.level.fishing?.fishShare ?? 0,
+      delta,
+    );
     updateTusks(this.player, this.table, this.hud, this.stats, this.cameras.main);
     const purchase = updatePurchases(this.player, this.buyZones, this.hud, this.cameras.main, delta);
     if (purchase) this.onPurchase(purchase);
@@ -755,6 +763,7 @@ export class GameScene extends Phaser.Scene {
       // Пережиты все сутки уровня — или те, что успели закончиться до поражения.
       days: isWin ? this.level.dayCount : this.cycle.dayNumber - 1,
       hasWolves: this.level.wolves !== undefined,
+      hasFishing: this.level.fishing !== undefined,
       onRestart: () => this.restart(),
       onMenu: () => this.quitToMenu(),
       onNext: hasNext ? () => this.nextLevel() : undefined,

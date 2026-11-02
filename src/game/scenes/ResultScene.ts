@@ -27,6 +27,9 @@ const CAPTION_MISSED_ALPHA = 0.6;
 // где начинается название и где кончается число.
 const ROWS_Y = -8;
 const ROW_STEP = 27;
+// Над кнопками помещается столько строк с шагом ROW_STEP. Строк больше
+// (уровень с волками и рыбой) — шаг ужимается, чтобы строки не налезли на кнопки.
+const ROWS_FIT = 7;
 const ROW_LABEL_X = -210;
 const ROW_VALUE_X = 210;
 
@@ -43,7 +46,8 @@ const STAR_STAMP_START_SCALE = 3.2;
 
 // С какими данными GameScene запускает эту сцену.
 // isWin — победа или поражение, starGoals — цели трёх звёзд и выполнена ли каждая,
-// stats — статистика уровня, days — сколько суток пережито, hasWolves — были ли волки на уровне.
+// stats — статистика уровня, days — сколько суток пережито, hasWolves — были ли волки на уровне,
+// hasFishing — была ли рыба (прорубь и малый костёр, с 0.8).
 // Переходы делает GameScene: onRestart — RESULT → READY того же уровня,
 // onMenu — RESULT → меню, onNext — RESULT → READY следующего уровня
 // (его нет, если уровень проигран или он последний).
@@ -53,6 +57,7 @@ export type ResultData = {
   stats: LevelStats;
   days: number;
   hasWolves: boolean;
+  hasFishing: boolean;
   onRestart: () => void;
   onMenu: () => void;
   onNext?: () => void;
@@ -137,21 +142,21 @@ export class ResultScene extends Phaser.Scene {
   // ===== Статистика =====
 
   // Строки статистики: название слева, число справа. Числа набегают от нуля.
-  // «Отогнано волков» — только на уровнях с волками.
+  // «Пожарено рыбы» — только на уровнях с рыбой, «Отогнано волков» — только с волками.
   private addRows(data: ResultData): void {
     const { stats } = data;
     const rows: [string, number][] = [
       ['Пережито суток', data.days],
       ['Добыто хвороста', stats.woodGathered],
       ['Пожарено мяса', stats.meatCooked],
-      ['Накормлено путников', stats.fed],
-      ['Ушло голодными', stats.hungry],
-      ['Заработано клыков', stats.tusksEarned],
     ];
+    if (data.hasFishing) rows.push(['Пожарено рыбы', stats.fishCooked]);
+    rows.push(['Накормлено путников', stats.fed], ['Ушло голодными', stats.hungry], ['Заработано клыков', stats.tusksEarned]);
     if (data.hasWolves) rows.push(['Отогнано волков', stats.wolvesDriven]);
 
+    const step = Math.min(ROW_STEP, (ROW_STEP * ROWS_FIT) / rows.length);
     rows.forEach(([name, value], index) => {
-      const y = ROWS_Y + index * ROW_STEP;
+      const y = ROWS_Y + index * step;
       const label = this.addRowText(ROW_LABEL_X, y, name).setOrigin(0, 0.5);
       const number = this.addRowText(ROW_VALUE_X, y, '0').setOrigin(1, 0.5);
       this.tablet.add([label, number]);
