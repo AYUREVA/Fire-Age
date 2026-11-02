@@ -1,18 +1,20 @@
 import Phaser from 'phaser';
-import { CATCH_RADIUS, DROP_INTERVAL, GATHER_RADIUS } from '../settings';
+import { CATCH_RADIUS, DROP_INTERVAL, FISH_INTERVAL, GATHER_RADIUS } from '../settings';
 import { Player } from '../objects/Player';
 import { Backpack } from '../objects/Backpack';
 import { ResourceNode } from '../objects/ResourceNode';
 import { ItemPile } from '../objects/ItemPile';
 import { Rabbit } from '../objects/Rabbit';
+import { IceHole } from '../objects/IceHole';
 import { LevelStats } from '../analytics';
 
 // =====================================================================
-//  Добыча (кусты, кролики), сдача в кучи у костра и жареное мясо на спину.
+//  Добыча (кусты, кролики, рыба), сдача в кучи у костра и жареное мясо на спину.
 //
 //  Это функции, а не класс: нужные объекты приходят аргументами,
 //  своего состояния здесь нет. Таймеры хранят сами объекты:
-//  hitTimer — вождь (Player), dropTimer — куча у костра (ItemPile).
+//  hitTimer — вождь (Player), dropTimer — куча у костра (ItemPile),
+//  fishTimer — прорубь (IceHole).
 //  GameScene вызывает эти функции каждый кадр.
 // =====================================================================
 
@@ -92,6 +94,31 @@ export function updateHunting(player: Player, backpack: Backpack, rabbits: Rabbi
     rabbit.poof();
     backpack.add('rawMeat', rabbit.getLootPoint());
   });
+}
+
+// ===== Рыбалка =====
+
+// Вождь у проруби — раз в FISH_INTERVAL мс клюёт рыба: по воде круг,
+// рыба по дуге летит на спину, пока колонка рыбы не полная.
+// stats — статистика уровня: сюда считается пойманная рыба.
+export function updateFishing(player: Player, backpack: Backpack, hole: IceHole, stats: LevelStats, delta: number): void {
+  const canFish = hole.contains(player.x, player.y) && !backpack.isFull('rawFish');
+  // Колонка рыбы полная — прорубь не подсвечивается: рыбачить пока некуда.
+  hole.setHighlighted(canFish);
+
+  // Вождь отошёл или колонка полная — поклёвка не копится.
+  if (!canFish) {
+    hole.fishTimer = 0;
+    return;
+  }
+
+  hole.fishTimer += delta;
+  if (hole.fishTimer < FISH_INTERVAL) return;
+  hole.fishTimer -= FISH_INTERVAL;
+
+  hole.splash();
+  backpack.add('rawFish', hole.getLootPoint());
+  stats.fishCaught += 1;
 }
 
 // ===== Сдача в кучи у костра =====

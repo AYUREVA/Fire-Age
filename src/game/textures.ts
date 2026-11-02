@@ -59,6 +59,9 @@ export const TEXTURES = {
   rawMeat: 'raw-meat', // сырое мясо: розовая ножка с косточкой
   tusk: 'tusk', // клык — валюта каменного века
   cookedMeat: 'cooked-meat', // жареное мясо: румяная ножка с косточкой
+  rawFish: 'raw-fish', // сырая рыба: серебристая, хвостом влево
+  cookedFish: 'cooked-fish', // жареная рыба: золотистая, с полосками от огня
+  iceHole: 'ice-hole', // прорубь: тёмная вода в ледяном ободке со снегом (лежит на земле)
   snowflake: 'snowflake', // снежинка: падающий снег и снег из куста
   chip: 'chip', // щепка, летит из куста при ударе
   dropZone: 'drop-zone', // площадка кучи у костра: светлая рамка (иконку ставит ItemPile)
@@ -159,6 +162,9 @@ const BUBBLE_SIZE: Size = { w: 84, h: 50 };
 const STUMP_SIZE: Size = { w: 80, h: 60 };
 const BUNDLE_SIZE: Size = { w: 56, h: 28 };
 const MEAT_SIZE: Size = { w: 48, h: 32 };
+// Рыба того же размера, что мясо: стопки и кучи складываются одинаково.
+const FISH_SIZE: Size = MEAT_SIZE;
+const ICE_HOLE_SIZE: Size = { w: 190, h: 110 };
 const TUSK_SIZE: Size = { w: 36, h: 44 };
 // Высота корня клыка (тёмная верхняя часть).
 const TUSK_ROOT_HEIGHT = 12;
@@ -309,6 +315,11 @@ export function createTextures(scene: Phaser.Scene): void {
   bake(scene, TEXTURES.cookedMeat, MEAT_SIZE, (g) =>
     drawMeat(g, COLORS.cookedMeat, COLORS.cookedMeatShade, COLORS.cookedMeatLight, true),
   );
+  bake(scene, TEXTURES.rawFish, FISH_SIZE, (g) => drawFish(g, COLORS.rawFish, COLORS.rawFishShade, COLORS.rawFishBelly, false));
+  bake(scene, TEXTURES.cookedFish, FISH_SIZE, (g) =>
+    drawFish(g, COLORS.cookedFish, COLORS.cookedFishShade, COLORS.cookedFishBelly, true),
+  );
+  bake(scene, TEXTURES.iceHole, ICE_HOLE_SIZE, drawIceHole);
   bake(scene, TEXTURES.snowflake, SNOWFLAKE_SIZE, drawSnowflake);
   bake(scene, TEXTURES.chip, CHIP_SIZE, drawChip);
   bake(scene, TEXTURES.dropZone, DROP_ZONE_SIZE, drawDropZone);
@@ -2445,6 +2456,54 @@ function drawMeat(g: Graphics, color: number, shade: number, light: number, isCo
   }
 }
 
+// Рыба хвостом влево: тело-капля, хвост, плавники, глаз и чешуйки.
+// У жареной — тёмные полоски от огня и золотистые блики.
+function drawFish(g: Graphics, color: number, shade: number, belly: number, isCooked: boolean): void {
+  // Хвост — «ласточкин хвост» слева.
+  const tail = [3, 6, 13, 13, 13, 19, 3, 26, 7, 16];
+  fillPolygon(g, tail, shade);
+  strokePolygon(g, tail);
+  // Спинной и брюшной плавники.
+  const topFin = [20, 8, 26, 2, 34, 4, 32, 8];
+  const bottomFin = [24, 24, 28, 29, 33, 24];
+  fillPolygon(g, topFin, shade);
+  strokePolygon(g, topFin);
+  fillPolygon(g, bottomFin, shade);
+  strokePolygon(g, bottomFin);
+  // Тело: спинка своего цвета, светлое брюхо снизу.
+  const body = [12, 16, 18, 9, 28, 6, 38, 7, 45, 12, 46, 17, 42, 22, 32, 25, 20, 23];
+  fillPolygon(g, body, color);
+  fillPolygon(g, [14, 18, 20, 23, 32, 25, 42, 22, 45, 18, 32, 19, 20, 19], belly);
+  // Жабра — дужка за головой.
+  g.lineStyle(1.4, shade, 1);
+  g.strokePoints(toPoints([37, 9, 35, 15, 37, 21]), false);
+  if (isCooked) {
+    // Полоски от огня поперёк тела.
+    g.lineStyle(2, COLORS.cookedMeatShade, 0.9);
+    for (const x of [20, 26, 32]) g.lineBetween(x, 9, x - 3, 22);
+  } else {
+    // Чешуйки — светлые дужки на спинке.
+    g.lineStyle(1, belly, 0.8);
+    for (const [x, y] of [[22, 12], [28, 10], [28, 15], [33, 12]]) {
+      g.beginPath();
+      g.arc(x, y, 2.5, Math.PI * 0.2, Math.PI * 0.8, false);
+      g.strokePath();
+    }
+  }
+  strokePolygon(g, body);
+  // Глаз с бликом.
+  outlinedCircle(g, 41, 13, 2.6, COLORS.white);
+  g.fillStyle(COLORS.outline, 1);
+  g.fillCircle(41.6, 13.2, 1.3);
+  // Блик на спинке.
+  g.fillStyle(COLORS.white, isCooked ? 0.5 : 0.8);
+  g.fillEllipse(30, 9, 9, 2.5);
+  if (isCooked) {
+    g.fillStyle(COLORS.fireYellow, 1);
+    g.fillCircle(38, 10, 1);
+  }
+}
+
 // Одна палка связки: скруглённый брусок с обводкой и светлым срезом слева.
 function drawStick(g: Graphics, x: number, y: number, length: number, color: number): void {
   const height = 7;
@@ -2510,6 +2569,49 @@ function drawDropZone(g: Graphics): void {
   const innerInset = 10;
   g.lineStyle(2, COLORS.zoneBorder, 0.6);
   g.strokeRoundedRect(inset + innerInset, inset + innerInset, width - innerInset * 2, height - innerInset * 2, radius - innerInset);
+}
+
+// Прорубь, вид сверху под углом: снежный вал, ледяной ободок с трещинами,
+// тёмная вода с бликом и кругами. Лежит плоско на земле, точка опоры — середина.
+function drawIceHole(g: Graphics): void {
+  const { w, h } = ICE_HOLE_SIZE;
+  const cx = w / 2;
+  const cy = h / 2;
+  // Снежный вал вокруг льда — неровный, из нескольких сугробиков.
+  g.fillStyle(COLORS.snowShade, 1);
+  g.fillEllipse(cx, cy + 4, w - 8, h - 14);
+  g.fillStyle(COLORS.snowLight, 1);
+  for (const [x, y, rx, ry] of [[-62, -6, 26, 16], [-30, -26, 32, 14], [18, -28, 34, 13], [60, -8, 26, 16], [44, 22, 32, 14], [-40, 24, 34, 13]]) {
+    g.fillEllipse(cx + x, cy + y, rx * 2, ry * 2);
+  }
+  // Ледяной ободок.
+  outlinedEllipse(g, cx, cy, 136, 72, COLORS.ice);
+  g.fillStyle(COLORS.iceShade, 1);
+  g.fillEllipse(cx, cy + 10, 120, 44);
+  g.fillStyle(COLORS.ice, 1);
+  g.fillEllipse(cx, cy + 4, 118, 46);
+  // Трещины во льду.
+  g.lineStyle(1.5, COLORS.iceShade, 1);
+  g.strokePoints(toPoints([cx - 62, cy - 4, cx - 54, cy - 2, cx - 50, cy + 4]), false);
+  g.strokePoints(toPoints([cx + 50, cy - 14, cx + 56, cy - 10, cx + 62, cy - 12]), false);
+  g.strokePoints(toPoints([cx + 30, cy + 26, cx + 34, cy + 31]), false);
+  // Вода: тёмная, с тенью от кромки льда сверху.
+  g.fillStyle(COLORS.water, 1);
+  g.fillEllipse(cx, cy + 4, 90, 36);
+  g.lineStyle(OUTLINE_WIDTH, COLORS.outline, 1);
+  g.strokeEllipse(cx, cy + 4, 90, 36);
+  g.fillStyle(COLORS.outline, 0.3);
+  g.fillEllipse(cx, cy - 6, 76, 12);
+  // Круги на воде и блик.
+  g.lineStyle(1.5, COLORS.waterLight, 0.9);
+  g.strokeEllipse(cx + 8, cy + 8, 34, 12);
+  g.strokeEllipse(cx + 8, cy + 8, 18, 6);
+  g.fillStyle(COLORS.white, 0.7);
+  g.fillEllipse(cx - 22, cy + 2, 14, 3);
+  // Блики на льду.
+  g.fillStyle(COLORS.white, 0.9);
+  g.fillEllipse(cx - 40, cy - 16, 16, 4);
+  g.fillEllipse(cx + 42, cy + 18, 10, 3);
 }
 
 // Круг точки покупки: утоптанный снег с тёплой заливкой и светлым пунктиром

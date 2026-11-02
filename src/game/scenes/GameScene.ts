@@ -21,6 +21,7 @@ import {
   PHASES,
   FIRE_MAX_HEAT,
   STACK_CAPACITY,
+  ICE_HOLE_POSITION,
 } from '../settings';
 import { TEXTURES, createTextures, loadFonts } from '../textures';
 import { createSounds } from '../sounds';
@@ -37,6 +38,7 @@ import { Campfire } from '../objects/Campfire';
 import { BuyZone } from '../objects/BuyZone';
 import { Hut } from '../objects/Hut';
 import { Fence } from '../objects/Fence';
+import { IceHole } from '../objects/IceHole';
 import { CanStep, sway } from '../fx';
 import { Hud } from '../objects/Hud';
 import { CycleEvent, DayNightCycle } from '../objects/DayNightCycle';
@@ -45,7 +47,7 @@ import { PhaseBanner } from '../ui/PhaseBanner';
 import { TutorialHint } from '../ui/TutorialHint';
 import { StarGoals, describeStarGoals } from '../ui/StarGoals';
 import { updateTutorial } from '../systems/Tutorial';
-import { updateDropping, updateGathering, updateHunting, updatePickup } from '../systems/Gathering';
+import { updateDropping, updateFishing, updateGathering, updateHunting, updatePickup } from '../systems/Gathering';
 import { updateCooking } from '../systems/Cooking';
 import { updateTable, updateTravelers, updateTusks } from '../systems/Serving';
 import { updateFire } from '../systems/Fire';
@@ -198,6 +200,8 @@ export class GameScene extends Phaser.Scene {
   // Частокол вокруг лагеря и его точка покупки.
   private fence!: Fence;
   private fenceZone?: BuyZone;
+  // Прорубь — только на уровне с рыбалкой (иначе undefined).
+  private iceHole?: IceHole;
   // Интерфейс: сколько осталось до конца дня или ночи, кнопка паузы.
   private hud!: Hud;
   // Смена дня и ночи: фаза, номер суток, сколько осталось до конца фазы.
@@ -245,6 +249,7 @@ export class GameScene extends Phaser.Scene {
     this.hutZones = [];
     this.weaponZone = undefined;
     this.fenceZone = undefined;
+    this.iceHole = undefined;
     this.mode = 'ready';
     this.stats = {
       fed: 0,
@@ -255,6 +260,7 @@ export class GameScene extends Phaser.Scene {
       itemsStolen: 0,
       woodGathered: 0,
       meatCooked: 0,
+      fishCaught: 0,
     };
 
     createTextures(this);
@@ -298,6 +304,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.createBuyZones();
+    if (this.level.fishing) this.iceHole = new IceHole(this, ICE_HOLE_POSITION.x, ICE_HOLE_POSITION.y);
 
     // Мета-улучшения за звёзды (save.ts хранит, сколько раз куплено, metaUpgrades.ts — что дают):
     // скорость вождя, вместимость колонок за спиной, стартовый хворост в поленнице.
@@ -369,6 +376,7 @@ export class GameScene extends Phaser.Scene {
     updateWolfFight(this.player, this.backpack, this.wolves, this.stats);
     updateGathering(this.player, this.backpack, this.bushes, this.stats, delta);
     updateHunting(this.player, this.backpack, this.rabbits);
+    if (this.iceHole) updateFishing(this.player, this.backpack, this.iceHole, this.stats, delta);
     updateDropping(this.player, this.backpack, [this.woodpile, this.rawMeatPile], delta);
     updatePickup(this.player, this.backpack, this.cookedMeatPile, delta);
     const isFireOut = updateFire(this.campfire, this.woodpile, delta, phase.fireBurnMultiplier);

@@ -27,6 +27,9 @@ export type LevelData = {
   weapons?: { spot: Point };
   // Хижины: цена одной и места. Хижина встаёт на место своей точки покупки.
   huts?: { price: number; spots: Point[] };
+  // Прорубь и малый костёр с рыбой (с 0.8). Нет поля — рыбы на уровне нет.
+  // fishShare — доля путников, которые просят рыбу, а не мясо (0.4 — примерно каждый второй-третий).
+  fishing?: { fishShare: number };
   // Третья звезда: накормить не меньше стольких путников.
   starFed: number;
   // Есть ли обучение стрелками-подсказками.
@@ -43,6 +46,18 @@ const WOLVES = { day: 1, night: 3, firstDelay: 20000 };
 // Частокол — 10 клыков: по плану его можно купить примерно к середине дня.
 // Точка в лагере, справа над костром.
 const FENCE = { price: 10, spot: { x: 1340, y: 630 } };
+
+// Оружие — в лагере, слева над костром.
+const WEAPONS_SPOT = { spot: { x: 900, y: 630 } };
+
+// Хижины по 8 клыков — внизу, по бокам от тропы, по которой путники идут к столу.
+const HUTS = {
+  price: 8,
+  spots: [
+    { x: 820, y: 1560 },
+    { x: 1420, y: 1560 },
+  ],
+};
 
 // Уровни каменного века по порядку (раздел 4 плана).
 export const LEVELS: LevelData[] = [
@@ -72,17 +87,22 @@ export const LEVELS: LevelData[] = [
     wolves: WOLVES,
     travelers: TRAVELERS,
     fence: FENCE,
-    // Оружие — в лагере, слева над костром.
-    weapons: { spot: { x: 900, y: 630 } },
-    // Хижины — внизу, по бокам от тропы, по которой путники идут к столу.
-    huts: {
-      price: 8,
-      spots: [
-        { x: 820, y: 1560 },
-        { x: 1420, y: 1560 },
-      ],
-    },
+    weapons: WEAPONS_SPOT,
+    huts: HUTS,
     starFed: 8,
+    hasTutorial: false,
+  },
+  // 4 — двое суток: прорубь, малый костёр и рыба; всё, что было на уровне 3.
+  {
+    name: 'Прорубь и помощники',
+    dayCount: 2,
+    wolves: WOLVES,
+    travelers: TRAVELERS,
+    fence: FENCE,
+    weapons: WEAPONS_SPOT,
+    huts: HUTS,
+    fishing: { fishShare: 0.4 },
+    starFed: 12,
     hasTutorial: false,
   },
 ];
