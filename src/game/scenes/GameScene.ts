@@ -47,6 +47,7 @@ import { BuyZone } from '../objects/BuyZone';
 import { Hut } from '../objects/Hut';
 import { Fence } from '../objects/Fence';
 import { IceHole } from '../objects/IceHole';
+import { Helper } from '../objects/Helper';
 import { CanStep, sway } from '../fx';
 import { Hud } from '../objects/Hud';
 import { CycleEvent, DayNightCycle } from '../objects/DayNightCycle';
@@ -61,7 +62,8 @@ import { updateTable, updateTravelers, updateTusks } from '../systems/Serving';
 import { updateFire } from '../systems/Fire';
 import { updatePurchases } from '../systems/Purchases';
 import { updateWolfFight, updateWolves } from '../systems/Predators';
-import { WEAPONS } from '../data/upgrades';
+import { updateHelpers } from '../systems/Helpers';
+import { HELPERS, HelperRole, WEAPONS } from '../data/upgrades';
 import { LEVELS, LevelData } from '../data/levels';
 import { LevelStats, PauseSource, track } from '../analytics';
 import { getProgress, recordLevel } from '../save';
@@ -220,6 +222,9 @@ export class GameScene extends Phaser.Scene {
   // Хижины и их точки покупки (одинаковый порядок: hutZones[i] строит huts[i]).
   private huts: Hut[] = [];
   private hutZones: BuyZone[] = [];
+  // Помощники и их точки найма (одинаковый порядок: helperZones[i] нанимает helpers[i]).
+  private helpers: Helper[] = [];
+  private helperZones: BuyZone[] = [];
   // Частокол вокруг лагеря и его точка покупки.
   private fence!: Fence;
   private fenceZone?: BuyZone;
@@ -270,6 +275,8 @@ export class GameScene extends Phaser.Scene {
     this.buyZones = [];
     this.huts = [];
     this.hutZones = [];
+    this.helpers = [];
+    this.helperZones = [];
     this.weaponZone = undefined;
     this.fenceZone = undefined;
     this.fishCamp = undefined;
@@ -368,8 +375,8 @@ export class GameScene extends Phaser.Scene {
     this.stats.playTime += delta;
 
     this.player.update(delta, phase.playerSpeedMultiplier * this.speedBonus, this.canWalk);
-    // Калитка, к которой подошёл вождь, распахивается.
-    this.fence.update(delta, this.player.x, this.player.y);
+    // Калитка, к которой подошёл вождь или нанятый помощник, распахивается.
+    this.fence.update(delta, [this.player, ...this.helpers.filter((helper) => helper.isHired())]);
     // Рюкзаку сообщаем, где спина вождя, как быстро он идёт, его глубину и куда он смотрит.
     this.backpack.update(
       delta,
@@ -400,6 +407,11 @@ export class GameScene extends Phaser.Scene {
     updateWolfFight(this.player, this.backpack, this.wolves, this.stats);
     updateGathering(this.player, this.backpack, this.bushes, this.stats, delta);
     updateHunting(this.player, this.backpack, this.rabbits);
+    updateHelpers(
+      this.helpers,
+      { bushes: this.bushes, woodpile: this.woodpile, fence: this.fence, stats: this.stats },
+      delta,
+    );
     updateDropping(this.player, this.backpack, [this.woodpile, this.rawMeatPile], delta);
     updatePickup(this.player, this.backpack, this.cookedMeatPile, delta);
     const isFireOut = updateFire(this.campfire, this.woodpile, delta, phase.fireBurnMultiplier);
@@ -537,7 +549,7 @@ export class GameScene extends Phaser.Scene {
   // Точки покупки, которые есть на уровне (data/levels.ts).
   // Оружие — с первого, что можно купить (топор); его цена — в data/upgrades.ts.
   private createBuyZones(): void {
-    const { weapons, fence, huts } = this.level;
+    const { weapons, fence, huts, helpers } = this.level;
     if (weapons) {
       const firstWeapon = WEAPONS[1];
       this.weaponZone = new BuyZone(this, weapons.spot.x, weapons.spot.y, firstWeapon.price, firstWeapon.icon);
@@ -557,12 +569,24 @@ export class GameScene extends Phaser.Scene {
       }
       this.buyZones.push(...this.hutZones);
     }
+
+    // Помощники: на каждой точке найма — свой помощник, он появится на её месте.
+    if (helpers) {
+      for (const role of Object.keys(helpers) as HelperRole[]) {
+        const hire = helpers[role];
+        if (!hire) continue;
+        this.helpers.push(new Helper(this, role, hire.spot.x, hire.spot.y));
+        this.helperZones.push(new BuyZone(this, hire.spot.x, hire.spot.y, hire.price, HELPERS[role].texture));
+      }
+      this.buyZones.push(...this.helperZones);
+    }
   }
 
   // Покупка на точке zone готова: сцена решает, что купили.
   // Оружие: следующее — в руку; если есть ещё лучше — точка предлагает его, иначе закрывается.
   // Хижина: точка закрывается, на её месте вырастает хижина.
   // Частокол: вырастает вокруг лагеря; волки, оказавшиеся внутри, удирают.
+  // Помощник: точка закрывается, на её месте появляется помощник и начинает работу.
   private onPurchase(zone: BuyZone): void {
     if (zone === this.fenceZone) {
       zone.close();
@@ -570,6 +594,12 @@ export class GameScene extends Phaser.Scene {
       for (const wolf of this.wolves) {
         if (wolf.canBeHit() && this.fence.isInside(wolf.x, wolf.y)) wolf.giveUp();
       }
+    }
+
+    const helperIndex = this.helperZones.indexOf(zone);
+    if (helperIndex >= 0) {
+      zone.close();
+      this.helpers[helperIndex].hire();
     }
 
     const hutIndex = this.hutZones.indexOf(zone);

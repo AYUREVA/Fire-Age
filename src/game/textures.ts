@@ -52,6 +52,10 @@ export const TEXTURES = {
   girlBack: 'girl-back', // девушка: две косы с бусинами, корзина за спиной
   girlFront: 'girl-front',
   bubble: 'bubble', // пузырь над головой путника: что он хочет
+  // Помощники вождя (с 0.8): смотрят на нас, без капюшона — рыжие волосы и повязка охрой.
+  // Точка опоры — ноги. Они же — картинка на точке найма.
+  gatherer: 'gatherer', // сборщик: зелёная накидка, каменный топорик
+  helperHunter: 'helper-hunter', // охотник: серая волчья накидка, копьё
   bush: 'bush', // зелёный куст, точка опоры — низ ствола
   bushSnow: 'bush-snow', // снег на кроне куста (тот же размер, ложится поверх)
   stump: 'stump', // пенёк — куст без хвороста
@@ -306,6 +310,8 @@ export function createTextures(scene: Phaser.Scene): void {
   bake(scene, TEXTURES.girlBack, TRAVELER_SIZE, (g) => drawGirl(g, false));
   bake(scene, TEXTURES.girlFront, TRAVELER_SIZE, (g) => drawGirl(g, true));
   bake(scene, TEXTURES.bubble, BUBBLE_SIZE, drawBubble);
+  bake(scene, TEXTURES.gatherer, TRAVELER_SIZE, (g) => drawHelper(g, COLORS.gathererRobe, COLORS.gathererRobeShade, false));
+  bake(scene, TEXTURES.helperHunter, TRAVELER_SIZE, (g) => drawHelper(g, COLORS.hunterRobe, COLORS.hunterRobeShade, true));
   bake(scene, TEXTURES.bush, BUSH_SIZE, drawBush);
   bake(scene, TEXTURES.bushSnow, BUSH_SIZE, drawBushSnow);
   bake(scene, TEXTURES.stump, STUMP_SIZE, drawStump);
@@ -1981,6 +1987,33 @@ function drawHunter(g: Graphics, isFront: boolean): void {
     outlinedEllipse(g, cx, 54, 16, 8, COLORS.sack);
     limb(g, cx - 9, 57, cx + 9, 57, 3, COLORS.rope);
   }
+}
+
+// Помощник вождя (с 0.8) — как путник, но без капюшона: рыжие волосы, повязка охрой
+// на лбу, накидка своего цвета. Охотник держит копьё, сборщик — каменный топорик.
+function drawHelper(g: Graphics, robe: number, shade: number, isHunter: boolean): void {
+  const cx = TRAVELER_CX;
+  const y = TRAVELER_HEAD_Y;
+  const toolX = cx + TRAVELER_STICK_X;
+
+  if (isHunter) drawTravelerStick(g, toolX, true);
+  drawTravelerRobe(g, robe, shade);
+  if (!isHunter) {
+    // Топорик: короткая рукоять в руке и каменное лезвие на ремне.
+    limb(g, toolX, 84, toolX - 4, 40, 4, COLORS.wood);
+    const blade = [toolX - 5, 36, toolX + 9, 30, toolX + 12, 44, toolX - 3, 48];
+    fillPolygon(g, blade, COLORS.stone);
+    fillPolygon(g, [toolX + 9, 30, toolX + 12, 44, toolX + 4, 46], COLORS.stoneDark);
+    strokePolygon(g, blade);
+    limb(g, toolX - 7, 42, toolX - 1, 44, 3, COLORS.leather);
+  }
+  // Рука в рукавице на рукояти.
+  outlinedCircle(g, toolX - 2, 64, 6, COLORS.furDark);
+  // Лохматые волосы за головой, лицо, повязка охрой с узелком.
+  outlinedBlobs(g, [cx - 13, y - 6, 8, cx - 6, y - 12, 9, cx + 4, y - 13, 9, cx + 12, y - 7, 8, cx - 15, y + 3, 6, cx + 15, y + 3, 6], COLORS.hair);
+  drawTravelerFace(g);
+  limb(g, cx - 13, y - 8, cx + 13, y - 8, 4, COLORS.ochre);
+  outlinedCircle(g, cx + 14, y - 7, 3, COLORS.ochre);
 }
 
 // Старец: кожаный плащ с капюшоном, длинная седая борода, посох с перьями.

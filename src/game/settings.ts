@@ -309,6 +309,19 @@ export const RAW_FISH_PILE_CAPACITY = 6;
 export const COOKED_FISH_PILE_POSITION = { x: 450, y: 980 };
 export const COOKED_FISH_PILE_CAPACITY = 6;
 
+// ===== ПОМОЩНИКИ (с 0.8) =====
+// Есть ли точки найма, их цены и места — в data/levels.ts, что умеет каждая роль
+// (скорость, удар, сколько несёт) — в data/upgrades.ts (HELPERS).
+
+// На каком расстоянии от цели (куста, волка, кролика) помощник останавливается и бьёт (пиксели).
+export const HELPER_REACH = 70;
+
+// Охотник без добычи обходит лагерь по овалу вокруг частокола:
+// полуоси овала (пиксели) и сколько на нём точек, через которые он идёт.
+export const HUNTER_PATROL_RADIUS_X = 580;
+export const HUNTER_PATROL_RADIUS_Y = 620;
+export const HUNTER_PATROL_POINTS = 8;
+
 // ===== ТОЧКИ ПОКУПКИ =====
 // Какие точки есть на уровне, где стоят и цены — в data/levels.ts, оружие — в data/upgrades.ts.
 

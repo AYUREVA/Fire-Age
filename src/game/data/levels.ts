@@ -1,5 +1,6 @@
 import { Point } from '../fx';
 import { TEXTURES } from '../textures';
+import { HelperRole } from './upgrades';
 
 // =====================================================================
 //  Уровни каменного века. Это данные для гейм-дизайнера, как settings.ts:
@@ -30,6 +31,9 @@ export type LevelData = {
   // Прорубь и малый костёр с рыбой (с 0.8). Нет поля — рыбы на уровне нет.
   // fishShare — доля путников, которые просят рыбу, а не мясо (0.4 — примерно каждый второй-третий).
   fishing?: { fishShare: number };
+  // Точки найма помощников (с 0.8): для каждой роли — цена в клыках и где стоит точка.
+  // Помощник появляется на месте своей точки. Нет роли — её не нанять. Что умеют роли — data/upgrades.ts.
+  helpers?: Partial<Record<HelperRole, { price: number; spot: Point }>>;
   // Третья звезда: накормить не меньше стольких путников.
   starFed: number;
   // Есть ли обучение стрелками-подсказками.
@@ -92,7 +96,7 @@ export const LEVELS: LevelData[] = [
     starFed: 8,
     hasTutorial: false,
   },
-  // 4 — двое суток: прорубь, малый костёр и рыба; всё, что было на уровне 3.
+  // 4 — двое суток: прорубь, малый костёр и рыба, наём помощников; всё, что было на уровне 3.
   {
     name: 'Прорубь и помощники',
     dayCount: 2,
@@ -102,6 +106,10 @@ export const LEVELS: LevelData[] = [
     weapons: WEAPONS_SPOT,
     huts: HUTS,
     fishing: { fishShare: 0.4 },
+    // Точки найма — во дворе, внизу по бокам от кучи жареного мяса.
+    helpers: {
+      gatherer: { price: 10, spot: { x: 1340, y: 1150 } },
+    },
     starFed: 12,
     hasTutorial: false,
   },

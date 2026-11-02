@@ -100,13 +100,17 @@ export class CarryStack {
 
   // Надпись «МАКС» над полной стопкой.
   private maxLabel: Phaser.GameObjects.Text;
+  // Показывать ли «МАКС». У помощников (с 0.8) — нет: полная стопка у них — обычное дело,
+  // они сами несут её сдавать.
+  private hasMaxLabel: boolean;
 
   // texture — картинка ресурса этой стопки (у каждого типа своя стопка),
-  // capacity — сколько предметов в неё помещается.
-  constructor(scene: Phaser.Scene, texture: string, capacity: number) {
+  // capacity — сколько предметов в неё помещается, hasMaxLabel — показывать ли «МАКС».
+  constructor(scene: Phaser.Scene, texture: string, capacity: number, hasMaxLabel = true) {
     this.scene = scene;
     this.texture = texture;
     this.capacity = capacity;
+    this.hasMaxLabel = hasMaxLabel;
 
     this.maxLabel = scene.add
       .text(0, 0, 'МАКС', {
@@ -252,9 +256,9 @@ export class CarryStack {
 
   // «МАКС» виден только у полной стопки и висит прямо над её верхом.
   private updateMaxLabel(): void {
-    const isFull = this.isFull();
-    this.maxLabel.setVisible(isFull);
-    if (!isFull) return;
+    const isShown = this.isFull() && this.hasMaxLabel;
+    this.maxLabel.setVisible(isShown);
+    if (!isShown) return;
 
     // Ячейка над самым верхним предметом — там и ставим надпись.
     const top = this.getSlotPosition(this.capacity);
