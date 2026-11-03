@@ -112,6 +112,11 @@ export const TEXTURES = {
   pauseButton: 'pause-button', // круглая каменная кнопка паузы в углу экрана
   soundOnButton: 'sound-on-button', // круглая каменная кнопка звука: динамик со звуковыми волнами
   soundOffButton: 'sound-off-button', // та же кнопка, звук выключен: динамик перечёркнут
+  // Мамонт (с 0.9).
+  mammoth: 'mammoth', // мамонт смотрит вправо: лохматый, с бивнями и хоботом; точка опоры — низ
+  mammothIcon: 'mammoth-icon', // маленький мамонт: на табличке «ИДЁТ МАМОНТ!» и на полосе здоровья
+  bossChip: 'boss-chip', // каменная плашка «Победи его до заката» под табличкой «ИДЁТ МАМОНТ!»
+  meatMountain: 'meat-mountain', // мультяшная гора окороков на снегу — там, где пал мамонт
 } as const;
 
 // Шрифт всех надписей. Это тоже «ассет»: свой шрифт подключается здесь.
@@ -236,6 +241,12 @@ const TUTORIAL_ARROW_SIZE: Size = { w: 48, h: 56 };
 const STONE_BANNER_SIZE: Size = { w: 520, h: 170 };
 const STONE_BUTTON_SIZE: Size = { w: 210, h: 66 };
 const PAUSE_BUTTON_SIZE: Size = { w: 60, h: 60 };
+const MAMMOTH_SIZE: Size = { w: 300, h: 240 };
+// Иконка — тот же мамонт, уменьшенный в MAMMOTH_ICON_SCALE раз.
+const MAMMOTH_ICON_SCALE = 0.25;
+const MAMMOTH_ICON_SIZE: Size = { w: MAMMOTH_SIZE.w * MAMMOTH_ICON_SCALE, h: MAMMOTH_SIZE.h * MAMMOTH_ICON_SCALE };
+const MEAT_MOUNTAIN_SIZE: Size = { w: 190, h: 120 };
+const BOSS_CHIP_SIZE: Size = { w: 250, h: 46 };
 
 // ===== Параметры рисования =====
 
@@ -376,6 +387,15 @@ export function createTextures(scene: Phaser.Scene): void {
   bake(scene, TEXTURES.epochPolar, EPOCH_ICON_SIZE, drawEpochPolar);
   bake(scene, TEXTURES.epochFuture, EPOCH_ICON_SIZE, drawEpochFuture);
   bake(scene, TEXTURES.tutorialArrow, TUTORIAL_ARROW_SIZE, drawTutorialArrow);
+  bake(scene, TEXTURES.mammoth, MAMMOTH_SIZE, drawMammoth);
+  bake(scene, TEXTURES.mammothIcon, MAMMOTH_ICON_SIZE, (g) => {
+    g.save();
+    g.scaleCanvas(MAMMOTH_ICON_SCALE, MAMMOTH_ICON_SCALE);
+    drawMammoth(g);
+    g.restore();
+  });
+  bake(scene, TEXTURES.meatMountain, MEAT_MOUNTAIN_SIZE, drawMeatMountain);
+  bakeStonePlate(scene, TEXTURES.bossChip, BOSS_CHIP_SIZE.w, BOSS_CHIP_SIZE.h);
 }
 
 // Рисует картинку на временном Graphics и сохраняет её как текстуру под ключом key.
@@ -3926,6 +3946,102 @@ function drawSoundButton(g: Graphics, isOn: boolean): void {
     g.lineStyle(width, color, 1);
     g.lineBetween(cx + 6, cx - 9, cx + 17, cx + 4);
     g.lineBetween(cx + 17, cx - 9, cx + 6, cx + 4);
+  }
+}
+
+// ===== Мамонт (с 0.9) =====
+
+// Шерсть туловища — круги x, y, радиус: большой горб спины, круп и грудь.
+const MAMMOTH_BODY_BLOBS = [130, 108, 76, 86, 128, 56, 178, 106, 58, 122, 150, 54, 180, 146, 44];
+// Голова: круг морды и высокий купол макушки.
+const MAMMOTH_HEAD_BLOBS = [226, 96, 42, 216, 64, 30];
+
+// Мамонт смотрит вправо. Сзади наперёд: дальние ноги, хвост, лохматое туловище
+// с бахромой шерсти внизу, ближние ноги, голова с ухом, хобот и бивни. На спине снег.
+function drawMammoth(g: Graphics): void {
+  const ground = MAMMOTH_SIZE.h - 4;
+  // Дальние ноги — темнее, ближние — цветом шерсти. Ноги-столбы с ногтями внизу.
+  drawMammothLeg(g, 96, ground - 2, COLORS.mammothDark);
+  drawMammothLeg(g, 198, ground - 2, COLORS.mammothDark);
+  // Хвостик с кисточкой.
+  limb(g, 40, 112, 26, 140, 8, COLORS.mammothDark);
+  outlinedCircle(g, 25, 144, 7, COLORS.mammothDark);
+
+  // Бахрома: пряди свисают с низа туловища, через одну загибаются в разные стороны.
+  const fringe: Lock[] = [];
+  for (let i = 0; i < 10; i++) {
+    const side = i % 2 === 0 ? 1 : -1;
+    fringe.push([56 + i * 16, 182 + (i % 3) * 3, 90 + side * 10, 26, 9, side * 14]);
+  }
+  drawShaggyMass(g, MAMMOTH_BODY_BLOBS, fringe, COLORS.mammoth);
+  // Свет на горбе, тень на брюхе — мамонт круглее.
+  softEllipse(g, 130, 66, 110, 50, COLORS.mammothLight, 0.25, 3);
+  softEllipse(g, 140, 180, 130, 30, COLORS.mammothDark, 0.25, 3);
+  // Штрихи шерсти на боку.
+  g.lineStyle(2, COLORS.mammothDark, 1);
+  for (const [x, y] of [[80, 120], [100, 140], [126, 128], [150, 150], [170, 124], [110, 100], [150, 96]]) {
+    g.lineBetween(x, y, x - 3, y + 10);
+  }
+  drawMammothLeg(g, 74, ground, COLORS.mammoth);
+  drawMammothLeg(g, 178, ground, COLORS.mammoth);
+
+  // Голова и большое ухо.
+  drawShaggyMass(g, MAMMOTH_HEAD_BLOBS, [], COLORS.mammoth);
+  softEllipse(g, 218, 52, 40, 26, COLORS.mammothLight, 0.3, 3);
+  outlinedEllipse(g, 204, 104, 30, 40, COLORS.mammothDark);
+  // Хобот: толстый у морды, к концу закручен.
+  limbChain(g, [252, 108, 264, 136, 266, 166, 258, 192], 18, COLORS.mammoth);
+  limbChain(g, [258, 192, 246, 198, 240, 188], 12, COLORS.mammoth);
+  // Бивни: изогнуты вперёд и вверх, в тени — нижний край.
+  limbChain(g, [244, 126, 256, 154, 276, 168, 292, 150], 9, COLORS.mammothTusk);
+  g.lineStyle(2, COLORS.mammothTuskShade, 1);
+  g.strokePoints(toPoints([256, 158, 276, 172, 290, 156]), false);
+  // Глаз с бликом.
+  g.fillStyle(COLORS.outline, 1);
+  g.fillCircle(238, 86, 5);
+  g.fillStyle(COLORS.white, 1);
+  g.fillCircle(240, 84, 1.6);
+
+  // Снег на спине и макушке.
+  g.fillStyle(COLORS.snow, 1);
+  g.fillEllipse(124, 38, 74, 18);
+  g.fillEllipse(166, 46, 40, 12);
+  g.fillEllipse(214, 36, 26, 9);
+  g.fillStyle(COLORS.snowShade, 1);
+  g.fillEllipse(124, 44, 56, 6);
+}
+
+// Нога-столб мамонта: (x, bottom) — левый нижний угол, внизу — три светлых ногтя.
+function drawMammothLeg(g: Graphics, x: number, bottom: number, color: number): void {
+  const width = 32;
+  const height = 70;
+  g.fillStyle(color, 1);
+  g.fillRoundedRect(x, bottom - height, width, height, 10);
+  g.lineStyle(OUTLINE_WIDTH, COLORS.outline, 1);
+  g.strokeRoundedRect(x, bottom - height, width, height, 10);
+  g.fillStyle(COLORS.mammothTusk, 1);
+  for (let i = 0; i < 3; i++) g.fillEllipse(x + 7 + i * 9, bottom - 4, 7, 5);
+}
+
+// Гора окороков: снежный холмик и на нём кучей жареные окорока (рисунок drawMeat, крупнее).
+function drawMeatMountain(g: Graphics): void {
+  const { w, h } = MEAT_MOUNTAIN_SIZE;
+  outlinedEllipse(g, w / 2, h - 18, w - 12, 30, COLORS.snow);
+  // Окорока: x, y левого верхнего угла и размер (снизу — крупнее, наверху — один).
+  const hams = [
+    [8, 58, 1.5],
+    [64, 62, 1.6],
+    [118, 58, 1.5],
+    [34, 30, 1.5],
+    [92, 30, 1.5],
+    [62, 4, 1.4],
+  ];
+  for (const [x, y, scale] of hams) {
+    g.save();
+    g.translateCanvas(x, y);
+    g.scaleCanvas(scale, scale);
+    drawMeat(g, COLORS.cookedMeat, COLORS.cookedMeatShade, COLORS.cookedMeatLight, true);
+    g.restore();
   }
 }
 

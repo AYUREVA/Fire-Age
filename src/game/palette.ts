@@ -124,6 +124,13 @@ export const COLORS = {
   wolfMouth: 0x6e2232, // тёмная пасть в оскале
   wolfEar: 0xc98290, // розовое внутри уха волка
 
+  // ===== Мамонт (с 0.9) =====
+  mammoth: 0x8a5a3c, // бурая шерсть
+  mammothDark: 0x5e3a26, // шерсть в тени: дальние ноги, ухо, пряди
+  mammothLight: 0xb07a52, // шерсть на свету: спина, макушка
+  mammothTusk: 0xf4ead2, // бивни
+  mammothTuskShade: 0xcfc2a2, // бивни в тени
+
   // ===== Мясо =====
   rawMeat: 0xf08b8b, // сырое мясо
   rawMeatShade: 0xd2646f, // сырое мясо в тени
