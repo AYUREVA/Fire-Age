@@ -21,7 +21,7 @@ export type Weapon = { texture: string; icon: string; hitInterval: number; damag
 export const WEAPONS: Weapon[] = [
   { texture: TEXTURES.club, icon: TEXTURES.club, hitInterval: HIT_INTERVAL, damage: 1, price: 0 }, // дубина
   { texture: TEXTURES.axe, icon: TEXTURES.axeIcon, hitInterval: 380, damage: 2, price: 12 }, // каменный топор
-  { texture: TEXTURES.spear, icon: TEXTURES.spearIcon, hitInterval: 320, damage: 3, price: 20 }, // копьё
+  { texture: TEXTURES.spear, icon: TEXTURES.spearIcon, hitInterval: 320, damage: 3, price: 18 }, // копьё
 ];
 
 // ===== Помощники (с 0.8) =====

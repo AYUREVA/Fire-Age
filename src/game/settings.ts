@@ -89,7 +89,7 @@ export const HIT_INTERVAL = 450;
 export const GATHER_RADIUS = 140;
 
 // Через сколько мс пенёк снова становится кустом.
-export const BUSH_REGROW_TIME = 8000;
+export const BUSH_REGROW_TIME = 6000;
 
 // ===== КОСТЁР =====
 
@@ -213,7 +213,7 @@ export const COOKED_MEAT_PILE_POSITION = { x: 1120, y: 990 };
 export const COOKED_MEAT_PILE_CAPACITY = 6;
 
 // Сколько мс жарится один кусок мяса на вертеле (только пока огонь горит).
-export const COOK_TIME = 4000;
+export const COOK_TIME = 3000;
 
 // ===== СТОЛ И ПУТНИКИ =====
 
@@ -249,10 +249,10 @@ export const TRAVELER_PATIENCE = 30000;
 export const TRAVELER_EAT_TIME = 1200;
 
 // Сколько клыков путник оставляет за каждый съеденный кусок.
-export const TUSKS_PER_FOOD = 2;
+export const TUSKS_PER_FOOD = 3;
 
 // Каждая построенная хижина умножает интервал прихода путников на это число:
-// 0.75 — с одной хижиной путники приходят раз в 11 с, с двумя — раз в 8 с.
+// 0.75 — с одной хижиной путники приходят раз в 7,5 с, с двумя — раз в 5,6 с.
 // Цена и места хижин — в data/levels.ts.
 export const HUT_SPAWN_FACTOR = 0.75;
 

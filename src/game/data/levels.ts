@@ -44,8 +44,8 @@ export type LevelData = {
 };
 
 // Путники приходят одинаково на всех уровнях каменного века:
-// первый — через 10 с после начала, следующие — раз в 15 с.
-const TRAVELERS = { firstDelay: 10000, interval: 15000 };
+// первый — через 6 с после начала, следующие — раз в 10 с (уровни короткие — без простоя).
+const TRAVELERS = { firstDelay: 6000, interval: 10000 };
 
 // Волки: днём один, ночью до трёх, первый выходит через 20 с.
 const WOLVES = { day: 1, night: 3, firstDelay: 20000 };
@@ -77,7 +77,7 @@ export const LEVELS: LevelData[] = [
     night: 45000,
     // Обучение: первый путник просит один кусок — столько вождь и приносит по подсказке.
     travelers: { ...TRAVELERS, firstOrder: 1 },
-    starFed: 5,
+    starFed: 4,
     hasTutorial: true,
   },
   // 2 — волки и точка покупки частокола.
@@ -90,7 +90,7 @@ export const LEVELS: LevelData[] = [
     wolves: WOLVES,
     travelers: TRAVELERS,
     fence: FENCE,
-    starFed: 6,
+    starFed: 5,
     hasTutorial: false,
   },
   // 3 — ещё оружие и хижины: на что потратить клыки — главный выбор уровня.
@@ -105,7 +105,7 @@ export const LEVELS: LevelData[] = [
     fence: FENCE,
     weapons: WEAPONS_SPOT,
     huts: HUTS,
-    starFed: 8,
+    starFed: 6,
     hasTutorial: false,
   },
   // 4 — двое суток: прорубь, малый костёр и рыба, наём помощников; всё, что было на уровне 3.
@@ -123,10 +123,10 @@ export const LEVELS: LevelData[] = [
     fishing: { fishShare: 0.4 },
     // Точки найма — во дворе, внизу по бокам от кучи жареного мяса.
     helpers: {
-      gatherer: { price: 10, spot: { x: 1340, y: 1150 } },
-      hunter: { price: 14, spot: { x: 900, y: 1150 } },
+      gatherer: { price: 8, spot: { x: 1340, y: 1150 } },
+      hunter: { price: 12, spot: { x: 900, y: 1150 } },
     },
-    starFed: 12,
+    starFed: 10,
     hasTutorial: false,
   },
 ];
