@@ -369,7 +369,8 @@ export const GATE_PASS_SHARE = 0.6;
 export const MAMMOTH_START = { x: 1200, y: 110 };
 
 // Здоровье мамонта. Урон за удар — урон оружия (data/upgrades.ts): дубина 1, топор 2, копьё 3.
-export const MAMMOTH_HP = 100;
+// 120: копьём — за 4–5 «окон» усталости, топором — за 6, дубиной до заката (90 с) не успеть.
+export const MAMMOTH_HP = 120;
 
 // Скорость мамонта, когда он идёт к цели, и скорость тарана (пиксели в секунду).
 export const MAMMOTH_SPEED = 120;
