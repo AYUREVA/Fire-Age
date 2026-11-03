@@ -15,17 +15,37 @@ import { TEXTURES } from '../textures';
 // hitInterval — мс между ударами (меньше — быстрее рубит кусты и бьёт волков),
 // damage — урон по волку за удар, price — сколько клыков стоит,
 // reach — дальность удара: во сколько раз больше базовых расстояний до куста,
-// зайца и волка (GATHER_RADIUS, CATCH_RADIUS, WOLF_HIT_RADIUS в settings.ts).
-export type Weapon = { texture: string; icon: string; hitInterval: number; damage: number; price: number; reach: number };
+// зайца и волка (GATHER_RADIUS, CATCH_RADIUS, WOLF_HIT_RADIUS в settings.ts),
+// roastsRabbits — пойманный этим оружием заяц сразу даёт жареное мясо.
+export type Weapon = {
+  texture: string;
+  icon: string;
+  hitInterval: number;
+  damage: number;
+  price: number;
+  reach: number;
+  roastsRabbits: boolean;
+};
 
-// Оружие по порядку — лестница: с дубиной вождь начинает уровень, топор и копьё
-// покупаются на одной точке — после топора на ней появляется копьё.
-// Топор рубит вдвое быстрее дубины, копьё — так же быстро, как топор, и бьёт дальше.
+// Оружие по порядку — лестница на одной точке покупки: с дубиной вождь начинает уровень,
+// дальше топор, копьё и (с 0.8.2) огненная дубина. До какой ступени продаётся оружие —
+// в данных уровня (weapons.top в data/levels.ts).
+// Топор рубит вдвое быстрее дубины, копьё — так же быстро, как топор, и бьёт дальше,
+// огненная дубина — как копьё, а пойманный ею заяц сразу жареный.
 export const WEAPONS: Weapon[] = [
-  { texture: TEXTURES.club, icon: TEXTURES.club, hitInterval: HIT_INTERVAL, damage: 1, price: 0, reach: 0.8 }, // дубина
-  { texture: TEXTURES.axe, icon: TEXTURES.axeIcon, hitInterval: 225, damage: 2, price: 12, reach: 0.8 }, // каменный топор
-  { texture: TEXTURES.spear, icon: TEXTURES.spearIcon, hitInterval: 225, damage: 3, price: 18, reach: 1.3 }, // копьё
+  // дубина
+  { texture: TEXTURES.club, icon: TEXTURES.club, hitInterval: HIT_INTERVAL, damage: 1, price: 0, reach: 0.8, roastsRabbits: false },
+  // каменный топор
+  { texture: TEXTURES.axe, icon: TEXTURES.axeIcon, hitInterval: 225, damage: 2, price: 12, reach: 0.8, roastsRabbits: false },
+  // копьё
+  { texture: TEXTURES.spear, icon: TEXTURES.spearIcon, hitInterval: 225, damage: 3, price: 18, reach: 1.3, roastsRabbits: false },
+  // огненная дубина
+  { texture: TEXTURES.fireClub, icon: TEXTURES.fireClub, hitInterval: 225, damage: 3, price: 24, reach: 1.3, roastsRabbits: true },
 ];
+
+// Номера ступеней лестницы оружия: до какой ступени продаётся оружие на уровне.
+export const SPEAR_LEVEL = 2;
+export const FIRE_CLUB_LEVEL = 3;
 
 // ===== Помощники (с 0.8) =====
 

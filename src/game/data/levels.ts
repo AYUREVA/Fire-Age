@@ -1,6 +1,6 @@
 import { Point } from '../fx';
 import { TEXTURES } from '../textures';
-import { HelperRole } from './upgrades';
+import { FIRE_CLUB_LEVEL, HelperRole, SPEAR_LEVEL } from './upgrades';
 
 // =====================================================================
 //  Уровни каменного века. Это данные для гейм-дизайнера, как settings.ts:
@@ -28,8 +28,10 @@ export type LevelData = {
   travelers: { firstDelay: number; interval: number; firstOrder?: number; tusksPerFood: number };
   // Точка покупки частокола: цена в клыках и где стоит. Нет поля — частокол не продаётся.
   fence?: { price: number; spot: Point };
-  // Точка покупки оружия: где стоит. Цены оружия — в data/upgrades.ts (WEAPONS).
-  weapons?: { spot: Point };
+  // Точка покупки оружия: где стоит и до какой ступени лестницы продаётся оружие
+  // (top — номер в WEAPONS: SPEAR_LEVEL — до копья, FIRE_CLUB_LEVEL — до огненной дубины).
+  // Цены оружия — в data/upgrades.ts (WEAPONS).
+  weapons?: { spot: Point; top: number };
   // Хижины: цена одной и места. Хижина встаёт на место своей точки покупки.
   huts?: { price: number; spots: Point[] };
   // Прорубь и малый костёр с рыбой (с 0.8). Нет поля — рыбы на уровне нет.
@@ -38,9 +40,6 @@ export type LevelData = {
   // Точки найма помощников (с 0.8): для каждой роли — цена в клыках и где стоит точка.
   // Помощник появляется на месте своей точки. Нет роли — её не нанять. Что умеют роли — data/upgrades.ts.
   helpers?: Partial<Record<HelperRole, { price: number; spot: Point }>>;
-  // «Огненная дубина» (с 0.8): цена в клыках и где точка покупки. После покупки
-  // пойманный вождём заяц сразу даёт жареное мясо. Нет поля — не продаётся.
-  fireClub?: { price: number; spot: Point };
   // Третья звезда: накормить не меньше стольких путников.
   starFed: number;
   // Есть ли обучение стрелками-подсказками.
@@ -59,8 +58,9 @@ const WOLVES = { day: 1, night: 3, firstDelay: 20000 };
 // Точка в лагере, справа над костром.
 const FENCE = { price: 10, spot: { x: 1340, y: 630 } };
 
-// Оружие — в лагере, слева над костром.
-const WEAPONS_SPOT = { spot: { x: 900, y: 630 } };
+// Оружие — в лагере, слева над костром. На уровнях 1–3 продаётся до копья.
+const WEAPONS_SPOT = { x: 900, y: 630 };
+const WEAPONS_TO_SPEAR = { spot: WEAPONS_SPOT, top: SPEAR_LEVEL };
 
 // Одна хижина за 6 клыков (уровни 1 и 2) — внизу справа от тропы, по которой путники идут к столу.
 const ONE_HUT = { price: 6, spots: [{ x: 1420, y: 1560 }] };
@@ -87,7 +87,7 @@ export const LEVELS: LevelData[] = [
     // Обучение: первый путник просит один кусок — столько вождь и приносит по подсказке.
     // Путник платит 4 клыка за кусок: топор — после двух путников, хижина — после первого.
     travelers: { ...TRAVELERS, firstOrder: 1, tusksPerFood: 4 },
-    weapons: WEAPONS_SPOT,
+    weapons: WEAPONS_TO_SPEAR,
     huts: ONE_HUT,
     starFed: 4,
     hasTutorial: true,
@@ -102,7 +102,7 @@ export const LEVELS: LevelData[] = [
     wolves: WOLVES,
     travelers: { ...TRAVELERS, tusksPerFood: 4 },
     fence: FENCE,
-    weapons: WEAPONS_SPOT,
+    weapons: WEAPONS_TO_SPEAR,
     huts: ONE_HUT,
     starFed: 5,
     hasTutorial: false,
@@ -117,7 +117,7 @@ export const LEVELS: LevelData[] = [
     wolves: WOLVES,
     travelers: { ...TRAVELERS, tusksPerFood: 6 }, // покупок много — платят вдвое щедрее
     fence: FENCE,
-    weapons: WEAPONS_SPOT,
+    weapons: WEAPONS_TO_SPEAR,
     huts: TWO_HUTS,
     fishing: { fishShare: 0.4 },
     starFed: 6,
@@ -133,7 +133,8 @@ export const LEVELS: LevelData[] = [
     wolves: WOLVES,
     travelers: { ...TRAVELERS, tusksPerFood: 7 }, // помощники и огненная дубина — платят ещё щедрее
     fence: FENCE,
-    weapons: WEAPONS_SPOT,
+    // После копья на точке оружия — огненная дубина (вершина лестницы).
+    weapons: { spot: WEAPONS_SPOT, top: FIRE_CLUB_LEVEL },
     huts: TWO_HUTS,
     fishing: { fishShare: 0.4 },
     // Точки найма — во дворе, внизу по бокам от кучи жареного мяса.
@@ -141,8 +142,6 @@ export const LEVELS: LevelData[] = [
       gatherer: { price: 8, spot: { x: 1340, y: 1150 } },
       hunter: { price: 12, spot: { x: 900, y: 1150 } },
     },
-    // «Огненная дубина» — дорогая: снаружи частокола справа, у правой калитки.
-    fireClub: { price: 24, spot: { x: 1640, y: 880 } },
     starFed: 10,
     hasTutorial: false,
   },
