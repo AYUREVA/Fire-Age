@@ -5,7 +5,8 @@ import { Spit } from '../objects/Spit';
 import { LevelStats } from '../analytics';
 
 // =====================================================================
-//  Кухня у костра: куча сырого мяса → вертел → куча жареного мяса.
+//  Кухня у костра: куча сырого → вертел → куча жареного.
+//  Мясо жарится у главного костра, рыба — у малого (с 0.8), функция одна.
 //
 //  Это функция, а не класс: костёр, кучи и вертел приходят аргументами,
 //  своего состояния здесь нет. Сколько жарится кусок, хранит вертел (Spit).
@@ -14,7 +15,7 @@ import { LevelStats } from '../analytics';
 
 // Мясо жарится по одному и только пока огонь горит (в углях — нет).
 // Готовый кусок падает в кучу жареного; если она полная — вертел ждёт.
-// stats — статистика уровня: сюда считаются пожаренные куски.
+// stats — статистика уровня: сюда считаются пожаренные куски (мясо и рыба — отдельно).
 export function updateCooking(
   fire: Campfire,
   rawPile: ItemPile,
@@ -43,5 +44,9 @@ export function updateCooking(
   const cooked = spit.takeCooked();
   if (!cooked) return;
   cookedPile.receive(cooked);
-  stats.meatCooked += 1;
+  if (cookedPile.type === 'cookedFish') {
+    stats.fishCooked += 1;
+  } else {
+    stats.meatCooked += 1;
+  }
 }

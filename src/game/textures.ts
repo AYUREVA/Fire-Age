@@ -33,6 +33,7 @@ export const TEXTURES = {
   spear: 'spear', // копьё с широким кремнёвым наконечником и кулаком внизу
   axeIcon: 'axe-icon', // двусторонний каменный топор без кулака — на точке покупки
   spearIcon: 'spear-icon', // копьё без кулака — на точке покупки
+  fireClubIcon: 'fire-club-icon', // «Огненная дубина» на точке покупки: булава в языках пламени (с 0.8)
   ring: 'ring', // светлое кольцо под ногами вождя
   joystickBase: 'joystick-base', // круг джойстика
   joystickKnob: 'joystick-knob', // ручка джойстика
@@ -52,6 +53,10 @@ export const TEXTURES = {
   girlBack: 'girl-back', // девушка: две косы с бусинами, корзина за спиной
   girlFront: 'girl-front',
   bubble: 'bubble', // пузырь над головой путника: что он хочет
+  // Помощники вождя (с 0.8): смотрят на нас, без капюшона — рыжие волосы и повязка охрой.
+  // Точка опоры — ноги. Они же — картинка на точке найма.
+  gatherer: 'gatherer', // сборщик: зелёная накидка, каменный топорик
+  helperHunter: 'helper-hunter', // охотник: серая волчья накидка, копьё
   bush: 'bush', // зелёный куст, точка опоры — низ ствола
   bushSnow: 'bush-snow', // снег на кроне куста (тот же размер, ложится поверх)
   stump: 'stump', // пенёк — куст без хвороста
@@ -59,6 +64,9 @@ export const TEXTURES = {
   rawMeat: 'raw-meat', // сырое мясо: розовая ножка с косточкой
   tusk: 'tusk', // клык — валюта каменного века
   cookedMeat: 'cooked-meat', // жареное мясо: румяная ножка с косточкой
+  rawFish: 'raw-fish', // сырая рыба: серебристая, хвостом влево
+  cookedFish: 'cooked-fish', // жареная рыба: золотистая, с полосками от огня
+  iceHole: 'ice-hole', // прорубь: тёмная вода в ледяном ободке со снегом (лежит на земле)
   snowflake: 'snowflake', // снежинка: падающий снег и снег из куста
   chip: 'chip', // щепка, летит из куста при ударе
   dropZone: 'drop-zone', // площадка кучи у костра: светлая рамка (иконку ставит ItemPile)
@@ -140,6 +148,10 @@ const LEG_SIZE: Size = { w: 26, h: 34 };
 const ARM_SIZE: Size = { w: 26, h: 50 };
 const CLUB_ARM_SIZE: Size = { w: 26, h: 40 };
 const CLUB_SIZE: Size = { w: 36, h: 92 };
+// Иконка огненной дубины: та же булава, а над ней и по бокам — место под пламя (пиксели).
+const FIRE_CLUB_FLAME_ROOM = 30;
+const FIRE_CLUB_FLAME_SIDE = 8;
+const FIRE_CLUB_ICON_SIZE: Size = { w: CLUB_SIZE.w + FIRE_CLUB_FLAME_SIDE * 2, h: CLUB_SIZE.h + FIRE_CLUB_FLAME_ROOM };
 const AXE_SIZE: Size = { w: 88, h: 100 };
 const SPEAR_SIZE: Size = { w: 40, h: 150 };
 const RING_SIZE: Size = { w: 90, h: 44 };
@@ -159,6 +171,9 @@ const BUBBLE_SIZE: Size = { w: 84, h: 50 };
 const STUMP_SIZE: Size = { w: 80, h: 60 };
 const BUNDLE_SIZE: Size = { w: 56, h: 28 };
 const MEAT_SIZE: Size = { w: 48, h: 32 };
+// Рыба того же размера, что мясо: стопки и кучи складываются одинаково.
+const FISH_SIZE: Size = MEAT_SIZE;
+const ICE_HOLE_SIZE: Size = { w: 190, h: 110 };
 const TUSK_SIZE: Size = { w: 36, h: 44 };
 // Высота корня клыка (тёмная верхняя часть).
 const TUSK_ROOT_HEIGHT = 12;
@@ -284,6 +299,7 @@ export function createTextures(scene: Phaser.Scene): void {
   bake(scene, TEXTURES.spear, SPEAR_SIZE, (g) => drawSpear(g, true));
   bake(scene, TEXTURES.axeIcon, AXE_SIZE, (g) => drawAxe(g, false));
   bake(scene, TEXTURES.spearIcon, SPEAR_SIZE, (g) => drawSpear(g, false));
+  bake(scene, TEXTURES.fireClubIcon, FIRE_CLUB_ICON_SIZE, drawFireClubIcon);
   bake(scene, TEXTURES.ring, RING_SIZE, drawRing);
   bake(scene, TEXTURES.joystickBase, JOYSTICK_BASE_SIZE, drawJoystickBase);
   bake(scene, TEXTURES.joystickKnob, JOYSTICK_KNOB_SIZE, drawJoystickKnob);
@@ -300,6 +316,8 @@ export function createTextures(scene: Phaser.Scene): void {
   bake(scene, TEXTURES.girlBack, TRAVELER_SIZE, (g) => drawGirl(g, false));
   bake(scene, TEXTURES.girlFront, TRAVELER_SIZE, (g) => drawGirl(g, true));
   bake(scene, TEXTURES.bubble, BUBBLE_SIZE, drawBubble);
+  bake(scene, TEXTURES.gatherer, TRAVELER_SIZE, (g) => drawHelper(g, COLORS.gathererRobe, COLORS.gathererRobeShade, false));
+  bake(scene, TEXTURES.helperHunter, TRAVELER_SIZE, (g) => drawHelper(g, COLORS.hunterRobe, COLORS.hunterRobeShade, true));
   bake(scene, TEXTURES.bush, BUSH_SIZE, drawBush);
   bake(scene, TEXTURES.bushSnow, BUSH_SIZE, drawBushSnow);
   bake(scene, TEXTURES.stump, STUMP_SIZE, drawStump);
@@ -309,6 +327,11 @@ export function createTextures(scene: Phaser.Scene): void {
   bake(scene, TEXTURES.cookedMeat, MEAT_SIZE, (g) =>
     drawMeat(g, COLORS.cookedMeat, COLORS.cookedMeatShade, COLORS.cookedMeatLight, true),
   );
+  bake(scene, TEXTURES.rawFish, FISH_SIZE, (g) => drawFish(g, COLORS.rawFish, COLORS.rawFishShade, COLORS.rawFishBelly, false));
+  bake(scene, TEXTURES.cookedFish, FISH_SIZE, (g) =>
+    drawFish(g, COLORS.cookedFish, COLORS.cookedFishShade, COLORS.cookedFishBelly, true),
+  );
+  bake(scene, TEXTURES.iceHole, ICE_HOLE_SIZE, drawIceHole);
   bake(scene, TEXTURES.snowflake, SNOWFLAKE_SIZE, drawSnowflake);
   bake(scene, TEXTURES.chip, CHIP_SIZE, drawChip);
   bake(scene, TEXTURES.dropZone, DROP_ZONE_SIZE, drawDropZone);
@@ -1394,6 +1417,21 @@ function drawClub(g: Graphics): void {
   drawFistFront(g, cx, h - WEAPON_GRIP_FROM_BOTTOM);
 }
 
+// «Огненная дубина» (с 0.8): валун булавы охвачен большим пламенем,
+// булава та же (drawClub), только сдвинута — над ней и по бокам место под огонь.
+function drawFireClubIcon(g: Graphics): void {
+  const cx = FIRE_CLUB_ICON_SIZE.w / 2;
+  // Низ пламени — чуть ниже валуна булавы (середина валуна в drawClub — на высоте 21 от верха).
+  const flameBottom = FIRE_CLUB_FLAME_ROOM + 30;
+  fillFlameDrop(g, cx, flameBottom, 46, 60, COLORS.fireRed);
+  fillFlameDrop(g, cx, flameBottom - 3, 34, 48, COLORS.fireOrange);
+  fillFlameDrop(g, cx, flameBottom - 6, 20, 34, COLORS.fireYellow);
+  g.save();
+  g.translateCanvas(FIRE_CLUB_FLAME_SIDE, FIRE_CLUB_FLAME_ROOM);
+  drawClub(g);
+  g.restore();
+}
+
 // Двусторонний каменный топор: лезвия по обе стороны рукояти, в середине — обух,
 // крест-накрест примотанный ремнём.
 function drawAxe(g: Graphics, withFist: boolean): void {
@@ -1972,6 +2010,33 @@ function drawHunter(g: Graphics, isFront: boolean): void {
   }
 }
 
+// Помощник вождя (с 0.8) — как путник, но без капюшона: рыжие волосы, повязка охрой
+// на лбу, накидка своего цвета. Охотник держит копьё, сборщик — каменный топорик.
+function drawHelper(g: Graphics, robe: number, shade: number, isHunter: boolean): void {
+  const cx = TRAVELER_CX;
+  const y = TRAVELER_HEAD_Y;
+  const toolX = cx + TRAVELER_STICK_X;
+
+  if (isHunter) drawTravelerStick(g, toolX, true);
+  drawTravelerRobe(g, robe, shade);
+  if (!isHunter) {
+    // Топорик: короткая рукоять в руке и каменное лезвие на ремне.
+    limb(g, toolX, 84, toolX - 4, 40, 4, COLORS.wood);
+    const blade = [toolX - 5, 36, toolX + 9, 30, toolX + 12, 44, toolX - 3, 48];
+    fillPolygon(g, blade, COLORS.stone);
+    fillPolygon(g, [toolX + 9, 30, toolX + 12, 44, toolX + 4, 46], COLORS.stoneDark);
+    strokePolygon(g, blade);
+    limb(g, toolX - 7, 42, toolX - 1, 44, 3, COLORS.leather);
+  }
+  // Рука в рукавице на рукояти.
+  outlinedCircle(g, toolX - 2, 64, 6, COLORS.furDark);
+  // Лохматые волосы за головой, лицо, повязка охрой с узелком.
+  outlinedBlobs(g, [cx - 13, y - 6, 8, cx - 6, y - 12, 9, cx + 4, y - 13, 9, cx + 12, y - 7, 8, cx - 15, y + 3, 6, cx + 15, y + 3, 6], COLORS.hair);
+  drawTravelerFace(g);
+  limb(g, cx - 13, y - 8, cx + 13, y - 8, 4, COLORS.ochre);
+  outlinedCircle(g, cx + 14, y - 7, 3, COLORS.ochre);
+}
+
 // Старец: кожаный плащ с капюшоном, длинная седая борода, посох с перьями.
 function drawElder(g: Graphics, isFront: boolean): void {
   const cx = TRAVELER_CX;
@@ -2445,6 +2510,54 @@ function drawMeat(g: Graphics, color: number, shade: number, light: number, isCo
   }
 }
 
+// Рыба хвостом влево: тело-капля, хвост, плавники, глаз и чешуйки.
+// У жареной — тёмные полоски от огня и золотистые блики.
+function drawFish(g: Graphics, color: number, shade: number, belly: number, isCooked: boolean): void {
+  // Хвост — «ласточкин хвост» слева.
+  const tail = [3, 6, 13, 13, 13, 19, 3, 26, 7, 16];
+  fillPolygon(g, tail, shade);
+  strokePolygon(g, tail);
+  // Спинной и брюшной плавники.
+  const topFin = [20, 8, 26, 2, 34, 4, 32, 8];
+  const bottomFin = [24, 24, 28, 29, 33, 24];
+  fillPolygon(g, topFin, shade);
+  strokePolygon(g, topFin);
+  fillPolygon(g, bottomFin, shade);
+  strokePolygon(g, bottomFin);
+  // Тело: спинка своего цвета, светлое брюхо снизу.
+  const body = [12, 16, 18, 9, 28, 6, 38, 7, 45, 12, 46, 17, 42, 22, 32, 25, 20, 23];
+  fillPolygon(g, body, color);
+  fillPolygon(g, [14, 18, 20, 23, 32, 25, 42, 22, 45, 18, 32, 19, 20, 19], belly);
+  // Жабра — дужка за головой.
+  g.lineStyle(1.4, shade, 1);
+  g.strokePoints(toPoints([37, 9, 35, 15, 37, 21]), false);
+  if (isCooked) {
+    // Полоски от огня поперёк тела.
+    g.lineStyle(2, COLORS.cookedMeatShade, 0.9);
+    for (const x of [20, 26, 32]) g.lineBetween(x, 9, x - 3, 22);
+  } else {
+    // Чешуйки — светлые дужки на спинке.
+    g.lineStyle(1, belly, 0.8);
+    for (const [x, y] of [[22, 12], [28, 10], [28, 15], [33, 12]]) {
+      g.beginPath();
+      g.arc(x, y, 2.5, Math.PI * 0.2, Math.PI * 0.8, false);
+      g.strokePath();
+    }
+  }
+  strokePolygon(g, body);
+  // Глаз с бликом.
+  outlinedCircle(g, 41, 13, 2.6, COLORS.white);
+  g.fillStyle(COLORS.outline, 1);
+  g.fillCircle(41.6, 13.2, 1.3);
+  // Блик на спинке.
+  g.fillStyle(COLORS.white, isCooked ? 0.5 : 0.8);
+  g.fillEllipse(30, 9, 9, 2.5);
+  if (isCooked) {
+    g.fillStyle(COLORS.fireYellow, 1);
+    g.fillCircle(38, 10, 1);
+  }
+}
+
 // Одна палка связки: скруглённый брусок с обводкой и светлым срезом слева.
 function drawStick(g: Graphics, x: number, y: number, length: number, color: number): void {
   const height = 7;
@@ -2510,6 +2623,49 @@ function drawDropZone(g: Graphics): void {
   const innerInset = 10;
   g.lineStyle(2, COLORS.zoneBorder, 0.6);
   g.strokeRoundedRect(inset + innerInset, inset + innerInset, width - innerInset * 2, height - innerInset * 2, radius - innerInset);
+}
+
+// Прорубь, вид сверху под углом: снежный вал, ледяной ободок с трещинами,
+// тёмная вода с бликом и кругами. Лежит плоско на земле, точка опоры — середина.
+function drawIceHole(g: Graphics): void {
+  const { w, h } = ICE_HOLE_SIZE;
+  const cx = w / 2;
+  const cy = h / 2;
+  // Снежный вал вокруг льда — неровный, из нескольких сугробиков.
+  g.fillStyle(COLORS.snowShade, 1);
+  g.fillEllipse(cx, cy + 4, w - 8, h - 14);
+  g.fillStyle(COLORS.snowLight, 1);
+  for (const [x, y, rx, ry] of [[-62, -6, 26, 16], [-30, -26, 32, 14], [18, -28, 34, 13], [60, -8, 26, 16], [44, 22, 32, 14], [-40, 24, 34, 13]]) {
+    g.fillEllipse(cx + x, cy + y, rx * 2, ry * 2);
+  }
+  // Ледяной ободок.
+  outlinedEllipse(g, cx, cy, 136, 72, COLORS.ice);
+  g.fillStyle(COLORS.iceShade, 1);
+  g.fillEllipse(cx, cy + 10, 120, 44);
+  g.fillStyle(COLORS.ice, 1);
+  g.fillEllipse(cx, cy + 4, 118, 46);
+  // Трещины во льду.
+  g.lineStyle(1.5, COLORS.iceShade, 1);
+  g.strokePoints(toPoints([cx - 62, cy - 4, cx - 54, cy - 2, cx - 50, cy + 4]), false);
+  g.strokePoints(toPoints([cx + 50, cy - 14, cx + 56, cy - 10, cx + 62, cy - 12]), false);
+  g.strokePoints(toPoints([cx + 30, cy + 26, cx + 34, cy + 31]), false);
+  // Вода: тёмная, с тенью от кромки льда сверху.
+  g.fillStyle(COLORS.water, 1);
+  g.fillEllipse(cx, cy + 4, 90, 36);
+  g.lineStyle(OUTLINE_WIDTH, COLORS.outline, 1);
+  g.strokeEllipse(cx, cy + 4, 90, 36);
+  g.fillStyle(COLORS.outline, 0.3);
+  g.fillEllipse(cx, cy - 6, 76, 12);
+  // Круги на воде и блик.
+  g.lineStyle(1.5, COLORS.waterLight, 0.9);
+  g.strokeEllipse(cx + 8, cy + 8, 34, 12);
+  g.strokeEllipse(cx + 8, cy + 8, 18, 6);
+  g.fillStyle(COLORS.white, 0.7);
+  g.fillEllipse(cx - 22, cy + 2, 14, 3);
+  // Блики на льду.
+  g.fillStyle(COLORS.white, 0.9);
+  g.fillEllipse(cx - 40, cy - 16, 16, 4);
+  g.fillEllipse(cx + 42, cy + 18, 10, 3);
 }
 
 // Круг точки покупки: утоптанный снег с тёплой заливкой и светлым пунктиром

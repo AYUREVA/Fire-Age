@@ -37,6 +37,11 @@ const STAKES_SEED = 'fence-stakes';
 const BUILD_STAGGER = 8;
 const BUILD_GROW_TIME = 260;
 
+// ===== Маршрут помощников (с 0.8) =====
+// Помощник проходит калитку по двум точкам: перед ней снаружи и за ней во дворе —
+// на столько пикселей от середины проёма.
+const GATE_ROUTE_STEP = 70;
+
 // ===== Ворота калитки =====
 // Калитка — часть частокола: по краям проёма стоят такие же колья, между ними —
 // две деревянные створки. Доски створок раскрашены как колья, на них распорка «Z»,
@@ -194,13 +199,33 @@ export class Fence {
     }
   }
 
-  // Вызывается сценой каждый кадр. (playerX, playerY) — где вождь.
-  // Калитка, к которой подошёл вождь, распахивается; отошёл — через GATE_CLOSE_DELAY закрывается.
-  update(delta: number, playerX: number, playerY: number): void {
+  // Путь для помощника из from в to (с 0.8). Стены помощники не проверяют —
+  // они идут по точкам маршрута. Если частокол стоит, а одна точка во дворе,
+  // другая снаружи, путь идёт через калитку, ближайшую к точке снаружи:
+  // перед калиткой → за калиткой → цель. Иначе — прямо к цели.
+  getRoute(from: Point, to: Point): Point[] {
+    const isFromInside = this.isInside(from.x, from.y);
+    if (!this.isBuiltNow || isFromInside === this.isInside(to.x, to.y)) return [to];
+
+    const outside = isFromInside ? to : from;
+    const gate = this.gates.reduce((best, each) =>
+      Phaser.Math.Distance.BetweenPoints(each.center, outside) < Phaser.Math.Distance.BetweenPoints(best.center, outside)
+        ? each
+        : best,
+    );
+    const outer = { x: gate.center.x + gate.outward.x * GATE_ROUTE_STEP, y: gate.center.y + gate.outward.y * GATE_ROUTE_STEP };
+    const inner = { x: gate.center.x - gate.outward.x * GATE_ROUTE_STEP, y: gate.center.y - gate.outward.y * GATE_ROUTE_STEP };
+    return isFromInside ? [inner, outer, to] : [outer, inner, to];
+  }
+
+  // Вызывается сценой каждый кадр. walkers — где вождь и нанятые помощники.
+  // Калитка, к которой кто-то из них подошёл, распахивается; отошли — через GATE_CLOSE_DELAY закрывается.
+  update(delta: number, walkers: Point[]): void {
     if (!this.isBuiltNow) return;
 
     for (const gate of this.gates) {
-      gate.holdTime = this.shouldOpen(gate, playerX, playerY) ? GATE_CLOSE_DELAY : gate.holdTime - delta;
+      const isSomeoneNear = walkers.some((walker) => this.shouldOpen(gate, walker.x, walker.y));
+      gate.holdTime = isSomeoneNear ? GATE_CLOSE_DELAY : gate.holdTime - delta;
       const target = gate.holdTime > 0 ? 1 : 0;
       if (gate.openness === target) continue;
       const step = delta / GATE_SWING_TIME;
@@ -209,9 +234,9 @@ export class Fence {
     }
   }
 
-  // Пора ли калитке открыться: вождь рядом с её серединой.
-  private shouldOpen(gate: Gate, playerX: number, playerY: number): boolean {
-    return Phaser.Math.Distance.Between(playerX, playerY, gate.center.x, gate.center.y) < GATE_OPEN_RADIUS;
+  // Пора ли калитке открыться: вождь или помощник в точке (x, y) рядом с её серединой.
+  private shouldOpen(gate: Gate, x: number, y: number): boolean {
+    return Phaser.Math.Distance.Between(x, y, gate.center.x, gate.center.y) < GATE_OPEN_RADIUS;
   }
 
   // Стена ли в точке (x, y). Калитка — стена, пока она не открыта хотя бы на

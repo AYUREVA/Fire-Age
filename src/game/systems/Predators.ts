@@ -103,10 +103,10 @@ export function updateWolfFight(player: Player, backpack: Backpack, wolves: Wolf
   });
 }
 
-// Ближайший к вождю волк, которого можно ударить, не дальше WOLF_HIT_RADIUS.
+// Ближайший к вождю волк, которого можно ударить, не дальше WOLF_HIT_RADIUS × дальность оружия.
 function findWolfNear(player: Player, wolves: Wolf[]): Wolf | undefined {
   let nearest: Wolf | undefined;
-  let nearestDistance = WOLF_HIT_RADIUS;
+  let nearestDistance = WOLF_HIT_RADIUS * player.getWeapon().reach;
 
   for (const wolf of wolves) {
     if (!wolf.canBeHit()) continue;

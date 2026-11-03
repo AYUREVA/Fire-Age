@@ -1,4 +1,4 @@
-import { DAY_DURATION, NIGHT_DURATION, SUNSET_TIME } from '../settings';
+import { NIGHT_MAX_DURATION, SUNSET_TIME } from '../settings';
 
 // Фаза суток: день (фаза 1) или ночь с метелью (фаза 2).
 export type Phase = 'day' | 'night';
@@ -28,14 +28,21 @@ export class DayNightCycle {
   // Номер суток: 1, 2, …
   dayNumber = 1;
   // Сколько мс осталось до конца текущей фазы.
-  timeLeft = DAY_DURATION;
+  timeLeft: number;
   // Закат этого дня уже начался (событие 'sunset' уже было).
   private isSunsetStarted = false;
-  // Сколько суток в уровне (data/levels.ts).
+  // Сколько суток в уровне и сколько мс длятся день и ночь (data/levels.ts).
   private dayCount: number;
+  private dayDuration: number;
+  private nightDuration: number;
 
-  constructor(dayCount: number) {
+  // dayCount — сколько суток, dayDuration и nightDuration — длина дня и ночи уровня (мс).
+  // Ночь не бывает дольше NIGHT_MAX_DURATION, даже если уровень просит больше.
+  constructor(dayCount: number, dayDuration: number, nightDuration: number) {
     this.dayCount = dayCount;
+    this.dayDuration = dayDuration;
+    this.nightDuration = Math.min(nightDuration, NIGHT_MAX_DURATION);
+    this.timeLeft = dayDuration;
   }
 
   // Вызывается сценой каждый кадр. Вернёт событие, если фаза сменилась, иначе undefined.
@@ -79,10 +86,10 @@ export class DayNightCycle {
     return 'sunset';
   }
 
-  // Ночь с метелью на NIGHT_DURATION.
+  // Ночь с метелью — на длину ночи уровня.
   private enterNight(): CycleEvent {
     this.phase = 'night';
-    this.timeLeft = NIGHT_DURATION;
+    this.timeLeft = this.nightDuration;
     return 'night';
   }
 
@@ -92,7 +99,7 @@ export class DayNightCycle {
 
     this.dayNumber += 1;
     this.phase = 'day';
-    this.timeLeft = DAY_DURATION;
+    this.timeLeft = this.dayDuration;
     this.isSunsetStarted = false;
     return 'morning';
   }

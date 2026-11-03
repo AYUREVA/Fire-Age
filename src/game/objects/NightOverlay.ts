@@ -11,6 +11,8 @@ const SUNSET_DEPTH = 11400;
 const DARKNESS_DEPTH = 11500;
 // Виньетка — сразу над тьмой, под снегом.
 const VIGNETTE_DEPTH = 11600;
+// Свет малого костра — поверх тьмы, но под виньеткой.
+const SMALL_LIGHT_DEPTH = 11550;
 // Метель — поверх обычного снега.
 const BLIZZARD_DEPTH = 12100;
 
@@ -40,6 +42,13 @@ const LIGHT_MIN_SIZE = 0.45;
 // Размер — доля светлого пятна, сила — в середине (ещё умножается на NIGHT_ALPHA).
 const WARMTH_SIZE = 0.9;
 const WARMTH_ALPHA = 1;
+
+// ===== Свет малого костра (с 0.8) =====
+// Тьма вырезана вокруг одного, главного костра. У малого костра у проруби
+// поверх тьмы горит тёплое пятно (режим ADD — свет складывается с цветом под ним).
+// Ширина пятна при полном жаре и его яркость в полную ночь.
+const SMALL_LIGHT_WIDTH = 560;
+const SMALL_LIGHT_ALPHA = 0.55;
 
 // ===== Виньетка =====
 
@@ -71,6 +80,7 @@ const BLIZZARD_SPAWN_SHIFT_X = 300;
 
 /**
  * Вид ночи: розовый закат, тьма со светлым пятном у костра, виньетка и метель.
+ * С 0.8 — ещё тёплое пятно у малого костра на уровне с прорубью.
  *
  * Только оформление — на правила игры не влияет (ночные правила —
  * таблица PHASES в settings.ts). Про костёр ничего не знает: сцена каждый
@@ -93,6 +103,8 @@ export class NightOverlay {
   private shadeBottom: Phaser.GameObjects.Rectangle;
   // Ночная виньетка: тёмные углы экрана.
   private vignette: Phaser.GameObjects.Image;
+  // Тёплое пятно света у малого костра (есть на экране, только если сцена зовёт updateSmallFire).
+  private smallLight: Phaser.GameObjects.Image;
   // Метель: включается ночью, выключается утром.
   private blizzard: Phaser.GameObjects.Particles.ParticleEmitter;
 
@@ -134,6 +146,13 @@ export class NightOverlay {
       .setDepth(VIGNETTE_DEPTH)
       .setAlpha(0);
     this.layout();
+
+    this.smallLight = scene.add
+      .image(0, 0, TEXTURES.fireLight)
+      .setTint(COLORS.fireGlow)
+      .setBlendMode(Phaser.BlendModes.ADD)
+      .setDepth(SMALL_LIGHT_DEPTH)
+      .setVisible(false);
 
     this.blizzard = this.createBlizzard();
 
@@ -196,6 +215,19 @@ export class NightOverlay {
     this.placeShade(this.shadeRight, right, 0, WORLD_WIDTH - right, WORLD_HEIGHT);
     this.placeShade(this.shadeTop, left, 0, lightWidth, top);
     this.placeShade(this.shadeBottom, left, bottom, lightWidth, WORLD_HEIGHT - bottom);
+  }
+
+  // Вызывается сценой каждый кадр, если на уровне есть малый костёр:
+  // тёплое пятно стоит на нём (x, y) и тем больше, чем больше жара. Погас — пятна нет.
+  // Пятно видно только ночью: его яркость идёт вслед за тьмой.
+  updateSmallFire(x: number, y: number, heatShare: number): void {
+    const night = this.darkness.alpha / NIGHT_ALPHA;
+    this.smallLight.setVisible(night > 0 && heatShare > 0);
+    if (!this.smallLight.visible) return;
+
+    const width = SMALL_LIGHT_WIDTH * Phaser.Math.Linear(LIGHT_MIN_SIZE, 1, heatShare);
+    this.smallLight.setPosition(x, y).setDisplaySize(width, width * LIGHT_FLATTEN);
+    this.smallLight.setAlpha(SMALL_LIGHT_ALPHA * night);
   }
 
   // ===== Внутреннее =====
