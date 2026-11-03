@@ -6,7 +6,6 @@ import {
   TRAVELER_ORDER_MAX,
   TRAVELER_ORDER_MIN,
   TRAVELER_TAKE_DELAY,
-  TUSKS_PER_FOOD,
 } from '../settings';
 import { Player } from '../objects/Player';
 import { Backpack } from '../objects/Backpack';
@@ -84,7 +83,7 @@ export function updateTravelers(
     traveler.setFront(index === 0);
   });
 
-  if (queue.length > 0) serveFirst(table, queue[0], stats, delta);
+  if (queue.length > 0) serveFirst(table, queue[0], stats, arrivals.tusksPerFood, delta);
 }
 
 // Раз в arrivals.interval (первый — через arrivals.firstDelay; числа уровня) из леса выходит
@@ -126,12 +125,13 @@ function callTraveler(
 
 // Первый в очереди у стола: берёт нужную еду по куску, ест, платит и уходит.
 // Нужной еды на столе нет — ждёт, и его терпение убывает; кончилось — уходит голодным.
-function serveFirst(table: StoneTable, first: Traveler, stats: LevelStats, delta: number): void {
+// tusksPerFood — сколько клыков путник платит за кусок на этом уровне (data/levels.ts).
+function serveFirst(table: StoneTable, first: Traveler, stats: LevelStats, tusksPerFood: number, delta: number): void {
   // Ест: доел — клыки летят на край стола, путник уходит.
   if (first.isEating()) {
     first.eatTime += delta;
     if (first.eatTime < TRAVELER_EAT_TIME) return;
-    table.addTusks(first.order * TUSKS_PER_FOOD, first.getMouthPoint());
+    table.addTusks(first.order * tusksPerFood, first.getMouthPoint());
     first.leave(true, table.getForestPoint());
     stats.fed += 1;
     return;
