@@ -15,6 +15,9 @@ export type LevelData = {
   name: string;
   // Сколько суток в уровне. Рассвет после последней ночи — победа.
   dayCount: number;
+  // Сколько мс длятся день и ночь. Ночь — не дольше NIGHT_MAX_DURATION (settings.ts).
+  day: number;
+  night: number;
   // Волки. Нет поля — волков на уровне нет.
   // day / night — сколько волков может быть на поле днём и ночью (фаза 2),
   // firstDelay — через сколько мс после начала выходит первый волк.
@@ -69,6 +72,9 @@ export const LEVELS: LevelData[] = [
   {
     name: 'Первый ужин',
     dayCount: 1,
+    // Самый короткий уровень — 2 минуты: длинный день (успеть обучение), короткая ночь.
+    day: 75000,
+    night: 45000,
     // Обучение: первый путник просит один кусок — столько вождь и приносит по подсказке.
     travelers: { ...TRAVELERS, firstOrder: 1 },
     starFed: 5,
@@ -78,6 +84,9 @@ export const LEVELS: LevelData[] = [
   {
     name: 'Волки и частокол',
     dayCount: 1,
+    // 2:15 — ночь чуть длиннее, чем на уровне 1.
+    day: 75000,
+    night: 60000,
     wolves: WOLVES,
     travelers: TRAVELERS,
     fence: FENCE,
@@ -88,6 +97,9 @@ export const LEVELS: LevelData[] = [
   {
     name: 'Растущий лагерь',
     dayCount: 1,
+    // 2:30 — есть время потратить клыки.
+    day: 80000,
+    night: 70000,
     wolves: WOLVES,
     travelers: TRAVELERS,
     fence: FENCE,
@@ -100,6 +112,9 @@ export const LEVELS: LevelData[] = [
   {
     name: 'Прорубь и помощники',
     dayCount: 2,
+    // Двое суток по 2:05 — весь уровень около 4 минут.
+    day: 65000,
+    night: 60000,
     wolves: WOLVES,
     travelers: TRAVELERS,
     fence: FENCE,

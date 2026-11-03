@@ -345,7 +345,7 @@ export class GameScene extends Phaser.Scene {
 
     this.player = new Player(this, PLAYER_START.x, PLAYER_START.y);
     this.backpack = new Backpack(this, STACK_CAPACITY + metaBonus('capacity', meta.capacity));
-    this.cycle = new DayNightCycle(this.level.dayCount);
+    this.cycle = new DayNightCycle(this.level.dayCount, this.level.day, this.level.night);
     this.hud = new Hud(this, () => this.pauseGame('button'));
     this.hud.setTimeLeft(this.cycle.timeLeft);
     this.starGoals = new StarGoals(this, this.level.starFed);
