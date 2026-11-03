@@ -42,7 +42,7 @@ import { Backpack } from '../objects/Backpack';
 import { ResourceNode } from '../objects/ResourceNode';
 import { ItemPile } from '../objects/ItemPile';
 import { Rabbit } from '../objects/Rabbit';
-import { Wolf } from '../objects/Wolf';
+import { Loot, Wolf } from '../objects/Wolf';
 import { Spit } from '../objects/Spit';
 import { StoneTable } from '../objects/StoneTable';
 import { Traveler } from '../objects/Traveler';
@@ -68,7 +68,7 @@ import { updateFire } from '../systems/Fire';
 import { updatePurchases } from '../systems/Purchases';
 import { updateWolfFight, updateWolves } from '../systems/Predators';
 import { updateHelpers } from '../systems/Helpers';
-import { BossWorld, chooseAim, updateMammoth, updateMammothFight } from '../systems/Boss';
+import { BossWorld, chooseAim, updateMammoth, updateMammothFight, updateSpilled } from '../systems/Boss';
 import { HELPERS, HelperRole, WEAPONS } from '../data/upgrades';
 import { LEVELS, LevelData } from '../data/levels';
 import { LevelOutcome, LevelStats, PauseSource, track } from '../analytics';
@@ -241,6 +241,8 @@ export class GameScene extends Phaser.Scene {
   private fishCamp?: FishCamp;
   // Мамонт — только на уровне с боссом (иначе undefined). До дня боя он спрятан.
   private mammoth?: Mammoth;
+  // Предметы, рассыпанные по снегу тараном мамонта: лежат, пока вождь их не подберёт.
+  private spilled: Loot[] = [];
   // Интерфейс: сколько осталось до конца дня или ночи, кнопка паузы.
   private hud!: Hud;
   // Смена дня и ночи: фаза, номер суток, сколько осталось до конца фазы.
@@ -292,6 +294,7 @@ export class GameScene extends Phaser.Scene {
     this.fenceZone = undefined;
     this.fishCamp = undefined;
     this.mammoth = undefined;
+    this.spilled = [];
     this.mode = 'ready';
     this.stats = {
       fed: 0,
@@ -421,6 +424,7 @@ export class GameScene extends Phaser.Scene {
     if (this.mammoth) {
       updateMammoth(this.mammoth, this.getBossWorld(), delta);
       updateMammothFight(this.player, this.mammoth);
+      updateSpilled(this.player, this.backpack, this.spilled);
     }
     updateWolfFight(this.player, this.backpack, this.wolves, this.stats);
     updateGathering(this.player, this.backpack, this.bushes, this.stats, delta);
@@ -563,9 +567,15 @@ export class GameScene extends Phaser.Scene {
     chooseAim(this.mammoth, this.getBossWorld());
   }
 
-  // С чем мамонт имеет дело: вождь и кучи у главного костра.
+  // С чем мамонт имеет дело: вождь с рюкзаком, кучи у главного костра, частокол и рассыпанное.
   private getBossWorld(): BossWorld {
-    return { player: this.player, piles: [this.woodpile, this.rawMeatPile, this.cookedMeatPile] };
+    return {
+      player: this.player,
+      backpack: this.backpack,
+      piles: [this.woodpile, this.rawMeatPile, this.cookedMeatPile],
+      fence: this.fence,
+      spilled: this.spilled,
+    };
   }
 
   // ===== Лагерь у проруби =====

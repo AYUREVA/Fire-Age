@@ -64,6 +64,8 @@ export class Mammoth {
   stateTime = 0;
   // Цель: -1 — вождь, иначе номер кучи у костра. Выбирает systems/Boss.ts.
   aim = -1;
+  // Задел ли этот таран вождя: за один таран вождь отлетает один раз. Меняет systems/Boss.ts.
+  hasRammedPlayer = false;
 
   private scene: Phaser.Scene;
   // Состояние автомата. Меняют его только функции переходов ниже.
@@ -145,6 +147,7 @@ export class Mammoth {
   // prepare → charge: таран по прямой до точки to.
   charge(to: Point): void {
     this.target = { ...to };
+    this.hasRammedPlayer = false;
     this.face(to.x);
     this.enter('charge');
   }
