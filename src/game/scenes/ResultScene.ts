@@ -55,7 +55,8 @@ const STAR_STAMP_START_SCALE = 3.2;
 // newAchievements — названия достижений, полученных впервые на этом уровне (с 0.9).
 // Переходы делает GameScene: onRestart — RESULT → READY того же уровня,
 // onMenu — RESULT → меню, onNext — RESULT → READY следующего уровня
-// (его нет, если уровень проигран или он последний).
+// (его нет, если уровень проигран или он последний), onNextEpoch — (с 0.9) RESULT → заставка
+// смены эпохи (есть только после победы на последнем уровне эпохи).
 export type ResultData = {
   outcome: LevelOutcome;
   starGoals: StarGoal[];
@@ -68,6 +69,7 @@ export type ResultData = {
   onRestart: () => void;
   onMenu: () => void;
   onNext?: () => void;
+  onNextEpoch?: () => void;
 };
 
 /**
@@ -91,6 +93,8 @@ export class ResultScene extends Phaser.Scene {
 
   create(data: ResultData): void {
     const buttons: TabletButton[] = [];
+    // После последнего уровня эпохи вместо «Дальше» — «Следующая эпоха →» (в две строки: кнопка узкая).
+    if (data.onNextEpoch) buttons.push({ label: 'Следующая\nэпоха →', onClick: data.onNextEpoch });
     if (data.onNext) buttons.push({ label: 'Дальше', onClick: data.onNext });
     buttons.push({ label: 'Заново', onClick: data.onRestart });
     buttons.push({ label: 'В меню', onClick: data.onMenu });

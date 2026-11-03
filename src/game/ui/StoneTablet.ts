@@ -59,6 +59,11 @@ const BUTTON_PRESS_SCALE = 0.95;
 const BUTTON_PRESS_SHIFT = 3;
 // Надпись на кнопке чуть выше середины картинки: снизу у кнопки тёмный «торец».
 const BUTTON_LABEL_Y = -3;
+// Надпись занимает не больше такой доли ширины и высоты кнопки. Длиннее
+// («Следующая эпоха →», с 0.9) — уменьшается, чтобы не вылезать за края.
+const BUTTON_LABEL_MAX_SHARE = 0.84;
+// Расстояние между строками надписи из двух строк (меньше обычного — строки ближе).
+const BUTTON_LINE_SPACING = -6;
 // Тень под надписями на камне (кнопки, подзаголовки, плашки HUD): сдвиг вниз в пикселях.
 // Буквы будто выбиты в камне — так они лучше читаются.
 const TEXT_SHADOW_SHIFT = 2;
@@ -263,10 +268,18 @@ export class StoneTablet {
         stroke: toCss(COLORS.outline),
         strokeThickness: 5,
         shadow: CARVED_TEXT_SHADOW,
+        align: 'center',
+        lineSpacing: BUTTON_LINE_SPACING,
         resolution: 2,
       })
-      .setOrigin(0.5)
-      .setScale(baseScale);
+      .setOrigin(0.5);
+    // Во сколько раз уменьшить надпись, чтобы она поместилась на кнопку (1 — помещается).
+    const fit = Math.min(
+      1,
+      (image.width * BUTTON_LABEL_MAX_SHARE) / label.width,
+      (image.height * BUTTON_LABEL_MAX_SHARE) / label.height,
+    );
+    label.setScale(baseScale * fit);
     this.container.add([image, label]);
     this.buttons.push(image);
 
@@ -279,18 +292,15 @@ export class StoneTablet {
       const scale = baseScale * (pressed ? BUTTON_PRESS_SCALE : 1);
       const shift = pressed ? BUTTON_PRESS_SHIFT : 0;
       image.setScale(scale).setY(y + shift);
-      label.setScale(scale).setY(y + BUTTON_LABEL_Y + shift);
+      label.setScale(scale * fit).setY(y + BUTTON_LABEL_Y + shift);
     };
     // Плавно подрасти под курсором (isOver) или вернуться к обычному размеру.
     const setHover = (isOver: boolean): void => {
       image.setTint(isOver ? BUTTON_HOVER_TINT : BUTTON_IDLE_TINT);
       this.scene.tweens.killTweensOf([image, label]);
-      this.scene.tweens.add({
-        targets: [image, label],
-        scale: baseScale * (isOver ? BUTTON_HOVER_SCALE : 1),
-        duration: BUTTON_HOVER_TIME,
-        ease: 'Sine.easeOut',
-      });
+      const scale = baseScale * (isOver ? BUTTON_HOVER_SCALE : 1);
+      this.scene.tweens.add({ targets: image, scale, duration: BUTTON_HOVER_TIME, ease: 'Sine.easeOut' });
+      this.scene.tweens.add({ targets: label, scale: scale * fit, duration: BUTTON_HOVER_TIME, ease: 'Sine.easeOut' });
     };
 
     image.setInteractive({ useHandCursor: true });

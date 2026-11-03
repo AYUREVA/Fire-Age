@@ -71,7 +71,7 @@ import { updateWolfFight, updateWolves } from '../systems/Predators';
 import { updateHelpers } from '../systems/Helpers';
 import { BossWorld, chooseAim, updateMammoth, updateMammothFight, updateSpilled } from '../systems/Boss';
 import { HELPERS, HelperRole, WEAPONS } from '../data/upgrades';
-import { LEVELS, LevelData } from '../data/levels';
+import { LEVELS, LEVELS_PER_EPOCH, LevelData } from '../data/levels';
 import { LevelOutcome, LevelStats, PauseSource, track } from '../analytics';
 import { getProgress, recordLevel, unlockAchievements } from '../save';
 import { ACHIEVEMENTS } from '../data/achievements';
@@ -752,7 +752,8 @@ export class GameScene extends Phaser.Scene {
   // Допустимые переходы (раздел 9 плана, правило 11):
   //   READY → PLAYING, PLAYING → PAUSED, PAUSED → PLAYING,
   //   PAUSED → READY, PLAYING → RESULT, RESULT → READY,
-  //   PAUSED → меню, RESULT → меню, RESULT → READY следующего уровня.
+  //   PAUSED → меню, RESULT → меню, RESULT → READY следующего уровня,
+  //   RESULT → заставка эпохи в меню (с 0.9).
   //   Из меню сцена запускается в READY выбранного уровня.
   // Каждый переход — одна функция. Первой строкой она проверяет, можно ли
   // перейти из текущего режима; если нельзя — ничего не делает.
@@ -849,6 +850,17 @@ export class GameScene extends Phaser.Scene {
     this.scene.restart(data);
   }
 
+  // RESULT → заставка эпохи (с 0.9): «Следующая эпоха →» на итогах последнего уровня эпохи.
+  // Табличка закрывается, уровень выключается, меню показывает заставку смены эпохи.
+  private nextEpoch(): void {
+    if (this.mode !== 'result') return;
+    this.mode = 'ready';
+
+    this.scene.stop('ResultScene');
+    const data: MenuData = { view: 'epochEnd' };
+    this.scene.start('MenuScene', data);
+  }
+
   // PLAYING → RESULT: победа или поражение. Игра замирает, поверх — табличка итога.
   // outcome — чем кончился уровень: рассвет, костёр погас, (с 0.9) мамонт повержен или закат раньше.
   // Звёзды сразу сохраняются (save.ts хранит лучший результат уровня).
@@ -880,7 +892,9 @@ export class GameScene extends Phaser.Scene {
 
     this.scene.pause();
     this.sound.pauseAll();
-    const hasNext = isWin && this.levelIndex + 1 < LEVELS.length;
+    // Последний уровень эпохи пройден — вместо «Дальше» кнопка «Следующая эпоха →».
+    const isEpochDone = isWin && this.levelIndex === LEVELS_PER_EPOCH - 1;
+    const hasNext = isWin && !isEpochDone && this.levelIndex + 1 < LEVELS.length;
     const data: ResultData = {
       outcome,
       starGoals,
@@ -894,6 +908,7 @@ export class GameScene extends Phaser.Scene {
       onRestart: () => this.restart(),
       onMenu: () => this.quitToMenu(),
       onNext: hasNext ? () => this.nextLevel() : undefined,
+      onNextEpoch: isEpochDone ? () => this.nextEpoch() : undefined,
     };
     this.scene.launch('ResultScene', data);
   }
