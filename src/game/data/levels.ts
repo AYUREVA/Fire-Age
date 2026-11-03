@@ -23,8 +23,9 @@ export type LevelData = {
   // firstDelay — через сколько мс после начала выходит первый волк.
   wolves?: { day: number; night: number; firstDelay: number };
   // Путники: когда приходит первый и как часто следующие (мс), если в очереди есть место.
-  // firstOrder — сколько кусков просит первый путник (нет поля — сколько угодно, как все).
-  travelers: { firstDelay: number; interval: number; firstOrder?: number };
+  // firstOrder — сколько кусков просит первый путник (нет поля — сколько угодно, как все),
+  // tusksPerFood — сколько клыков путник оставляет за каждый съеденный кусок (с 0.8.1).
+  travelers: { firstDelay: number; interval: number; firstOrder?: number; tusksPerFood: number };
   // Точка покупки частокола: цена в клыках и где стоит. Нет поля — частокол не продаётся.
   fence?: { price: number; spot: Point };
   // Точка покупки оружия: где стоит. Цены оружия — в data/upgrades.ts (WEAPONS).
@@ -48,6 +49,7 @@ export type LevelData = {
 
 // Путники приходят одинаково на всех уровнях каменного века:
 // первый — через 6 с после начала, следующие — раз в 10 с (уровни короткие — без простоя).
+// Платят по-разному: на уровнях 3 и 4 покупок много — там за кусок дают больше клыков.
 const TRAVELERS = { firstDelay: 6000, interval: 10000 };
 
 // Волки: днём один, ночью до трёх, первый выходит через 20 с.
@@ -83,7 +85,8 @@ export const LEVELS: LevelData[] = [
     day: 75000,
     night: 45000,
     // Обучение: первый путник просит один кусок — столько вождь и приносит по подсказке.
-    travelers: { ...TRAVELERS, firstOrder: 1 },
+    // Путник платит 4 клыка за кусок: топор — после двух путников, хижина — после первого.
+    travelers: { ...TRAVELERS, firstOrder: 1, tusksPerFood: 4 },
     weapons: WEAPONS_SPOT,
     huts: ONE_HUT,
     starFed: 4,
@@ -97,7 +100,7 @@ export const LEVELS: LevelData[] = [
     day: 75000,
     night: 60000,
     wolves: WOLVES,
-    travelers: TRAVELERS,
+    travelers: { ...TRAVELERS, tusksPerFood: 4 },
     fence: FENCE,
     weapons: WEAPONS_SPOT,
     huts: ONE_HUT,
@@ -112,7 +115,7 @@ export const LEVELS: LevelData[] = [
     day: 80000,
     night: 70000,
     wolves: WOLVES,
-    travelers: TRAVELERS,
+    travelers: { ...TRAVELERS, tusksPerFood: 6 }, // покупок много — платят вдвое щедрее
     fence: FENCE,
     weapons: WEAPONS_SPOT,
     huts: TWO_HUTS,
@@ -128,7 +131,7 @@ export const LEVELS: LevelData[] = [
     day: 65000,
     night: 60000,
     wolves: WOLVES,
-    travelers: TRAVELERS,
+    travelers: { ...TRAVELERS, tusksPerFood: 7 }, // помощники и огненная дубина — платят ещё щедрее
     fence: FENCE,
     weapons: WEAPONS_SPOT,
     huts: TWO_HUTS,
