@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { CanStep, Point, pop } from '../fx';
+import { COLORS } from '../palette';
 import { JOYSTICK_RADIUS, PLAYER_SPEED, WORLD_EDGE, WORLD_HEIGHT, WORLD_WIDTH } from '../settings';
 import { SOUNDS, SOUND_VOLUMES, playSound } from '../sounds';
 import { TEXTURES, WEAPON_GRIP_FROM_BOTTOM } from '../textures';
@@ -147,6 +148,10 @@ export class Player {
   // Уровень оружия — номер в WEAPONS (data/upgrades.ts): 0 — дубина, 1 — топор, 2 — копьё.
   // Меняет upgradeWeapon(), его зовёт GameScene при покупке.
   weaponLevel = 0;
+
+  // Куплена ли «Огненная дубина» (с 0.8): оружие тлеет, пойманный заяц сразу жареный.
+  // Меняет lightFireClub(), его зовёт GameScene при покупке; читает systems/Gathering.ts.
+  hasFireClub = false;
 
   // Куда смотрит вождь: 1 — вправо, -1 — влево.
   // Сцена передаёт это рюкзаку: колонки за спиной уходят в обратную сторону.
@@ -307,6 +312,13 @@ export class Player {
     this.weaponLevel += 1;
     this.club.setTexture(this.getWeapon().texture);
     this.setGripOrigin();
+    pop(this.scene, this.club);
+  }
+
+  // Купили «Огненную дубину»: оружие в руке тлеет оранжевым — любое, и после смены оружия тоже.
+  lightFireClub(): void {
+    this.hasFireClub = true;
+    this.club.setTint(COLORS.fireClubGlow);
     pop(this.scene, this.club);
   }
 

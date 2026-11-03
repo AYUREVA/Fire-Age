@@ -21,6 +21,15 @@ import {
   PHASES,
   FIRE_MAX_HEAT,
   STACK_CAPACITY,
+  ICE_HOLE_POSITION,
+  SMALL_FIRE_POSITION,
+  SMALL_FIRE_SIZE,
+  SMALL_WOODPILE_POSITION,
+  SMALL_WOODPILE_CAPACITY,
+  RAW_FISH_PILE_POSITION,
+  RAW_FISH_PILE_CAPACITY,
+  COOKED_FISH_PILE_POSITION,
+  COOKED_FISH_PILE_CAPACITY,
 } from '../settings';
 import { TEXTURES, createTextures, loadFonts } from '../textures';
 import { createSounds } from '../sounds';
@@ -37,6 +46,8 @@ import { Campfire } from '../objects/Campfire';
 import { BuyZone } from '../objects/BuyZone';
 import { Hut } from '../objects/Hut';
 import { Fence } from '../objects/Fence';
+import { IceHole } from '../objects/IceHole';
+import { Helper } from '../objects/Helper';
 import { CanStep, sway } from '../fx';
 import { Hud } from '../objects/Hud';
 import { CycleEvent, DayNightCycle } from '../objects/DayNightCycle';
@@ -45,13 +56,14 @@ import { PhaseBanner } from '../ui/PhaseBanner';
 import { TutorialHint } from '../ui/TutorialHint';
 import { StarGoals, describeStarGoals } from '../ui/StarGoals';
 import { updateTutorial } from '../systems/Tutorial';
-import { updateDropping, updateGathering, updateHunting, updatePickup } from '../systems/Gathering';
+import { updateDropping, updateFishing, updateGathering, updateHunting, updatePickup } from '../systems/Gathering';
 import { updateCooking } from '../systems/Cooking';
 import { updateTable, updateTravelers, updateTusks } from '../systems/Serving';
 import { updateFire } from '../systems/Fire';
 import { updatePurchases } from '../systems/Purchases';
 import { updateWolfFight, updateWolves } from '../systems/Predators';
-import { WEAPONS } from '../data/upgrades';
+import { updateHelpers } from '../systems/Helpers';
+import { HELPERS, HelperRole, WEAPONS } from '../data/upgrades';
 import { LEVELS, LevelData } from '../data/levels';
 import { LevelStats, PauseSource, track } from '../analytics';
 import { getProgress, recordLevel } from '../save';
@@ -69,6 +81,17 @@ import { MenuData } from './MenuScene';
 // 'paused'  — пауза, поверх табличка «ПАУЗА»;
 // 'result'  — победа или поражение, поверх табличка итога.
 type GameMode = 'ready' | 'playing' | 'paused' | 'result';
+
+// Лагерь у проруби (с 0.8): прорубь, малый костёр с вертелом, его поленница
+// и кучи сырой и жареной рыбы. Есть только на уровне с рыбалкой.
+type FishCamp = {
+  hole: IceHole;
+  fire: Campfire;
+  woodpile: ItemPile;
+  spit: Spit;
+  rawPile: ItemPile;
+  cookedPile: ItemPile;
+};
 
 // С какими данными запускается сцена: какой уровень играем (номер в LEVELS, с нуля).
 export type GameData = { levelIndex?: number };
@@ -131,6 +154,10 @@ const CAMP_CLEAR_RADIUS = 360;
 const TABLE_CLEAR_RADIUS = 320;
 // Середина чистого места у стола — ниже стола, там стоит очередь.
 const TABLE_CLEAR_SHIFT_Y = 120;
+// На уровне с прорубью декор не кладём и у малого костра — там прорубь и кучи рыбы.
+// Середина чистого места — чуть ниже костра, между ним, прорубью и кучей жареной рыбы.
+const FISH_CAMP_CLEAR_RADIUS = 300;
+const FISH_CAMP_CLEAR_SHIFT_Y = 60;
 
 // ===== Падающий снег =====
 
@@ -195,9 +222,16 @@ export class GameScene extends Phaser.Scene {
   // Хижины и их точки покупки (одинаковый порядок: hutZones[i] строит huts[i]).
   private huts: Hut[] = [];
   private hutZones: BuyZone[] = [];
+  // Помощники и их точки найма (одинаковый порядок: helperZones[i] нанимает helpers[i]).
+  private helpers: Helper[] = [];
+  private helperZones: BuyZone[] = [];
+  // Точка покупки «Огненной дубины» — только на уровне, где она продаётся.
+  private fireClubZone?: BuyZone;
   // Частокол вокруг лагеря и его точка покупки.
   private fence!: Fence;
   private fenceZone?: BuyZone;
+  // Лагерь у проруби — только на уровне с рыбалкой (иначе undefined).
+  private fishCamp?: FishCamp;
   // Интерфейс: сколько осталось до конца дня или ночи, кнопка паузы.
   private hud!: Hud;
   // Смена дня и ночи: фаза, номер суток, сколько осталось до конца фазы.
@@ -243,8 +277,12 @@ export class GameScene extends Phaser.Scene {
     this.buyZones = [];
     this.huts = [];
     this.hutZones = [];
+    this.helpers = [];
+    this.helperZones = [];
     this.weaponZone = undefined;
     this.fenceZone = undefined;
+    this.fireClubZone = undefined;
+    this.fishCamp = undefined;
     this.mode = 'ready';
     this.stats = {
       fed: 0,
@@ -255,6 +293,8 @@ export class GameScene extends Phaser.Scene {
       itemsStolen: 0,
       woodGathered: 0,
       meatCooked: 0,
+      fishCaught: 0,
+      fishCooked: 0,
     };
 
     createTextures(this);
@@ -276,7 +316,7 @@ export class GameScene extends Phaser.Scene {
     // Сначала костёр: его свет лежит на земле под краем площадки поленницы.
     this.campfire = new Campfire(this, CAMPFIRE_POSITION.x, CAMPFIRE_POSITION.y);
     this.woodpile = new ItemPile(this, WOODPILE_POSITION.x, WOODPILE_POSITION.y, 'wood', WOODPILE_CAPACITY);
-    this.spit = new Spit(this, CAMPFIRE_POSITION.x, CAMPFIRE_POSITION.y);
+    this.spit = new Spit(this, CAMPFIRE_POSITION.x, CAMPFIRE_POSITION.y, 'cookedMeat');
     this.rawMeatPile = new ItemPile(
       this,
       RAW_MEAT_PILE_POSITION.x,
@@ -298,6 +338,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.createBuyZones();
+    if (this.level.fishing) this.fishCamp = this.createFishCamp();
 
     // Мета-улучшения за звёзды (save.ts хранит, сколько раз куплено, metaUpgrades.ts — что дают):
     // скорость вождя, вместимость колонок за спиной, стартовый хворост в поленнице.
@@ -307,7 +348,7 @@ export class GameScene extends Phaser.Scene {
 
     this.player = new Player(this, PLAYER_START.x, PLAYER_START.y);
     this.backpack = new Backpack(this, STACK_CAPACITY + metaBonus('capacity', meta.capacity));
-    this.cycle = new DayNightCycle(this.level.dayCount);
+    this.cycle = new DayNightCycle(this.level.dayCount, this.level.day, this.level.night);
     this.hud = new Hud(this, () => this.pauseGame('button'));
     this.hud.setTimeLeft(this.cycle.timeLeft);
     this.starGoals = new StarGoals(this, this.level.starFed);
@@ -337,8 +378,8 @@ export class GameScene extends Phaser.Scene {
     this.stats.playTime += delta;
 
     this.player.update(delta, phase.playerSpeedMultiplier * this.speedBonus, this.canWalk);
-    // Калитка, к которой подошёл вождь, распахивается.
-    this.fence.update(delta, this.player.x, this.player.y);
+    // Калитка, к которой подошёл вождь или нанятый помощник, распахивается.
+    this.fence.update(delta, [this.player, ...this.helpers.filter((helper) => helper.isHired())]);
     // Рюкзаку сообщаем, где спина вождя, как быстро он идёт, его глубину и куда он смотрит.
     this.backpack.update(
       delta,
@@ -368,7 +409,21 @@ export class GameScene extends Phaser.Scene {
     );
     updateWolfFight(this.player, this.backpack, this.wolves, this.stats);
     updateGathering(this.player, this.backpack, this.bushes, this.stats, delta);
-    updateHunting(this.player, this.backpack, this.rabbits);
+    updateHunting(this.player, this.backpack, this.rabbits, this.stats);
+    updateHelpers(
+      this.helpers,
+      {
+        bushes: this.bushes,
+        wolves: this.wolves,
+        rabbits: this.rabbits,
+        woodpile: this.woodpile,
+        rawMeatPile: this.rawMeatPile,
+        backpack: this.backpack,
+        fence: this.fence,
+        stats: this.stats,
+      },
+      delta,
+    );
     updateDropping(this.player, this.backpack, [this.woodpile, this.rawMeatPile], delta);
     updatePickup(this.player, this.backpack, this.cookedMeatPile, delta);
     const isFireOut = updateFire(this.campfire, this.woodpile, delta, phase.fireBurnMultiplier);
@@ -376,12 +431,21 @@ export class GameScene extends Phaser.Scene {
     updateCooking(this.campfire, this.rawMeatPile, this.spit, this.cookedMeatPile, this.stats, delta);
     this.spit.update(delta);
     this.nightOverlay.update(this.campfire.x, this.campfire.y, this.campfire.heat / FIRE_MAX_HEAT);
+    if (this.fishCamp) this.updateFishCamp(this.fishCamp, phase.fireBurnMultiplier, delta);
 
     updateTable(this.player, this.backpack, this.table, delta);
     for (const traveler of this.travelers) {
       traveler.update(delta);
     }
-    updateTravelers(this.table, this.travelers, this.huts, this.stats, this.level.travelers, delta);
+    updateTravelers(
+      this.table,
+      this.travelers,
+      this.huts,
+      this.stats,
+      this.level.travelers,
+      this.level.fishing?.fishShare ?? 0,
+      delta,
+    );
     updateTusks(this.player, this.table, this.hud, this.stats, this.cameras.main);
     const purchase = updatePurchases(this.player, this.buyZones, this.hud, this.cameras.main, delta);
     if (purchase) this.onPurchase(purchase);
@@ -456,16 +520,57 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  // ===== Лагерь у проруби =====
+
+  // Прорубь, малый костёр с вертелом, его поленница и кучи рыбы (места — settings.ts).
+  private createFishCamp(): FishCamp {
+    const fire = SMALL_FIRE_POSITION;
+    return {
+      hole: new IceHole(this, ICE_HOLE_POSITION.x, ICE_HOLE_POSITION.y),
+      fire: new Campfire(this, fire.x, fire.y, { size: SMALL_FIRE_SIZE, isMain: false }),
+      woodpile: new ItemPile(this, SMALL_WOODPILE_POSITION.x, SMALL_WOODPILE_POSITION.y, 'wood', SMALL_WOODPILE_CAPACITY),
+      spit: new Spit(this, fire.x, fire.y, 'cookedFish', SMALL_FIRE_SIZE),
+      rawPile: new ItemPile(this, RAW_FISH_PILE_POSITION.x, RAW_FISH_PILE_POSITION.y, 'rawFish', RAW_FISH_PILE_CAPACITY),
+      cookedPile: new ItemPile(
+        this,
+        COOKED_FISH_PILE_POSITION.x,
+        COOKED_FISH_PILE_POSITION.y,
+        'cookedFish',
+        COOKED_FISH_PILE_CAPACITY,
+      ),
+    };
+  }
+
+  // Каждый кадр — те же системы, что у главного костра: рыбалка, сдача хвороста
+  // и сырой рыбы, жареная рыба на спину, огонь и жарка.
+  // Малый костёр не проигрывает: что он погас, updateFire сообщает, но сцена это не слушает —
+  // просто рыба не жарится, пока его снова не накормят.
+  private updateFishCamp(camp: FishCamp, burnMultiplier: number, delta: number): void {
+    updateFishing(this.player, this.backpack, camp.hole, this.stats, delta);
+    updateDropping(this.player, this.backpack, [camp.woodpile, camp.rawPile], delta);
+    updatePickup(this.player, this.backpack, camp.cookedPile, delta);
+    updateFire(camp.fire, camp.woodpile, delta, burnMultiplier);
+    camp.fire.update(delta);
+    updateCooking(camp.fire, camp.rawPile, camp.spit, camp.cookedPile, this.stats, delta);
+    camp.spit.update(delta);
+    this.nightOverlay.updateSmallFire(camp.fire.x, camp.fire.y, camp.fire.heat / FIRE_MAX_HEAT);
+  }
+
   // ===== Покупки =====
 
   // Точки покупки, которые есть на уровне (data/levels.ts).
   // Оружие — с первого, что можно купить (топор); его цена — в data/upgrades.ts.
   private createBuyZones(): void {
-    const { weapons, fence, huts } = this.level;
+    const { weapons, fence, huts, helpers, fireClub } = this.level;
     if (weapons) {
       const firstWeapon = WEAPONS[1];
       this.weaponZone = new BuyZone(this, weapons.spot.x, weapons.spot.y, firstWeapon.price, firstWeapon.icon);
       this.buyZones.push(this.weaponZone);
+    }
+
+    if (fireClub) {
+      this.fireClubZone = new BuyZone(this, fireClub.spot.x, fireClub.spot.y, fireClub.price, TEXTURES.fireClubIcon);
+      this.buyZones.push(this.fireClubZone);
     }
 
     if (fence) {
@@ -481,12 +586,25 @@ export class GameScene extends Phaser.Scene {
       }
       this.buyZones.push(...this.hutZones);
     }
+
+    // Помощники: на каждой точке найма — свой помощник, он появится на её месте.
+    if (helpers) {
+      for (const role of Object.keys(helpers) as HelperRole[]) {
+        const hire = helpers[role];
+        if (!hire) continue;
+        this.helpers.push(new Helper(this, role, hire.spot.x, hire.spot.y));
+        this.helperZones.push(new BuyZone(this, hire.spot.x, hire.spot.y, hire.price, HELPERS[role].texture));
+      }
+      this.buyZones.push(...this.helperZones);
+    }
   }
 
   // Покупка на точке zone готова: сцена решает, что купили.
   // Оружие: следующее — в руку; если есть ещё лучше — точка предлагает его, иначе закрывается.
   // Хижина: точка закрывается, на её месте вырастает хижина.
   // Частокол: вырастает вокруг лагеря; волки, оказавшиеся внутри, удирают.
+  // Помощник: точка закрывается, на её месте появляется помощник и начинает работу.
+  // «Огненная дубина»: точка закрывается, оружие в руке начинает тлеть.
   private onPurchase(zone: BuyZone): void {
     if (zone === this.fenceZone) {
       zone.close();
@@ -494,6 +612,17 @@ export class GameScene extends Phaser.Scene {
       for (const wolf of this.wolves) {
         if (wolf.canBeHit() && this.fence.isInside(wolf.x, wolf.y)) wolf.giveUp();
       }
+    }
+
+    if (zone === this.fireClubZone) {
+      zone.close();
+      this.player.lightFireClub();
+    }
+
+    const helperIndex = this.helperZones.indexOf(zone);
+    if (helperIndex >= 0) {
+      zone.close();
+      this.helpers[helperIndex].hire();
     }
 
     const hutIndex = this.hutZones.indexOf(zone);
@@ -687,6 +816,7 @@ export class GameScene extends Phaser.Scene {
       // Пережиты все сутки уровня — или те, что успели закончиться до поражения.
       days: isWin ? this.level.dayCount : this.cycle.dayNumber - 1,
       hasWolves: this.level.wolves !== undefined,
+      hasFishing: this.level.fishing !== undefined,
       onRestart: () => this.restart(),
       onMenu: () => this.quitToMenu(),
       onNext: hasNext ? () => this.nextLevel() : undefined,
@@ -720,7 +850,7 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  // Рядом ли точка (x, y) с кустом, лагерем или столом — там декор не кладём.
+  // Рядом ли точка (x, y) с кустом, лагерем, столом или лагерем у проруби — там декор не кладём.
   private isNearImportantPlace(x: number, y: number): boolean {
     const nearCamp =
       Phaser.Math.Distance.Between(x, y, CAMPFIRE_POSITION.x, CAMPFIRE_POSITION.y) < CAMP_CLEAR_RADIUS ||
@@ -728,7 +858,11 @@ export class GameScene extends Phaser.Scene {
     const nearBush = BUSH_POSITIONS.some(
       (bush) => Phaser.Math.Distance.Between(x, y, bush.x, bush.y) < BUSH_CLEAR_RADIUS,
     );
-    return nearCamp || nearBush;
+    const nearFishCamp =
+      this.level.fishing !== undefined &&
+      Phaser.Math.Distance.Between(x, y, SMALL_FIRE_POSITION.x, SMALL_FIRE_POSITION.y + FISH_CAMP_CLEAR_SHIFT_Y) <
+        FISH_CAMP_CLEAR_RADIUS;
+    return nearCamp || nearBush || nearFishCamp;
   }
 
   // Волков столько, сколько их может быть на поле ночью (данные уровня; нет волков — ни одного).

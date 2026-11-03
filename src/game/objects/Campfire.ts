@@ -119,6 +119,13 @@ const HEAT_BAR_BLINK_TIME = 250;
 const FEED_FLY_TIME = 420;
 const FEED_ARC_HEIGHT = 110;
 
+// Вид костра: size — во сколько раз он меньше главного (1 — главный),
+// isMain — главный ли это костёр. У главного на шкале засечка второй звезды,
+// а при жаре 0 тлеют угли. У малого (у проруби, с 0.8) засечки нет и углей нет:
+// погас — кострище тёмное, шкала не мигает.
+export type FireLook = { size: number; isMain: boolean };
+const MAIN_FIRE: FireLook = { size: 1, isMain: true };
+
 // Волна от 0 до 1 и обратно: 0 при time = 0, 1 через halfPeriod мс, снова 0 через 2·halfPeriod.
 // Так же меняется число у твина с yoyo и плавным ease 'Sine.easeInOut'.
 function wave(time: number, halfPeriod: number): number {
@@ -126,8 +133,8 @@ function wave(time: number, halfPeriod: number): number {
 }
 
 /**
- * Костёр в лагере: кострище, языки пламени, искры, круг света
- * и шкала жара над ним.
+ * Костёр: кострище, языки пламени, искры, круг света и шкала жара над ним.
+ * Главный — в лагере; малый — у проруби (с 0.8), тот же класс поменьше.
  *
  * Костёр только хранит жар и показывает его: чем меньше жара, тем меньше
  * пламя и свет. Жар на нуле — пламени нет, тлеют угли, шкала мигает.
@@ -166,27 +173,32 @@ export class Campfire {
   private heatBarFill: Phaser.GameObjects.Image;
   // Засечка второй звезды на шкале.
   private heatMark: Phaser.GameObjects.Rectangle;
+  // Размер и главный ли это костёр (FireLook).
+  private look: FireLook;
 
-  constructor(scene: Phaser.Scene, x: number, y: number) {
+  // look — вид костра; без него — главный костёр лагеря.
+  constructor(scene: Phaser.Scene, x: number, y: number, look: FireLook = MAIN_FIRE) {
     this.scene = scene;
     this.x = x;
     this.y = y;
+    this.look = look;
+    const size = look.size;
 
     this.glow = scene.add.image(x, y, TEXTURES.glow).setDepth(GLOW_DEPTH);
-    this.glowScaleX = GLOW_WIDTH / this.glow.width;
+    this.glowScaleX = (GLOW_WIDTH * size) / this.glow.width;
 
-    scene.add.image(x, y, TEXTURES.firePit).setOrigin(0.5, 1).setDepth(y);
+    scene.add.image(x, y, TEXTURES.firePit).setOrigin(0.5, 1).setScale(size).setDepth(y);
 
     this.halo = scene.add
-      .image(x, y - HALO_LIFT, TEXTURES.fireLight)
+      .image(x, y - HALO_LIFT * size, TEXTURES.fireLight)
       .setTint(COLORS.fireOrange)
       .setBlendMode(Phaser.BlendModes.ADD)
       .setDepth(y + HALO_DEPTH_SHIFT);
-    this.haloScale = HALO_WIDTH / this.halo.width;
+    this.haloScale = (HALO_WIDTH * size) / this.halo.width;
 
     FLAMES.forEach((flame, index) => {
       const image = scene.add
-        .image(x + flame.x, y - FLAME_BASE_LIFT, TEXTURES.flame)
+        .image(x + flame.x * size, y - FLAME_BASE_LIFT * size, TEXTURES.flame)
         .setOrigin(0.5, 1)
         .setAngle(flame.angle)
         .setDepth(y + FLAME_DEPTH_STEP * (index + 1));
@@ -195,14 +207,14 @@ export class Campfire {
 
     // Дымок идёт всегда — и от пламени, и от тлеющих углей, поэтому его не нужно хранить.
     scene.add
-      .particles(x, y + SMOKE_OFFSET_Y, TEXTURES.smoke, SMOKE)
+      .particles(x, y + SMOKE_OFFSET_Y * size, TEXTURES.smoke, SMOKE)
       .setDepth(y + SMOKE_DEPTH_SHIFT);
 
     this.sparks = scene.add
-      .particles(x, y + SPARKS_OFFSET_Y, TEXTURES.spark, SPARKS)
+      .particles(x, y + SPARKS_OFFSET_Y * size, TEXTURES.spark, SPARKS)
       .setDepth(y + SPARKS_DEPTH_SHIFT);
 
-    const barY = y - HEAT_BAR_OFFSET_Y;
+    const barY = y - HEAT_BAR_OFFSET_Y * size;
     this.heatBarBack = scene.add.image(x, barY, TEXTURES.heatBarBack).setDepth(HEAT_BAR_DEPTH);
     // Точка опоры заливки — её левый край: заливка укорачивается справа налево.
     this.heatBarFill = scene.add
@@ -214,12 +226,14 @@ export class Campfire {
     const markX = x - HEAT_FILL_LEFT + (this.heatBarFill.width * STAR_HEAT_MARK) / FIRE_MAX_HEAT;
     this.heatMark = scene.add
       .rectangle(markX, barY, HEAT_MARK_WIDTH, HEAT_MARK_HEIGHT, COLORS.heatMark)
-      .setDepth(HEAT_BAR_DEPTH);
+      .setDepth(HEAT_BAR_DEPTH)
+      // Засечка звезды — только у главного костра.
+      .setVisible(look.isMain);
 
     this.update(0);
   }
 
-  // Жар на нуле: пламени нет, тлеют угли.
+  // Жар на нуле: пламени нет. У главного костра тлеют угли, малый просто погас.
   isEmbers(): boolean {
     return this.heat <= 0;
   }
@@ -264,12 +278,13 @@ export class Campfire {
 
     this.heatBarFill.setScale(heatShare, 1);
     // Жар упал ниже засечки — она темнеет до конца уровня: вторая звезда потеряна.
-    if (!this.wasBelowMark && this.heat < STAR_HEAT_MARK) {
+    // Звезду теряет только главный костёр.
+    if (this.look.isMain && !this.wasBelowMark && this.heat < STAR_HEAT_MARK) {
       this.wasBelowMark = true;
       this.heatMark.setFillStyle(COLORS.heatMarkLost);
     }
-    // В углях шкала мигает — «спаси огонь!».
-    const blink = isEmbers ? wave(this.time, HEAT_BAR_BLINK_TIME) : 0;
+    // В углях шкала главного костра мигает — «спаси огонь!». Малый просто погас.
+    const blink = isEmbers && this.look.isMain ? wave(this.time, HEAT_BAR_BLINK_TIME) : 0;
     this.heatBarBack.setAlpha(1 - (1 - HEAT_BAR_BLINK_ALPHA) * blink);
   }
 
@@ -277,7 +292,7 @@ export class Campfire {
 
   // Куда падает связка, брошенная в огонь: в середину пламени.
   private getFeedPoint(): Point {
-    return { x: this.x, y: this.y - FLAME_BASE_LIFT };
+    return { x: this.x, y: this.y - FLAME_BASE_LIFT * this.look.size };
   }
 
   // Языки пламени: размер зависит от жара, каждый мерцает в своём ритме.
@@ -288,14 +303,16 @@ export class Campfire {
     for (const { image, flame } of this.flames) {
       image.setVisible(!isEmbers);
       const flicker = wave(this.time, flame.time);
-      const scale = flame.scale * size;
+      const scale = flame.scale * size * this.look.size;
       image.setScale(scale * (1 - FLAME_SQUEEZE * flicker), scale * (1 + FLAME_STRETCH * flicker));
       image.setAlpha(1 - (1 - FLAME_MIN_ALPHA) * flicker);
     }
   }
 
   // Круг света: при жаре — тёплый и «дышит», в углях — маленький красный и пульсирует.
+  // Погасший малый костёр не светится совсем: углей у него нет.
   private updateGlow(isEmbers: boolean, heatShare: number): void {
+    this.glow.setVisible(!isEmbers || this.look.isMain);
     if (isEmbers) {
       const pulse = wave(this.time, EMBER_PULSE_TIME);
       const scaleX = this.glowScaleX * EMBER_GLOW_SIZE;

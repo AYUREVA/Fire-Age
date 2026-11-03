@@ -12,7 +12,7 @@ const COLUMN_DEPTH_STEP = -0.05;
 
 /**
  * Рюкзак — всё, что вождь несёт за спиной: по колонке на каждый тип
- * ресурса (хворост, сырое мясо, жареное мясо). Каждая колонка — CarryStack.
+ * ресурса (хворост, сырое и жареное мясо, сырая и жареная рыба). Каждая колонка — CarryStack.
  *
  * Колонки стоят рядом друг с другом за спиной в порядке ITEM_ORDER.
  * Пустая колонка не видна и не занимает места. У каждой колонки свой
@@ -31,6 +31,8 @@ export class Backpack {
       wood: new CarryStack(scene, ITEMS.wood.texture, capacity),
       rawMeat: new CarryStack(scene, ITEMS.rawMeat.texture, capacity),
       cookedMeat: new CarryStack(scene, ITEMS.cookedMeat.texture, capacity),
+      rawFish: new CarryStack(scene, ITEMS.rawFish.texture, capacity),
+      cookedFish: new CarryStack(scene, ITEMS.cookedFish.texture, capacity),
     };
   }
 

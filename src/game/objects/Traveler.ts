@@ -120,7 +120,7 @@ export class Traveler {
   // Какой отклик сейчас играет и сколько мс ему ещё осталось (0 — никакого).
   private reaction: Reaction = 'settle';
   private reactionTimeLeft = 0;
-  // Какую еду хочет (пока только жареное мясо; рыба — в версии 0.8).
+  // Какую еду хочет: жареное мясо или жареную рыбу (с 0.8).
   private wantedType: ItemType = 'cookedMeat';
   // Как выглядит этот путник (один из LOOKS).
   private look = LOOKS[0];
@@ -205,10 +205,13 @@ export class Traveler {
     return { x: this.x, y: this.y - MOUTH_HEIGHT };
   }
 
-  // Позвать путника: он выходит из леса в точке from и хочет order кусков.
-  arrive(ticket: number, order: number, from: Point): void {
+  // Позвать путника: он выходит из леса в точке from и хочет order кусков еды типа type.
+  arrive(ticket: number, order: number, type: ItemType, from: Point): void {
     this.ticket = ticket;
     this.order = order;
+    this.wantedType = type;
+    // В пузыре — картинка той еды, которую он хочет.
+    this.bubbleIcon.setTexture(ITEMS[type].texture);
     this.received = 0;
     this.patience = TRAVELER_PATIENCE;
     this.takeTimer = 0;

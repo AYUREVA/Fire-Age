@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { COOK_TIME } from '../settings';
 import { COLORS, mixColors } from '../palette';
 import { TEXTURES } from '../textures';
-import { ITEMS } from '../items';
+import { ITEMS, ItemType } from '../items';
 import { flyArc, Point } from '../fx';
 
 // ===== Вертел =====
@@ -23,7 +23,8 @@ const FLY_ARC_HEIGHT = 60;
 const TURN_SPEED = 0.006;
 
 /**
- * Вертел над костром: две рогатины и палка. На палке жарится один кусок мяса.
+ * Вертел над костром: две рогатины и палка. На палке жарится один кусок:
+ * мясо у главного костра, рыба у малого (с 0.8).
  *
  * Вертел только хранит мясо и показывает его: кусок поворачивается
  * и темнеет по мере жарки. Когда класть мясо, сколько жарить и куда
@@ -44,15 +45,20 @@ export class Spit {
   private isItemLanded = false;
   // Сколько мс мясо крутится — из этого считается поворот.
   private turnTime = 0;
+  // Во что превращается готовый кусок: жареное мясо или жареная рыба.
+  private cookedType: ItemType;
 
   // (fireX, fireY) — середина кострища: вертел стоит прямо над ним.
-  constructor(scene: Phaser.Scene, fireX: number, fireY: number) {
+  // cookedType — что снимается с вертела готовым, size — размер вертела (у малого костра меньше).
+  constructor(scene: Phaser.Scene, fireX: number, fireY: number, cookedType: ItemType, size = 1) {
     this.scene = scene;
+    this.cookedType = cookedType;
     const image = scene.add
       .image(fireX, fireY, TEXTURES.spit)
       .setOrigin(0.5, 1)
+      .setScale(size)
       .setDepth(fireY + SPIT_DEPTH_SHIFT);
-    this.meatPoint = { x: fireX, y: fireY - image.height + SKEWER_Y_IN_TEXTURE };
+    this.meatPoint = { x: fireX, y: fireY - (image.height - SKEWER_Y_IN_TEXTURE) * size };
     this.meatDepth = fireY + MEAT_DEPTH_SHIFT;
   }
 
@@ -87,7 +93,7 @@ export class Spit {
     });
   }
 
-  // Снять готовый кусок: он становится жареным и стоит на нижнем крае, как в куче.
+  // Снять готовый кусок: он становится жареным (cookedType) и стоит на нижнем крае, как в куче.
   // Вернёт undefined, если на вертеле ничего не висит.
   takeCooked(): Phaser.GameObjects.Image | undefined {
     const item = this.item;
@@ -95,7 +101,7 @@ export class Spit {
 
     this.item = undefined;
     this.isItemLanded = false;
-    item.setTexture(ITEMS.cookedMeat.texture).clearTint().setScale(1).setOrigin(0.5, 1);
+    item.setTexture(ITEMS[this.cookedType].texture).clearTint().setScale(1).setOrigin(0.5, 1);
     item.setY(item.y + item.displayHeight / 2);
     return item;
   }

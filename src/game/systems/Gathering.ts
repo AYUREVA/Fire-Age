@@ -1,18 +1,20 @@
 import Phaser from 'phaser';
-import { CATCH_RADIUS, DROP_INTERVAL, GATHER_RADIUS } from '../settings';
+import { CATCH_RADIUS, DROP_INTERVAL, FISH_INTERVAL, GATHER_RADIUS } from '../settings';
 import { Player } from '../objects/Player';
 import { Backpack } from '../objects/Backpack';
 import { ResourceNode } from '../objects/ResourceNode';
 import { ItemPile } from '../objects/ItemPile';
 import { Rabbit } from '../objects/Rabbit';
+import { IceHole } from '../objects/IceHole';
 import { LevelStats } from '../analytics';
 
 // =====================================================================
-//  Добыча (кусты, кролики), сдача в кучи у костра и жареное мясо на спину.
+//  Добыча (кусты, кролики, рыба), сдача в кучи у костра и жареное мясо на спину.
 //
 //  Это функции, а не класс: нужные объекты приходят аргументами,
 //  своего состояния здесь нет. Таймеры хранят сами объекты:
-//  hitTimer — вождь (Player), dropTimer — куча у костра (ItemPile).
+//  hitTimer — вождь (Player), dropTimer — куча у костра (ItemPile),
+//  fishTimer — прорубь (IceHole).
 //  GameScene вызывает эти функции каждый кадр.
 // =====================================================================
 
@@ -55,10 +57,11 @@ export function updateGathering(
   });
 }
 
-// Ближайший к вождю куст с хворостом не дальше GATHER_RADIUS. Если такого нет — undefined.
+// Ближайший к вождю куст с хворостом, до которого достаёт его оружие
+// (GATHER_RADIUS × дальность оружия). Если такого нет — undefined.
 function findBushNear(player: Player, bushes: ResourceNode[]): ResourceNode | undefined {
   let nearest: ResourceNode | undefined;
-  let nearestDistance = GATHER_RADIUS;
+  let nearestDistance = GATHER_RADIUS * player.getWeapon().reach;
 
   for (const bush of bushes) {
     if (!bush.hasStock()) continue;
@@ -76,13 +79,17 @@ function findBushNear(player: Player, bushes: ResourceNode[]): ResourceNode | un
 // ===== Охота =====
 
 // Вождь догнал кролика — замах дубиной, кролик исчезает с «пуф»,
-// кусок сырого мяса летит на спину.
-export function updateHunting(player: Player, backpack: Backpack, rabbits: Rabbit[]): void {
-  // Колонка сырого мяса полная или вождь уже машет дубиной (например, по кусту) — не ловим.
-  if (backpack.isFull('rawMeat') || player.isSwinging()) return;
+// кусок сырого мяса летит на спину. С «Огненной дубиной» (с 0.8) — сразу жареный:
+// его не нужно жарить на вертеле, он считается в stats.meatCooked.
+export function updateHunting(player: Player, backpack: Backpack, rabbits: Rabbit[], stats: LevelStats): void {
+  const meat = player.hasFireClub ? 'cookedMeat' : 'rawMeat';
+  // Колонка этого мяса полная или вождь уже машет дубиной (например, по кусту) — не ловим.
+  if (backpack.isFull(meat) || player.isSwinging()) return;
 
+  // Достаёт ли оружие: CATCH_RADIUS × дальность оружия (копьё — дальше).
+  const reach = CATCH_RADIUS * player.getWeapon().reach;
   const rabbit = rabbits.find(
-    (each) => each.isCatchable() && Phaser.Math.Distance.Between(player.x, player.y, each.x, each.y) <= CATCH_RADIUS,
+    (each) => each.isCatchable() && Phaser.Math.Distance.Between(player.x, player.y, each.x, each.y) <= reach,
   );
   if (!rabbit) return;
 
@@ -90,8 +97,34 @@ export function updateHunting(player: Player, backpack: Backpack, rabbits: Rabbi
   rabbit.catch();
   player.swing(rabbit.x, player.getWeapon().hitInterval, () => {
     rabbit.poof();
-    backpack.add('rawMeat', rabbit.getLootPoint());
+    backpack.add(meat, rabbit.getLootPoint());
+    if (player.hasFireClub) stats.meatCooked += 1;
   });
+}
+
+// ===== Рыбалка =====
+
+// Вождь у проруби — раз в FISH_INTERVAL мс клюёт рыба: по воде круг,
+// рыба по дуге летит на спину, пока колонка рыбы не полная.
+// stats — статистика уровня: сюда считается пойманная рыба.
+export function updateFishing(player: Player, backpack: Backpack, hole: IceHole, stats: LevelStats, delta: number): void {
+  const canFish = hole.contains(player.x, player.y) && !backpack.isFull('rawFish');
+  // Колонка рыбы полная — прорубь не подсвечивается: рыбачить пока некуда.
+  hole.setHighlighted(canFish);
+
+  // Вождь отошёл или колонка полная — поклёвка не копится.
+  if (!canFish) {
+    hole.fishTimer = 0;
+    return;
+  }
+
+  hole.fishTimer += delta;
+  if (hole.fishTimer < FISH_INTERVAL) return;
+  hole.fishTimer -= FISH_INTERVAL;
+
+  hole.splash();
+  backpack.add('rawFish', hole.getLootPoint());
+  stats.fishCaught += 1;
 }
 
 // ===== Сдача в кучи у костра =====
