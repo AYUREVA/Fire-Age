@@ -131,6 +131,9 @@ export const COLORS = {
   mammothTusk: 0xf4ead2, // бивни
   mammothTuskShade: 0xcfc2a2, // бивни в тени
   bossBar: 0xd9482b, // заливка полосы здоровья мамонта
+  medalRibbon: 0xc8432b, // лента медальона достижения
+  medalGold: 0xffc93c, // золотой медальон достижения
+  medalGoldShade: 0xd99a1f, // выпуклая звезда на медальоне
 
   // ===== Мясо =====
   rawMeat: 0xf08b8b, // сырое мясо

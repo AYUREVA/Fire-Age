@@ -7,6 +7,7 @@ import { pop } from '../fx';
 import { SOUNDS, SOUND_VOLUMES, playSound } from '../sounds';
 import { StarGoal } from '../ui/StarGoals';
 import { formatTime } from '../objects/Hud';
+import { AchievementToast } from '../ui/AchievementToast';
 
 // Надписи на табличке для каждого итога уровня (раздел 5 плана). Подзаголовка может не быть.
 const TITLES: Record<LevelOutcome, { title: string; subtitle?: string }> = {
@@ -50,7 +51,8 @@ const STAR_STAMP_START_SCALE = 3.2;
 // С какими данными GameScene запускает эту сцену.
 // outcome — чем кончился уровень (победа или поражение и почему), starGoals — цели трёх звёзд и выполнена ли каждая,
 // stats — статистика уровня, days — сколько суток пережито, hasWolves — были ли волки на уровне,
-// hasFishing — была ли рыба (прорубь и малый костёр, с 0.8), hasBoss — был ли мамонт (с 0.9).
+// hasFishing — была ли рыба (прорубь и малый костёр, с 0.8), hasBoss — был ли мамонт (с 0.9),
+// newAchievements — названия достижений, полученных впервые на этом уровне (с 0.9).
 // Переходы делает GameScene: onRestart — RESULT → READY того же уровня,
 // onMenu — RESULT → меню, onNext — RESULT → READY следующего уровня
 // (его нет, если уровень проигран или он последний).
@@ -62,6 +64,7 @@ export type ResultData = {
   hasWolves: boolean;
   hasFishing: boolean;
   hasBoss: boolean;
+  newAchievements: string[];
   onRestart: () => void;
   onMenu: () => void;
   onNext?: () => void;
@@ -100,6 +103,7 @@ export class ResultScene extends Phaser.Scene {
 
     this.addStars(data.starGoals);
     this.addRows(data);
+    new AchievementToast(this).showAll(data.newAchievements);
   }
 
   // ===== Звёзды =====

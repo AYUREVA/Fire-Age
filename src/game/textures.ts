@@ -117,6 +117,8 @@ export const TEXTURES = {
   mammothIcon: 'mammoth-icon', // маленький мамонт: на табличке «ИДЁТ МАМОНТ!» и на полосе здоровья
   bossBarPlate: 'boss-bar-plate', // каменная плашка полосы здоровья мамонта
   bossChip: 'boss-chip', // каменная плашка «Победи его до заката» под табличкой «ИДЁТ МАМОНТ!»
+  achievementMedal: 'achievement-medal', // золотой медальон на ленте: иконка достижения
+  achievementPlate: 'achievement-plate', // каменная плашка «НОВОЕ ДОСТИЖЕНИЕ»
   meatMountain: 'meat-mountain', // мультяшная гора окороков на снегу — там, где пал мамонт
 } as const;
 
@@ -249,6 +251,8 @@ const MAMMOTH_ICON_SIZE: Size = { w: MAMMOTH_SIZE.w * MAMMOTH_ICON_SCALE, h: MAM
 const MEAT_MOUNTAIN_SIZE: Size = { w: 190, h: 120 };
 const BOSS_CHIP_SIZE: Size = { w: 250, h: 46 };
 export const BOSS_BAR_SIZE: Size = { w: 300, h: 62 };
+const ACHIEVEMENT_MEDAL_SIZE: Size = { w: 56, h: 64 };
+export const ACHIEVEMENT_PLATE_SIZE: Size = { w: 320, h: 84 };
 
 // ===== Параметры рисования =====
 
@@ -399,6 +403,8 @@ export function createTextures(scene: Phaser.Scene): void {
   bake(scene, TEXTURES.meatMountain, MEAT_MOUNTAIN_SIZE, drawMeatMountain);
   bakeStonePlate(scene, TEXTURES.bossChip, BOSS_CHIP_SIZE.w, BOSS_CHIP_SIZE.h);
   bakeStonePlate(scene, TEXTURES.bossBarPlate, BOSS_BAR_SIZE.w, BOSS_BAR_SIZE.h);
+  bake(scene, TEXTURES.achievementMedal, ACHIEVEMENT_MEDAL_SIZE, drawAchievementMedal);
+  bakeStonePlate(scene, TEXTURES.achievementPlate, ACHIEVEMENT_PLATE_SIZE.w, ACHIEVEMENT_PLATE_SIZE.h);
 }
 
 // Рисует картинку на временном Graphics и сохраняет её как текстуру под ключом key.
@@ -4046,6 +4052,34 @@ function drawMeatMountain(g: Graphics): void {
     drawMeat(g, COLORS.cookedMeat, COLORS.cookedMeatShade, COLORS.cookedMeatLight, true);
     g.restore();
   }
+}
+
+// ===== Достижения (с 0.9) =====
+
+// Медальон достижения: две ленты сверху, золотой круг с выпуклой звездой.
+function drawAchievementMedal(g: Graphics): void {
+  const { w, h } = ACHIEVEMENT_MEDAL_SIZE;
+  const cx = w / 2;
+  const cy = h - 25;
+  // Ленты — галочкой от верхнего края к медальону.
+  for (const side of [-1, 1]) {
+    const ribbon = [cx + side * 4, cy - 10, cx + side * 18, 3, cx + side * 8, 3, cx - side * 4, cy - 14];
+    fillPolygon(g, ribbon, COLORS.medalRibbon);
+    strokePolygon(g, ribbon);
+  }
+  outlinedCircle(g, cx, cy, 21, COLORS.medalGold);
+  g.lineStyle(2, COLORS.medalGoldShade, 1);
+  g.strokeCircle(cx, cy, 15);
+  // Звезда посередине.
+  const points: number[] = [];
+  for (let i = 0; i < 10; i++) {
+    const angle = -Math.PI / 2 + (i * Math.PI) / 5;
+    const r = i % 2 === 0 ? 11 : 5;
+    points.push(cx + r * Math.cos(angle), cy + 1 + r * Math.sin(angle));
+  }
+  fillPolygon(g, points, COLORS.medalGoldShade);
+  g.fillStyle(COLORS.white, 0.8);
+  g.fillCircle(cx - 9, cy - 9, 3);
 }
 
 // ===== Помощники рисования =====

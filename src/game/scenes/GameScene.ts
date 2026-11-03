@@ -73,7 +73,8 @@ import { BossWorld, chooseAim, updateMammoth, updateMammothFight, updateSpilled 
 import { HELPERS, HelperRole, WEAPONS } from '../data/upgrades';
 import { LEVELS, LevelData } from '../data/levels';
 import { LevelOutcome, LevelStats, PauseSource, track } from '../analytics';
-import { getProgress, recordLevel } from '../save';
+import { getProgress, recordLevel, unlockAchievements } from '../save';
+import { ACHIEVEMENTS } from '../data/achievements';
 import { metaBonus } from '../data/metaUpgrades';
 import { ReadyData } from './ReadyScene';
 import { PauseData } from './PauseScene';
@@ -312,6 +313,7 @@ export class GameScene extends Phaser.Scene {
       fishCaught: 0,
       fishCooked: 0,
       bossTime: 0,
+      fishFed: 0,
     };
 
     createTextures(this);
@@ -874,6 +876,7 @@ export class GameScene extends Phaser.Scene {
       stars,
       ...this.stats,
     });
+    const newAchievements = this.unlockEarnedAchievements(outcome);
 
     this.scene.pause();
     this.sound.pauseAll();
@@ -887,11 +890,27 @@ export class GameScene extends Phaser.Scene {
       hasWolves: this.level.wolves !== undefined,
       hasFishing: this.level.fishing !== undefined,
       hasBoss: this.level.boss !== undefined,
+      newAchievements,
       onRestart: () => this.restart(),
       onMenu: () => this.quitToMenu(),
       onNext: hasNext ? () => this.nextLevel() : undefined,
     };
     this.scene.launch('ResultScene', data);
+  }
+
+  // Уровень кончился с итогом outcome: какие достижения выполнены (data/achievements.ts).
+  // Новые save.ts запоминает, аналитика получает событие. Вернёт названия новых — для плашки на итогах.
+  private unlockEarnedAchievements(outcome: LevelOutcome): string[] {
+    const end = {
+      levelIndex: this.levelIndex,
+      outcome,
+      stats: this.stats,
+      hasWolves: this.level.wolves !== undefined,
+    };
+    const earned = ACHIEVEMENTS.filter((achievement) => achievement.isEarned(end));
+    const fresh = unlockAchievements(earned.map((achievement) => achievement.id));
+    for (const id of fresh) track({ name: 'achievement', id });
+    return earned.filter((achievement) => fresh.includes(achievement.id)).map((achievement) => achievement.name);
   }
 
   // ===== Мир =====
