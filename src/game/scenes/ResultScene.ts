@@ -6,6 +6,7 @@ import { CARVED_TEXT_SHADOW, StoneTablet, TabletButton } from '../ui/StoneTablet
 import { pop } from '../fx';
 import { SOUNDS, SOUND_VOLUMES, playSound } from '../sounds';
 import { StarGoal } from '../ui/StarGoals';
+import { formatTime } from '../objects/Hud';
 
 // Надписи на табличке для каждого итога уровня (раздел 5 плана). Подзаголовка может не быть.
 const TITLES: Record<LevelOutcome, { title: string; subtitle?: string }> = {
@@ -49,7 +50,7 @@ const STAR_STAMP_START_SCALE = 3.2;
 // С какими данными GameScene запускает эту сцену.
 // outcome — чем кончился уровень (победа или поражение и почему), starGoals — цели трёх звёзд и выполнена ли каждая,
 // stats — статистика уровня, days — сколько суток пережито, hasWolves — были ли волки на уровне,
-// hasFishing — была ли рыба (прорубь и малый костёр, с 0.8).
+// hasFishing — была ли рыба (прорубь и малый костёр, с 0.8), hasBoss — был ли мамонт (с 0.9).
 // Переходы делает GameScene: onRestart — RESULT → READY того же уровня,
 // onMenu — RESULT → меню, onNext — RESULT → READY следующего уровня
 // (его нет, если уровень проигран или он последний).
@@ -60,6 +61,7 @@ export type ResultData = {
   days: number;
   hasWolves: boolean;
   hasFishing: boolean;
+  hasBoss: boolean;
   onRestart: () => void;
   onMenu: () => void;
   onNext?: () => void;
@@ -143,10 +145,11 @@ export class ResultScene extends Phaser.Scene {
   // ===== Статистика =====
 
   // Строки статистики: название слева, число справа. Числа набегают от нуля.
-  // «Пожарено рыбы» — только на уровнях с рыбой, «Отогнано волков» — только с волками.
+  // «Пожарено рыбы» — только на уровнях с рыбой, «Отогнано волков» — только с волками,
+  // «Время боя» (минуты:секунды) — только с мамонтом.
   private addRows(data: ResultData): void {
     const { stats } = data;
-    const rows: [string, number][] = [
+    const rows: [string, number, ((value: number) => string)?][] = [
       ['Пережито суток', data.days],
       ['Добыто хвороста', stats.woodGathered],
       ['Пожарено мяса', stats.meatCooked],
@@ -154,18 +157,19 @@ export class ResultScene extends Phaser.Scene {
     if (data.hasFishing) rows.push(['Пожарено рыбы', stats.fishCooked]);
     rows.push(['Накормлено путников', stats.fed], ['Ушло голодными', stats.hungry], ['Заработано клыков', stats.tusksEarned]);
     if (data.hasWolves) rows.push(['Отогнано волков', stats.wolvesDriven]);
+    if (data.hasBoss) rows.push(['Время боя', stats.bossTime, formatTime]);
 
     const step = Math.min(ROW_STEP, (ROW_STEP * ROWS_FIT) / rows.length);
-    rows.forEach(([name, value], index) => {
+    rows.forEach(([name, value, format = (shown: number) => String(Math.round(shown))], index) => {
       const y = ROWS_Y + index * step;
       const label = this.addRowText(ROW_LABEL_X, y, name).setOrigin(0, 0.5);
-      const number = this.addRowText(ROW_VALUE_X, y, '0').setOrigin(1, 0.5);
+      const number = this.addRowText(ROW_VALUE_X, y, format(0)).setOrigin(1, 0.5);
       this.tablet.add([label, number]);
       this.tweens.addCounter({
         from: 0,
         to: value,
         duration: COUNT_UP_TIME,
-        onUpdate: (tween) => number.setText(String(Math.round(tween.getValue() ?? 0))),
+        onUpdate: (tween) => number.setText(format(tween.getValue() ?? 0)),
       });
     });
   }

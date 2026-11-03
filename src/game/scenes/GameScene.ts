@@ -58,6 +58,7 @@ import { Hud } from '../objects/Hud';
 import { CycleEvent, DayNightCycle } from '../objects/DayNightCycle';
 import { NightOverlay } from '../objects/NightOverlay';
 import { PhaseBanner } from '../ui/PhaseBanner';
+import { BossBar } from '../ui/BossBar';
 import { TutorialHint } from '../ui/TutorialHint';
 import { StarGoals, describeStarGoals } from '../ui/StarGoals';
 import { updateTutorial } from '../systems/Tutorial';
@@ -241,6 +242,8 @@ export class GameScene extends Phaser.Scene {
   private fishCamp?: FishCamp;
   // Мамонт — только на уровне с боссом (иначе undefined). До дня боя он спрятан.
   private mammoth?: Mammoth;
+  // Полоса здоровья мамонта — только на уровне с боссом.
+  private bossBar?: BossBar;
   // Предметы, рассыпанные по снегу тараном мамонта: лежат, пока вождь их не подберёт.
   private spilled: Loot[] = [];
   // Интерфейс: сколько осталось до конца дня или ночи, кнопка паузы.
@@ -294,6 +297,7 @@ export class GameScene extends Phaser.Scene {
     this.fenceZone = undefined;
     this.fishCamp = undefined;
     this.mammoth = undefined;
+    this.bossBar = undefined;
     this.spilled = [];
     this.mode = 'ready';
     this.stats = {
@@ -307,6 +311,7 @@ export class GameScene extends Phaser.Scene {
       meatCooked: 0,
       fishCaught: 0,
       fishCooked: 0,
+      bossTime: 0,
     };
 
     createTextures(this);
@@ -371,6 +376,7 @@ export class GameScene extends Phaser.Scene {
     this.nightOverlay = new NightOverlay(this);
     this.phaseBanner = new PhaseBanner(this);
     this.tutorial = this.level.hasTutorial ? new TutorialHint(this) : undefined;
+    if (this.level.boss) this.bossBar = new BossBar(this);
     this.setupPause();
 
     // Мир построен — игра в режиме READY: ждём касания, клика или клавиши.
@@ -425,6 +431,7 @@ export class GameScene extends Phaser.Scene {
       updateMammoth(this.mammoth, this.getBossWorld(), delta);
       updateMammothFight(this.player, this.mammoth);
       updateSpilled(this.player, this.backpack, this.spilled);
+      this.bossBar?.update(this.mammoth.hp);
     }
     updateWolfFight(this.player, this.backpack, this.wolves, this.stats);
     updateGathering(this.player, this.backpack, this.bushes, this.stats, delta);
@@ -440,6 +447,7 @@ export class GameScene extends Phaser.Scene {
         backpack: this.backpack,
         fence: this.fence,
         stats: this.stats,
+        mammoth: this.mammoth,
       },
       delta,
     );
@@ -562,7 +570,10 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.shake(BOSS_SHAKE_TIME, BOSS_SHAKE_INTENSITY);
     playSound(this, SOUNDS.hit, SOUND_VOLUMES.hit, BOSS_STEP_DETUNE);
     this.starGoals.setVisible(false);
-    this.phaseBanner.showBoss(() => this.starGoals.setVisible(true));
+    this.phaseBanner.showBoss(() => {
+      this.starGoals.setVisible(true);
+      this.bossBar?.show();
+    });
     this.mammoth.appear(MAMMOTH_START);
     chooseAim(this.mammoth, this.getBossWorld());
   }
@@ -575,6 +586,7 @@ export class GameScene extends Phaser.Scene {
       piles: [this.woodpile, this.rawMeatPile, this.cookedMeatPile],
       fence: this.fence,
       spilled: this.spilled,
+      stats: this.stats,
     };
   }
 
@@ -874,6 +886,7 @@ export class GameScene extends Phaser.Scene {
       days: isWin ? this.level.dayCount : this.cycle.dayNumber - 1,
       hasWolves: this.level.wolves !== undefined,
       hasFishing: this.level.fishing !== undefined,
+      hasBoss: this.level.boss !== undefined,
       onRestart: () => this.restart(),
       onMenu: () => this.quitToMenu(),
       onNext: hasNext ? () => this.nextLevel() : undefined,

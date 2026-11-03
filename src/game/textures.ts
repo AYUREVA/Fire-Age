@@ -115,6 +115,7 @@ export const TEXTURES = {
   // Мамонт (с 0.9).
   mammoth: 'mammoth', // мамонт смотрит вправо: лохматый, с бивнями и хоботом; точка опоры — низ
   mammothIcon: 'mammoth-icon', // маленький мамонт: на табличке «ИДЁТ МАМОНТ!» и на полосе здоровья
+  bossBarPlate: 'boss-bar-plate', // каменная плашка полосы здоровья мамонта
   bossChip: 'boss-chip', // каменная плашка «Победи его до заката» под табличкой «ИДЁТ МАМОНТ!»
   meatMountain: 'meat-mountain', // мультяшная гора окороков на снегу — там, где пал мамонт
 } as const;
@@ -247,6 +248,7 @@ const MAMMOTH_ICON_SCALE = 0.25;
 const MAMMOTH_ICON_SIZE: Size = { w: MAMMOTH_SIZE.w * MAMMOTH_ICON_SCALE, h: MAMMOTH_SIZE.h * MAMMOTH_ICON_SCALE };
 const MEAT_MOUNTAIN_SIZE: Size = { w: 190, h: 120 };
 const BOSS_CHIP_SIZE: Size = { w: 250, h: 46 };
+export const BOSS_BAR_SIZE: Size = { w: 300, h: 62 };
 
 // ===== Параметры рисования =====
 
@@ -396,6 +398,7 @@ export function createTextures(scene: Phaser.Scene): void {
   });
   bake(scene, TEXTURES.meatMountain, MEAT_MOUNTAIN_SIZE, drawMeatMountain);
   bakeStonePlate(scene, TEXTURES.bossChip, BOSS_CHIP_SIZE.w, BOSS_CHIP_SIZE.h);
+  bakeStonePlate(scene, TEXTURES.bossBarPlate, BOSS_BAR_SIZE.w, BOSS_BAR_SIZE.h);
 }
 
 // Рисует картинку на временном Graphics и сохраняет её как текстуру под ключом key.

@@ -21,6 +21,7 @@ import { Fence } from '../objects/Fence';
 import { Mammoth } from '../objects/Mammoth';
 import { Loot } from '../objects/Wolf';
 import { Point, flyArc } from '../fx';
+import { LevelStats } from '../analytics';
 
 // Предмет разлетается по снегу за столько мс и взлетает на такую высоту.
 const SPILL_FLY_TIME = 450;
@@ -29,6 +30,8 @@ const SPILL_FLY_HEIGHT = 70;
 const SPILL_MIN_DISTANCE = 40;
 // Кучу у костра таран задевает чуть дальше, чем вождя: куча широкая.
 const PILE_RAM_EXTRA = 40;
+// Таран кончается не ближе этого к краю поля: мамонт большой и иначе зашёл бы в ели.
+const CHARGE_EDGE_MARGIN = 120;
 
 // =====================================================================
 //  Финальный бой с мамонтом (с 0.9): мамонт выбирает цель, роет копытом,
@@ -40,13 +43,15 @@ const PILE_RAM_EXTRA = 40;
 // =====================================================================
 
 // С чем мамонт имеет дело на поле: вождь и его рюкзак, кучи у главного костра (цели),
-// частокол (мамонт его ломает) и список предметов, рассыпанных по снегу (его хранит GameScene).
+// частокол (мамонт его ломает), список предметов, рассыпанных по снегу (его хранит GameScene),
+// и статистика уровня (туда считается время боя).
 export type BossWorld = {
   player: Player;
   backpack: Backpack;
   piles: ItemPile[];
   fence: Fence;
   spilled: Loot[];
+  stats: LevelStats;
 };
 
 // ===== Мамонт =====
@@ -55,6 +60,7 @@ export type BossWorld = {
 export function updateMammoth(mammoth: Mammoth, world: BossWorld, delta: number): void {
   const from = { x: mammoth.x, y: mammoth.y };
   mammoth.update(delta);
+  if (mammoth.isActive()) world.stats.bossTime += delta;
   // Прошёл сквозь частокол — пролом. Таран о стену кончается: мамонт устал.
   const isWallBroken = mammoth.isActive() && world.fence.breakThrough(from, mammoth);
   if (isWallBroken && mammoth.getState() === 'charge') mammoth.tire();
@@ -105,15 +111,16 @@ function aimPoint(mammoth: Mammoth, world: BossWorld): Point {
 }
 
 // Куда кончится таран: по прямой от мамонта через цель и дальше на MAMMOTH_CHARGE_OVERSHOOT,
-// но не за краем поля (там лес).
+// но не ближе CHARGE_EDGE_MARGIN к краю поля (там лес).
 function chargeEnd(mammoth: Mammoth, aim: Point): Point {
+  const edge = WORLD_EDGE + CHARGE_EDGE_MARGIN;
   const distance = Math.max(1, Phaser.Math.Distance.Between(mammoth.x, mammoth.y, aim.x, aim.y));
   const length = distance + MAMMOTH_CHARGE_OVERSHOOT;
   const x = mammoth.x + ((aim.x - mammoth.x) / distance) * length;
   const y = mammoth.y + ((aim.y - mammoth.y) / distance) * length;
   return {
-    x: Phaser.Math.Clamp(x, WORLD_EDGE, WORLD_WIDTH - WORLD_EDGE),
-    y: Phaser.Math.Clamp(y, WORLD_EDGE, WORLD_HEIGHT - WORLD_EDGE),
+    x: Phaser.Math.Clamp(x, edge, WORLD_WIDTH - edge),
+    y: Phaser.Math.Clamp(y, edge, WORLD_HEIGHT - edge),
   };
 }
 

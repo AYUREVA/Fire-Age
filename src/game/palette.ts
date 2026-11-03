@@ -130,6 +130,7 @@ export const COLORS = {
   mammothLight: 0xb07a52, // шерсть на свету: спина, макушка
   mammothTusk: 0xf4ead2, // бивни
   mammothTuskShade: 0xcfc2a2, // бивни в тени
+  bossBar: 0xd9482b, // заливка полосы здоровья мамонта
 
   // ===== Мясо =====
   rawMeat: 0xf08b8b, // сырое мясо

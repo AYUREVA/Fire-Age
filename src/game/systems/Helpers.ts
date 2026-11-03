@@ -15,6 +15,7 @@ import { Fence } from '../objects/Fence';
 import { Wolf } from '../objects/Wolf';
 import { Rabbit } from '../objects/Rabbit';
 import { Backpack } from '../objects/Backpack';
+import { Mammoth } from '../objects/Mammoth';
 import { LevelStats } from '../analytics';
 
 // =====================================================================
@@ -34,6 +35,7 @@ const PILE_STAND_SHIFT_Y = 40;
 
 // С чем работают помощники. GameScene собирает это каждый кадр.
 // backpack — спина вождя: туда летит добыча, которую волк уронил от удара охотника.
+// mammoth — мамонт на уровне с боссом (с 0.9): охотник бьёт его, когда тот устал.
 export type HelperWorld = {
   bushes: ResourceNode[];
   wolves: Wolf[];
@@ -43,6 +45,7 @@ export type HelperWorld = {
   backpack: Backpack;
   fence: Fence;
   stats: LevelStats;
+  mammoth?: Mammoth;
 };
 
 // Каждый кадр: автомат каждого нанятого помощника, потом его шаг и вид.
@@ -131,13 +134,13 @@ const PATROL_CENTER: Point = {
 
 // Охотник: видит волка — бежит и бьёт его; видит кролика — ловит и несёт мясо
 // в кучу сырого мяса. Никого не видно — обходит лагерь по овалу, от точки к точке.
-// Волк важнее всего: за ним охотник бросается, даже если несёт мясо.
+// Враги (уставший мамонт и волк) важнее всего: на них охотник бросается, даже если несёт мясо.
 function updateHunter(helper: Helper, world: HelperWorld, delta: number): void {
   switch (helper.getState()) {
     case 'seeking': {
       const prey = findPrey(helper, world);
-      // Есть мясо в стопке, а волков рядом нет — сначала отнести.
-      if (!helper.isCarryEmpty() && !(prey instanceof Wolf)) {
+      // Есть мясо в стопке, а врагов рядом нет — сначала отнести.
+      if (!helper.isCarryEmpty() && !isFoe(prey)) {
         helper.carryTo(world.fence.getRoute(helper, pileStandPoint(world.rawMeatPile)));
         return;
       }
@@ -167,8 +170,8 @@ function updateHunter(helper: Helper, world: HelperWorld, delta: number): void {
       strike(helper, world, delta);
       return;
     case 'carrying':
-      // Несёт мясо, но рядом волк — бросается на него (потом донесёт).
-      if (findPrey(helper, world) instanceof Wolf) {
+      // Несёт мясо, но рядом враг — бросается на него (потом донесёт).
+      if (isFoe(findPrey(helper, world))) {
         helper.seek();
       } else if (helper.isArrived()) {
         helper.drop();
@@ -199,6 +202,11 @@ function strike(helper: Helper, world: HelperWorld, delta: number): void {
     helper.swing(prey.x, helper.info.hitInterval, () => hitWolf(helper, prey, world));
     return;
   }
+  // Мамонт: урон охотника (пока охотник замахивался, мамонт мог отдохнуть — hit() это проверит).
+  if (prey instanceof Mammoth) {
+    helper.swing(prey.x, helper.info.hitInterval, () => prey.hit(helper.info.damage));
+    return;
+  }
   // Кролик замирает, охотник замахивается. В момент удара — «пуф» и мясо в стопку.
   prey.catch();
   helper.swing(prey.x, helper.info.hitInterval, () => {
@@ -221,13 +229,20 @@ function hitWolf(helper: Helper, wolf: Wolf, world: HelperWorld): void {
   if (result.isDriven) world.stats.wolvesDriven += 1;
 }
 
-// Кого охотник видит: ближайшего волка, которого можно ударить, а если волков нет —
-// ближайшего кролика, которого можно поймать (если в стопке есть место). Не дальше sight.
-// Никого — undefined.
-function findPrey(helper: Helper, world: HelperWorld): Wolf | Rabbit | undefined {
+// Кого охотник видит: уставшего мамонта, потом ближайшего волка, которого можно ударить,
+// а если волков нет — ближайшего кролика, которого можно поймать (если в стопке есть место).
+// Не дальше sight. Никого — undefined.
+function findPrey(helper: Helper, world: HelperWorld): Wolf | Rabbit | Mammoth | undefined {
+  const mammoth = world.mammoth;
+  if (mammoth?.canBeHit() && Phaser.Math.Distance.BetweenPoints(helper, mammoth) <= helper.info.sight) return mammoth;
   const wolf = nearest(helper, world.wolves.filter((each) => each.canBeHit()));
   if (wolf || helper.isCarryFull()) return wolf;
   return nearest(helper, world.rabbits.filter((each) => each.isCatchable()));
+}
+
+// Враг ли добыча: волк или мамонт — на них охотник бросается, даже если несёт мясо.
+function isFoe(prey: Wolf | Rabbit | Mammoth | undefined): boolean {
+  return prey instanceof Wolf || prey instanceof Mammoth;
 }
 
 // Ближайшая к помощнику цель из списка, не дальше того, что он видит.
