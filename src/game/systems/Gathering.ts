@@ -79,10 +79,11 @@ function findBushNear(player: Player, bushes: ResourceNode[]): ResourceNode | un
 // ===== Охота =====
 
 // Вождь догнал кролика — замах дубиной, кролик исчезает с «пуф»,
-// кусок сырого мяса летит на спину. С «Огненной дубиной» (с 0.8) — сразу жареный:
+// кусок сырого мяса летит на спину. Огненной дубиной (roastsRabbits) — сразу жареный:
 // его не нужно жарить на вертеле, он считается в stats.meatCooked.
 export function updateHunting(player: Player, backpack: Backpack, rabbits: Rabbit[], stats: LevelStats): void {
-  const meat = player.hasFireClub ? 'cookedMeat' : 'rawMeat';
+  const isRoasted = player.getWeapon().roastsRabbits;
+  const meat = isRoasted ? 'cookedMeat' : 'rawMeat';
   // Колонка этого мяса полная или вождь уже машет дубиной (например, по кусту) — не ловим.
   if (backpack.isFull(meat) || player.isSwinging()) return;
 
@@ -98,7 +99,7 @@ export function updateHunting(player: Player, backpack: Backpack, rabbits: Rabbi
   player.swing(rabbit.x, player.getWeapon().hitInterval, () => {
     rabbit.poof();
     backpack.add(meat, rabbit.getLootPoint());
-    if (player.hasFireClub) stats.meatCooked += 1;
+    if (isRoasted) stats.meatCooked += 1;
   });
 }
 

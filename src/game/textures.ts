@@ -33,7 +33,7 @@ export const TEXTURES = {
   spear: 'spear', // копьё с широким кремнёвым наконечником и кулаком внизу
   axeIcon: 'axe-icon', // двусторонний каменный топор без кулака — на точке покупки
   spearIcon: 'spear-icon', // копьё без кулака — на точке покупки
-  fireClubIcon: 'fire-club-icon', // «Огненная дубина» на точке покупки: булава в языках пламени (с 0.8)
+  fireClub: 'fire-club', // огненная дубина: булава в языках пламени с кулаком — в руке и на точке покупки (с 0.8)
   ring: 'ring', // светлое кольцо под ногами вождя
   joystickBase: 'joystick-base', // круг джойстика
   joystickKnob: 'joystick-knob', // ручка джойстика
@@ -148,10 +148,11 @@ const LEG_SIZE: Size = { w: 26, h: 34 };
 const ARM_SIZE: Size = { w: 26, h: 50 };
 const CLUB_ARM_SIZE: Size = { w: 26, h: 40 };
 const CLUB_SIZE: Size = { w: 36, h: 92 };
-// Иконка огненной дубины: та же булава, а над ней и по бокам — место под пламя (пиксели).
+// Огненная дубина: та же булава с кулаком, а над ней и по бокам — место под пламя (пиксели).
+// Кулак на той же высоте от низа картинки, что у дубины, — точка вращения в руке та же.
 const FIRE_CLUB_FLAME_ROOM = 30;
 const FIRE_CLUB_FLAME_SIDE = 8;
-const FIRE_CLUB_ICON_SIZE: Size = { w: CLUB_SIZE.w + FIRE_CLUB_FLAME_SIDE * 2, h: CLUB_SIZE.h + FIRE_CLUB_FLAME_ROOM };
+const FIRE_CLUB_SIZE: Size = { w: CLUB_SIZE.w + FIRE_CLUB_FLAME_SIDE * 2, h: CLUB_SIZE.h + FIRE_CLUB_FLAME_ROOM };
 const AXE_SIZE: Size = { w: 88, h: 100 };
 const SPEAR_SIZE: Size = { w: 40, h: 150 };
 const RING_SIZE: Size = { w: 90, h: 44 };
@@ -299,7 +300,7 @@ export function createTextures(scene: Phaser.Scene): void {
   bake(scene, TEXTURES.spear, SPEAR_SIZE, (g) => drawSpear(g, true));
   bake(scene, TEXTURES.axeIcon, AXE_SIZE, (g) => drawAxe(g, false));
   bake(scene, TEXTURES.spearIcon, SPEAR_SIZE, (g) => drawSpear(g, false));
-  bake(scene, TEXTURES.fireClubIcon, FIRE_CLUB_ICON_SIZE, drawFireClubIcon);
+  bake(scene, TEXTURES.fireClub, FIRE_CLUB_SIZE, drawFireClub);
   bake(scene, TEXTURES.ring, RING_SIZE, drawRing);
   bake(scene, TEXTURES.joystickBase, JOYSTICK_BASE_SIZE, drawJoystickBase);
   bake(scene, TEXTURES.joystickKnob, JOYSTICK_KNOB_SIZE, drawJoystickKnob);
@@ -1419,8 +1420,8 @@ function drawClub(g: Graphics): void {
 
 // «Огненная дубина» (с 0.8): валун булавы охвачен большим пламенем,
 // булава та же (drawClub), только сдвинута — над ней и по бокам место под огонь.
-function drawFireClubIcon(g: Graphics): void {
-  const cx = FIRE_CLUB_ICON_SIZE.w / 2;
+function drawFireClub(g: Graphics): void {
+  const cx = FIRE_CLUB_SIZE.w / 2;
   // Низ пламени — чуть ниже валуна булавы (середина валуна в drawClub — на высоте 21 от верха).
   const flameBottom = FIRE_CLUB_FLAME_ROOM + 30;
   fillFlameDrop(g, cx, flameBottom, 46, 60, COLORS.fireRed);
