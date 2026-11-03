@@ -225,6 +225,8 @@ export class GameScene extends Phaser.Scene {
   // Помощники и их точки найма (одинаковый порядок: helperZones[i] нанимает helpers[i]).
   private helpers: Helper[] = [];
   private helperZones: BuyZone[] = [];
+  // Точка покупки «Огненной дубины» — только на уровне, где она продаётся.
+  private fireClubZone?: BuyZone;
   // Частокол вокруг лагеря и его точка покупки.
   private fence!: Fence;
   private fenceZone?: BuyZone;
@@ -279,6 +281,7 @@ export class GameScene extends Phaser.Scene {
     this.helperZones = [];
     this.weaponZone = undefined;
     this.fenceZone = undefined;
+    this.fireClubZone = undefined;
     this.fishCamp = undefined;
     this.mode = 'ready';
     this.stats = {
@@ -406,7 +409,7 @@ export class GameScene extends Phaser.Scene {
     );
     updateWolfFight(this.player, this.backpack, this.wolves, this.stats);
     updateGathering(this.player, this.backpack, this.bushes, this.stats, delta);
-    updateHunting(this.player, this.backpack, this.rabbits);
+    updateHunting(this.player, this.backpack, this.rabbits, this.stats);
     updateHelpers(
       this.helpers,
       {
@@ -558,11 +561,16 @@ export class GameScene extends Phaser.Scene {
   // Точки покупки, которые есть на уровне (data/levels.ts).
   // Оружие — с первого, что можно купить (топор); его цена — в data/upgrades.ts.
   private createBuyZones(): void {
-    const { weapons, fence, huts, helpers } = this.level;
+    const { weapons, fence, huts, helpers, fireClub } = this.level;
     if (weapons) {
       const firstWeapon = WEAPONS[1];
       this.weaponZone = new BuyZone(this, weapons.spot.x, weapons.spot.y, firstWeapon.price, firstWeapon.icon);
       this.buyZones.push(this.weaponZone);
+    }
+
+    if (fireClub) {
+      this.fireClubZone = new BuyZone(this, fireClub.spot.x, fireClub.spot.y, fireClub.price, TEXTURES.fireClubIcon);
+      this.buyZones.push(this.fireClubZone);
     }
 
     if (fence) {
@@ -596,6 +604,7 @@ export class GameScene extends Phaser.Scene {
   // Хижина: точка закрывается, на её месте вырастает хижина.
   // Частокол: вырастает вокруг лагеря; волки, оказавшиеся внутри, удирают.
   // Помощник: точка закрывается, на её месте появляется помощник и начинает работу.
+  // «Огненная дубина»: точка закрывается, оружие в руке начинает тлеть.
   private onPurchase(zone: BuyZone): void {
     if (zone === this.fenceZone) {
       zone.close();
@@ -603,6 +612,11 @@ export class GameScene extends Phaser.Scene {
       for (const wolf of this.wolves) {
         if (wolf.canBeHit() && this.fence.isInside(wolf.x, wolf.y)) wolf.giveUp();
       }
+    }
+
+    if (zone === this.fireClubZone) {
+      zone.close();
+      this.player.lightFireClub();
     }
 
     const helperIndex = this.helperZones.indexOf(zone);
