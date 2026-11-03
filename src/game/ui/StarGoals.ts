@@ -38,10 +38,20 @@ export type StarGoal = { text: string; short: string; isDone: boolean };
 // ⭐ — дожил до рассвета; ⭐⭐ — жар ни разу не падал ниже засечки;
 // ⭐⭐⭐ — накормлено не меньше starFed путников. Отсюда же считается число звёзд
 // (GameScene) и подписи на итогах (ResultScene).
-export function describeStarGoals(isWin: boolean, isHeatLost: boolean, fed: number, starFed: number): StarGoal[] {
+// На уровне с боссом (hasBoss, с 0.9) первая звезда — за победу над мамонтом, а не за рассвет.
+export function describeStarGoals(
+  isWin: boolean,
+  isHeatLost: boolean,
+  fed: number,
+  starFed: number,
+  hasBoss: boolean,
+): StarGoal[] {
   const fedShown = Math.min(fed, starFed) + '/' + starFed;
+  const first = hasBoss
+    ? { text: 'Победи мамонта', short: 'Мамонт', isDone: isWin }
+    : { text: 'Доживи до рассвета', short: 'Рассвет', isDone: isWin };
   return [
-    { text: 'Доживи до рассвета', short: 'Рассвет', isDone: isWin },
+    first,
     { text: 'Жар не ниже ' + STAR_HEAT_MARK + '%', short: 'Жар ≥ ' + STAR_HEAT_MARK + '%', isDone: isWin && !isHeatLost },
     { text: 'Накорми путников ' + fedShown, short: 'Путники ' + fedShown, isDone: isWin && fed >= starFed },
   ];
@@ -62,6 +72,8 @@ export class StarGoals {
   private scene: Phaser.Scene;
   // Сколько путников нужно накормить для третьей звезды (из данных уровня).
   private starFed: number;
+  // Есть ли на уровне босс: тогда первая цель — «Победи мамонта».
+  private hasBoss: boolean;
   // Всё, что на плашке: фон, звёзды, надписи, черта. Двигаем вместе при повороте экрана.
   private container: Phaser.GameObjects.Container;
   // Звезда и надпись каждой строки — по порядку целей.
@@ -73,14 +85,15 @@ export class StarGoals {
   private isFedDone = false;
   private isHeatLost = false;
 
-  constructor(scene: Phaser.Scene, starFed: number) {
+  constructor(scene: Phaser.Scene, starFed: number, hasBoss: boolean) {
     this.scene = scene;
     this.starFed = starFed;
+    this.hasBoss = hasBoss;
     this.container = scene.add.container(0, 0).setScrollFactor(0).setDepth(GOALS_DEPTH);
 
     // Фон — каменная плашка, нарисованная сразу нужного размера (не растянутая картинка).
     this.container.add(scene.add.image(PANEL_WIDTH / 2, PANEL_HEIGHT / 2, TEXTURES.starPanel));
-    describeStarGoals(false, false, 0, starFed).forEach((goal, index) => {
+    describeStarGoals(false, false, 0, starFed, hasBoss).forEach((goal, index) => {
       const y = FIRST_ROW_Y + index * ROW_STEP;
       const star = scene.add.image(STAR_X, y, TEXTURES.star).setScale(STAR_SCALE).setTint(COLORS.starOff);
       const label = scene.add
@@ -118,7 +131,7 @@ export class StarGoals {
   // Каждый кадр: fed — сколько путников накормлено, isHeatLost — жар хоть раз
   // опускался ниже засечки. Надпись перерисовывается, только если поменялась.
   update(fed: number, isHeatLost: boolean): void {
-    const goals = describeStarGoals(false, isHeatLost, fed, this.starFed);
+    const goals = describeStarGoals(false, isHeatLost, fed, this.starFed, this.hasBoss);
     this.labels[2].setText(goals[2].text);
 
     if (!this.isFedDone && fed >= this.starFed) {

@@ -25,6 +25,10 @@ export type LevelStats = {
   fishCooked: number; // сколько рыбы пожарилось у малого костра (с 0.8)
 };
 
+// Чем кончился уровень: рассвет после последней ночи, костёр погас,
+// (с 0.9) мамонт повержен или закат наступил раньше, чем мамонт пал.
+export type LevelOutcome = 'dawn' | 'fireOut' | 'bossDefeated' | 'bossSunset';
+
 // Откуда пришла пауза: кнопка в углу, клавиша P / Esc или свёрнутая вкладка.
 export type PauseSource = 'button' | 'key' | 'hidden';
 
@@ -38,7 +42,7 @@ export type AnalyticsEvent =
   | { name: 'nightStart'; day: number } // наступила ночь номер day: игрок дожил до метели
   // Конец уровня (PLAYING → RESULT): номер уровня, победа или поражение, причина, номер суток и статистика.
   // stars — сколько звёзд получено (0–3).
-  | ({ name: 'levelEnd'; level: number; isWin: boolean; reason: 'dawn' | 'fireOut'; day: number; stars: number } & LevelStats)
+  | ({ name: 'levelEnd'; level: number; isWin: boolean; reason: LevelOutcome; day: number; stars: number } & LevelStats)
   // Игрок закрыл вкладку во время игры или паузы: сколько мс успел поиграть.
   | { name: 'tabClosed'; playTime: number };
 

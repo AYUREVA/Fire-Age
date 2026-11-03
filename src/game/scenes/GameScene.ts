@@ -65,7 +65,7 @@ import { updateWolfFight, updateWolves } from '../systems/Predators';
 import { updateHelpers } from '../systems/Helpers';
 import { HELPERS, HelperRole, WEAPONS } from '../data/upgrades';
 import { LEVELS, LevelData } from '../data/levels';
-import { LevelStats, PauseSource, track } from '../analytics';
+import { LevelOutcome, LevelStats, PauseSource, track } from '../analytics';
 import { getProgress, recordLevel } from '../save';
 import { metaBonus } from '../data/metaUpgrades';
 import { ReadyData } from './ReadyScene';
@@ -345,10 +345,10 @@ export class GameScene extends Phaser.Scene {
 
     this.player = new Player(this, PLAYER_START.x, PLAYER_START.y);
     this.backpack = new Backpack(this, STACK_CAPACITY + metaBonus('capacity', meta.capacity));
-    this.cycle = new DayNightCycle(this.level.dayCount, this.level.day, this.level.night);
+    this.cycle = new DayNightCycle(this.level.dayCount, this.level.day, this.level.night, this.level.boss?.day);
     this.hud = new Hud(this, () => this.pauseGame('button'));
     this.hud.setTimeLeft(this.cycle.timeLeft);
-    this.starGoals = new StarGoals(this, this.level.starFed);
+    this.starGoals = new StarGoals(this, this.level.starFed, this.level.boss !== undefined);
 
     this.setupCamera();
     this.createSnowfall();
@@ -471,7 +471,7 @@ export class GameScene extends Phaser.Scene {
 
     // Костёр погас — поражение. Остальное решают события смены дня и ночи.
     if (isFireOut) {
-      this.endGame(false);
+      this.endGame('fireOut');
     } else if (cycleEvent) {
       this.onCycleEvent(cycleEvent);
     }
@@ -512,7 +512,17 @@ export class GameScene extends Phaser.Scene {
         this.phaseBanner.showMorning(this.cycle.dayNumber, () => this.starGoals.setVisible(true));
         break;
       case 'lastDawn':
-        this.endGame(true);
+        this.endGame('dawn');
+        break;
+      // День боя с мамонтом (с 0.9): утро после последней ночи.
+      case 'bossDawn':
+        this.nightOverlay.startDay();
+        this.hud.setPhase(false);
+        this.hud.setModifiers(false);
+        break;
+      // Закат дня боя, а мамонт не повержен — поражение.
+      case 'bossDusk':
+        this.endGame('bossSunset');
         break;
     }
   }
@@ -775,20 +785,28 @@ export class GameScene extends Phaser.Scene {
   }
 
   // PLAYING → RESULT: победа или поражение. Игра замирает, поверх — табличка итога.
+  // outcome — чем кончился уровень: рассвет, костёр погас, (с 0.9) мамонт повержен или закат раньше.
   // Звёзды сразу сохраняются (save.ts хранит лучший результат уровня).
-  private endGame(isWin: boolean): void {
+  private endGame(outcome: LevelOutcome): void {
     if (this.mode !== 'playing') return;
     this.mode = 'result';
+    const isWin = outcome === 'dawn' || outcome === 'bossDefeated';
     // Звёзды (раздел 5 плана): проиграл — ни одной; победа — звезда за рассвет и по звезде
     // за жар не ниже засечки и за starFed накормленных путников. Условия — в StarGoals.ts.
-    const starGoals = describeStarGoals(isWin, this.campfire.wasBelowMark, this.stats.fed, this.level.starFed);
+    const starGoals = describeStarGoals(
+      isWin,
+      this.campfire.wasBelowMark,
+      this.stats.fed,
+      this.level.starFed,
+      this.level.boss !== undefined,
+    );
     const stars = starGoals.filter((goal) => goal.isDone).length;
     recordLevel(this.levelIndex, stars);
     track({
       name: 'levelEnd',
       level: this.levelIndex + 1,
       isWin,
-      reason: isWin ? 'dawn' : 'fireOut',
+      reason: outcome,
       day: this.cycle.dayNumber,
       stars,
       ...this.stats,
@@ -798,7 +816,7 @@ export class GameScene extends Phaser.Scene {
     this.sound.pauseAll();
     const hasNext = isWin && this.levelIndex + 1 < LEVELS.length;
     const data: ResultData = {
-      isWin,
+      outcome,
       starGoals,
       stats: this.stats,
       // Пережиты все сутки уровня — или те, что успели закончиться до поражения.

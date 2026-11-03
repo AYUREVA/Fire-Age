@@ -30,6 +30,9 @@ const TITLE_HIGHLIGHT_SHIFT = 2;
 const TITLE_SHADOW_SHIFT = 4;
 // Размер заголовка на табличке паузы и итогов.
 const TITLE_FONT_SIZE = 52;
+// Заголовок занимает не больше такой доли ширины плиты. Длиннее
+// («МАМОНТ РАЗОРИЛ ЛАГЕРЬ», с 0.9) — уменьшается, чтобы не вылезать за края.
+const TITLE_MAX_WIDTH_SHARE = 0.84;
 
 // ===== Появление и закрытие =====
 
@@ -158,8 +161,14 @@ export class StoneTablet {
       .setScale(SHOW_START_SCALE)
       .setAlpha(0);
     const isLarge = content.isLarge === true;
-    this.container.add(scene.add.image(0, 0, isLarge ? TEXTURES.stoneTabletLarge : TEXTURES.stoneTablet));
-    this.container.add(addCarvedTitle(scene, 0, isLarge ? LARGE_TITLE_Y : TITLE_Y, content.title, TITLE_FONT_SIZE));
+    const plate = scene.add.image(0, 0, isLarge ? TEXTURES.stoneTabletLarge : TEXTURES.stoneTablet);
+    const title = addCarvedTitle(scene, 0, isLarge ? LARGE_TITLE_Y : TITLE_Y, content.title, TITLE_FONT_SIZE);
+    const maxTitleWidth = plate.width * TITLE_MAX_WIDTH_SHARE;
+    const titleWidth = title[title.length - 1].width;
+    if (titleWidth > maxTitleWidth) {
+      for (const text of title) text.setScale(maxTitleWidth / titleWidth);
+    }
+    this.container.add([plate, ...title]);
     if (content.subtitle) this.addSubtitle(content.subtitle, isLarge ? LARGE_SUBTITLE_Y : SUBTITLE_Y);
     const isThree = content.buttons.length >= 3;
     const step = isThree ? THREE_BUTTONS_STEP : BUTTON_STEP;

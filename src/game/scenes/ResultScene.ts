@@ -1,17 +1,19 @@
 import Phaser from 'phaser';
 import { COLORS, toCss } from '../palette';
 import { FONT_FAMILY, TEXTURES } from '../textures';
-import { LevelStats } from '../analytics';
+import { LevelOutcome, LevelStats } from '../analytics';
 import { CARVED_TEXT_SHADOW, StoneTablet, TabletButton } from '../ui/StoneTablet';
 import { pop } from '../fx';
 import { SOUNDS, SOUND_VOLUMES, playSound } from '../sounds';
 import { StarGoal } from '../ui/StarGoals';
 
-// Надписи на табличке (раздел 5 плана).
-const WIN_TITLE = 'РАССВЕТ!';
-const WIN_SUBTITLE = 'Племя пережило ночь';
-const LOSE_TITLE = 'КОСТЁР ПОГАС';
-const LOSE_SUBTITLE = 'Племя замёрзло…';
+// Надписи на табличке для каждого итога уровня (раздел 5 плана). Подзаголовка может не быть.
+const TITLES: Record<LevelOutcome, { title: string; subtitle?: string }> = {
+  dawn: { title: 'РАССВЕТ!', subtitle: 'Племя пережило ночь' },
+  fireOut: { title: 'КОСТЁР ПОГАС', subtitle: 'Племя замёрзло…' },
+  bossDefeated: { title: 'МАМОНТ ПОВЕРЖЕН!' },
+  bossSunset: { title: 'МАМОНТ РАЗОРИЛ ЛАГЕРЬ', subtitle: 'Закат наступил раньше' },
+};
 
 // ===== Раскладка (от середины большой таблички, пиксели) =====
 
@@ -45,14 +47,14 @@ const STAR_STAMP_TIME = 260;
 const STAR_STAMP_START_SCALE = 3.2;
 
 // С какими данными GameScene запускает эту сцену.
-// isWin — победа или поражение, starGoals — цели трёх звёзд и выполнена ли каждая,
+// outcome — чем кончился уровень (победа или поражение и почему), starGoals — цели трёх звёзд и выполнена ли каждая,
 // stats — статистика уровня, days — сколько суток пережито, hasWolves — были ли волки на уровне,
 // hasFishing — была ли рыба (прорубь и малый костёр, с 0.8).
 // Переходы делает GameScene: onRestart — RESULT → READY того же уровня,
 // onMenu — RESULT → меню, onNext — RESULT → READY следующего уровня
 // (его нет, если уровень проигран или он последний).
 export type ResultData = {
-  isWin: boolean;
+  outcome: LevelOutcome;
   starGoals: StarGoal[];
   stats: LevelStats;
   days: number;
@@ -64,7 +66,7 @@ export type ResultData = {
 };
 
 /**
- * Итог уровня на большой каменной табличке: «РАССВЕТ!» или «КОСТЁР ПОГАС»,
+ * Итог уровня на большой каменной табличке: «РАССВЕТ!», «КОСТЁР ПОГАС» или итог боя с мамонтом,
  * звёзды и мини-статистика (раздел 5 плана).
  *
  * GameScene ставит себя на паузу и запускает эту сцену поверх
@@ -89,8 +91,7 @@ export class ResultScene extends Phaser.Scene {
     buttons.push({ label: 'В меню', onClick: data.onMenu });
 
     this.tablet = new StoneTablet(this, {
-      title: data.isWin ? WIN_TITLE : LOSE_TITLE,
-      subtitle: data.isWin ? WIN_SUBTITLE : LOSE_SUBTITLE,
+      ...TITLES[data.outcome],
       buttons,
       isLarge: true,
     });
