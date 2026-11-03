@@ -13,15 +13,18 @@ import { TEXTURES } from '../textures';
 // Оружие вождя.
 // texture — картинка в руке (с кулаком), icon — картинка на точке покупки,
 // hitInterval — мс между ударами (меньше — быстрее рубит кусты и бьёт волков),
-// damage — урон по волку за удар, price — сколько клыков стоит.
-export type Weapon = { texture: string; icon: string; hitInterval: number; damage: number; price: number };
+// damage — урон по волку за удар, price — сколько клыков стоит,
+// reach — дальность удара: во сколько раз больше базовых расстояний до куста,
+// зайца и волка (GATHER_RADIUS, CATCH_RADIUS, WOLF_HIT_RADIUS в settings.ts).
+export type Weapon = { texture: string; icon: string; hitInterval: number; damage: number; price: number; reach: number };
 
-// Оружие по порядку: с дубиной вождь начинает уровень, топор и копьё покупаются
-// на одной точке — после топора на ней появляется копьё.
+// Оружие по порядку — лестница: с дубиной вождь начинает уровень, топор и копьё
+// покупаются на одной точке — после топора на ней появляется копьё.
+// Топор рубит вдвое быстрее дубины, копьё — так же быстро, как топор, и бьёт дальше.
 export const WEAPONS: Weapon[] = [
-  { texture: TEXTURES.club, icon: TEXTURES.club, hitInterval: HIT_INTERVAL, damage: 1, price: 0 }, // дубина
-  { texture: TEXTURES.axe, icon: TEXTURES.axeIcon, hitInterval: 380, damage: 2, price: 12 }, // каменный топор
-  { texture: TEXTURES.spear, icon: TEXTURES.spearIcon, hitInterval: 320, damage: 3, price: 18 }, // копьё
+  { texture: TEXTURES.club, icon: TEXTURES.club, hitInterval: HIT_INTERVAL, damage: 1, price: 0, reach: 0.8 }, // дубина
+  { texture: TEXTURES.axe, icon: TEXTURES.axeIcon, hitInterval: 225, damage: 2, price: 12, reach: 0.8 }, // каменный топор
+  { texture: TEXTURES.spear, icon: TEXTURES.spearIcon, hitInterval: 225, damage: 3, price: 18, reach: 1.3 }, // копьё
 ];
 
 // ===== Помощники (с 0.8) =====

@@ -57,10 +57,11 @@ export function updateGathering(
   });
 }
 
-// Ближайший к вождю куст с хворостом не дальше GATHER_RADIUS. Если такого нет — undefined.
+// Ближайший к вождю куст с хворостом, до которого достаёт его оружие
+// (GATHER_RADIUS × дальность оружия). Если такого нет — undefined.
 function findBushNear(player: Player, bushes: ResourceNode[]): ResourceNode | undefined {
   let nearest: ResourceNode | undefined;
-  let nearestDistance = GATHER_RADIUS;
+  let nearestDistance = GATHER_RADIUS * player.getWeapon().reach;
 
   for (const bush of bushes) {
     if (!bush.hasStock()) continue;
@@ -83,8 +84,10 @@ export function updateHunting(player: Player, backpack: Backpack, rabbits: Rabbi
   // Колонка сырого мяса полная или вождь уже машет дубиной (например, по кусту) — не ловим.
   if (backpack.isFull('rawMeat') || player.isSwinging()) return;
 
+  // Достаёт ли оружие: CATCH_RADIUS × дальность оружия (копьё — дальше).
+  const reach = CATCH_RADIUS * player.getWeapon().reach;
   const rabbit = rabbits.find(
-    (each) => each.isCatchable() && Phaser.Math.Distance.Between(player.x, player.y, each.x, each.y) <= CATCH_RADIUS,
+    (each) => each.isCatchable() && Phaser.Math.Distance.Between(player.x, player.y, each.x, each.y) <= reach,
   );
   if (!rabbit) return;
 
