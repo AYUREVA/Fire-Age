@@ -92,8 +92,9 @@ const UPGRADE_DISABLED_TINT = 0x9a9a9a;
 // Строка «сколько звёзд можно потратить» под улучшениями.
 const UPGRADES_STARS_Y = 158;
 
-// Какая табличка в меню: выбор эпохи, уровни эпохи или улучшения.
-type MenuView = 'epochs' | 'levels' | 'upgrades';
+// Какая табличка в меню: выбор эпохи, уровни эпохи, улучшения или (с 0.9) заставка смены эпохи —
+// «эпоха пройдена» и следующая за ней «скоро».
+type MenuView = 'epochs' | 'levels' | 'upgrades' | 'epochEnd' | 'epochSoon';
 // С какими данными запускается сцена: какую табличку показать (по умолчанию выбор эпохи).
 export type MenuData = { view?: MenuView };
 
@@ -118,6 +119,8 @@ type UpgradeRow = {
  *    «Назад» — к эпохам. Из игры («В меню») сцена открывается сразу здесь.
  * 3. «Улучшения» (кнопка на первой табличке) — мета-улучшения за звёзды
  *    (data/metaUpgrades.ts). «Назад» — к эпохам.
+ * 4. Заставка смены эпохи (с 0.9) — после победы на последнем уровне эпохи:
+ *    «КАМЕННЫЙ ВЕК ПРОЙДЕН» → «СКОРО: БРОНЗОВЫЙ ВЕК» → выбор эпохи.
  *
  * Прогресс (звёзды, какие уровни открыты, что куплено) хранит save.ts:
  * меню читает его, а покупку делает функцией buyMetaUpgrade().
@@ -171,6 +174,10 @@ export class MenuScene extends Phaser.Scene {
 
     if (this.view === 'upgrades') {
       this.showUpgrades();
+    } else if (this.view === 'epochEnd') {
+      this.showEpochEnd();
+    } else if (this.view === 'epochSoon') {
+      this.showEpochSoon();
     } else if (this.view === 'levels') {
       this.showLevels();
     } else {
@@ -201,6 +208,24 @@ export class MenuScene extends Phaser.Scene {
     for (let i = 0; i < LEVELS_PER_EPOCH; i++) {
       this.addLevel(i);
     }
+  }
+
+  // Заставка смены эпохи (с 0.9), первая табличка: «КАМЕННЫЙ ВЕК ПРОЙДЕН». «Дальше» — следующая эпоха.
+  private showEpochEnd(): void {
+    this.tablet = new StoneTablet(this, {
+      title: EPOCHS[0].name.toUpperCase() + ' ПРОЙДЕН',
+      buttons: [{ label: 'Дальше', onClick: () => this.switchView('epochSoon') }],
+    });
+  }
+
+  // Вторая табличка заставки: следующая эпоха ещё не вышла — «СКОРО: БРОНЗОВЫЙ ВЕК».
+  // В 1.0 здесь будет «НАСТУПАЕТ БРОНЗОВЫЙ ВЕК». «Дальше» — к выбору эпохи.
+  private showEpochSoon(): void {
+    this.tablet = new StoneTablet(this, {
+      title: 'СКОРО: ' + EPOCHS[1].name.toUpperCase(),
+      subtitle: 'выйдет в обновлении',
+      buttons: [{ label: 'Дальше', onClick: () => this.switchView('epochs') }],
+    });
   }
 
   // Табличка закрывается, и сцена открывается снова — уже с другой табличкой.

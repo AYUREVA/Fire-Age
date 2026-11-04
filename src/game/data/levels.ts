@@ -40,6 +40,9 @@ export type LevelData = {
   // Точки найма помощников (с 0.8): для каждой роли — цена в клыках и где стоит точка.
   // Помощник появляется на месте своей точки. Нет роли — её не нанять. Что умеют роли — data/upgrades.ts.
   helpers?: Partial<Record<HelperRole, { price: number; spot: Point }>>;
+  // Финальный бой с мамонтом (с 0.9). Нет поля — босса нет, рассвет после последней ночи — победа.
+  // day — сколько мс длится день боя: мамонта надо победить до заката.
+  boss?: { day: number };
   // Третья звезда: накормить не меньше стольких путников.
   starFed: number;
   // Есть ли обучение стрелками-подсказками.
@@ -72,6 +75,12 @@ const TWO_HUTS = {
     { x: 820, y: 1560 },
     { x: 1420, y: 1560 },
   ],
+};
+
+// Помощники (уровни 4 и 5): точки найма — во дворе, внизу по бокам от кучи жареного мяса.
+const HELPERS_HIRE = {
+  gatherer: { price: 8, spot: { x: 1340, y: 1150 } },
+  hunter: { price: 12, spot: { x: 900, y: 1150 } },
 };
 
 // Уровни каменного века по порядку (раздел 4 плана). На каждом — одна крупная новинка.
@@ -137,11 +146,25 @@ export const LEVELS: LevelData[] = [
     weapons: { spot: WEAPONS_SPOT, top: FIRE_CLUB_LEVEL },
     huts: TWO_HUTS,
     fishing: { fishShare: 0.4 },
-    // Точки найма — во дворе, внизу по бокам от кучи жареного мяса.
-    helpers: {
-      gatherer: { price: 8, spot: { x: 1340, y: 1150 } },
-      hunter: { price: 12, spot: { x: 900, y: 1150 } },
-    },
+    helpers: HELPERS_HIRE,
+    starFed: 10,
+    hasTutorial: false,
+  },
+  // 5 — двое суток со всеми механиками эпохи, утром после последней ночи — мамонт.
+  {
+    name: 'Мамонт',
+    dayCount: 2,
+    // Двое суток по 2:05 и день боя 1:30 — весь уровень около 5:40.
+    day: 65000,
+    night: 60000,
+    boss: { day: 90000 },
+    wolves: WOLVES,
+    travelers: { ...TRAVELERS, tusksPerFood: 8 }, // последний уровень — платят щедрее всего
+    fence: FENCE,
+    weapons: { spot: WEAPONS_SPOT, top: FIRE_CLUB_LEVEL },
+    huts: TWO_HUTS,
+    fishing: { fishShare: 0.4 },
+    helpers: HELPERS_HIRE,
     starFed: 10,
     hasTutorial: false,
   },

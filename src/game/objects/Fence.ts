@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import {
   CAMPFIRE_POSITION,
   FENCE_BOTTOM_GATE_X,
+  FENCE_BREAK_LENGTH,
   FENCE_GATE_WIDTH,
   FENCE_RECT,
   FENCE_WALL_THICKNESS,
@@ -36,6 +37,9 @@ const STAKES_SEED = 'fence-stakes';
 // и сколько растёт один кол).
 const BUILD_STAGGER = 8;
 const BUILD_GROW_TIME = 260;
+// Пролом (с 0.9): колья падают в сторону удара и тают за столько мс.
+const BREAK_FALL_ANGLE = 80;
+const BREAK_FALL_TIME = 350;
 
 // ===== Маршрут помощников (с 0.8) =====
 // Помощник проходит калитку по двум точкам: перед ней снаружи и за ней во дворе —
@@ -197,6 +201,48 @@ export class Fence {
         this.scene.tweens.add({ targets: part, alpha: 1, delay: this.stakes.length * BUILD_STAGGER, duration: BUILD_GROW_TIME });
       }
     }
+  }
+
+  // Пролом (с 0.9): кто-то шагнул из from в to сквозь стену (не калитку) — кусок стены
+  // длиной FENCE_BREAK_LENGTH вокруг точки to ломается: колья падают, стена делится
+  // на два куска с проломом посередине. Сквозь пролом потом ходят все, и волки.
+  // Вернёт true, если стена сломана.
+  breakThrough(from: Point, to: Point): boolean {
+    if (!this.isBuiltNow) return false;
+    const index = this.walls.findIndex((wall) => wall.contains(to.x, to.y) && !wall.contains(from.x, from.y));
+    if (index < 0) return false;
+
+    const wall = this.walls[index];
+    const half = FENCE_BREAK_LENGTH / 2;
+    const isAcross = wall.width > wall.height;
+    // Пролом — прямоугольник поперёк стены; что от стены осталось слева и справа (или сверху и снизу) — новые куски.
+    const gap = isAcross
+      ? new Phaser.Geom.Rectangle(to.x - half, wall.y - wall.height, FENCE_BREAK_LENGTH, wall.height * 3)
+      : new Phaser.Geom.Rectangle(wall.x - wall.width, to.y - half, wall.width * 3, FENCE_BREAK_LENGTH);
+    const pieces: Phaser.Geom.Rectangle[] = [];
+    if (isAcross) {
+      if (gap.left > wall.left) pieces.push(new Phaser.Geom.Rectangle(wall.left, wall.y, gap.left - wall.left, wall.height));
+      if (gap.right < wall.right) pieces.push(new Phaser.Geom.Rectangle(gap.right, wall.y, wall.right - gap.right, wall.height));
+    } else {
+      if (gap.top > wall.top) pieces.push(new Phaser.Geom.Rectangle(wall.x, wall.top, wall.width, gap.top - wall.top));
+      if (gap.bottom < wall.bottom) pieces.push(new Phaser.Geom.Rectangle(wall.x, gap.bottom, wall.width, wall.bottom - gap.bottom));
+    }
+    this.walls.splice(index, 1, ...pieces);
+
+    // Колья в проломе падают в ту сторону, куда шёл ломающий, и тают.
+    const side = to.x >= from.x ? 1 : -1;
+    for (const { image } of this.stakes) {
+      if (!image.visible || !gap.contains(image.x, image.y)) continue;
+      this.scene.tweens.add({
+        targets: image,
+        angle: BREAK_FALL_ANGLE * side,
+        alpha: 0,
+        duration: BREAK_FALL_TIME,
+        ease: 'Quad.easeIn',
+        onComplete: () => image.setVisible(false),
+      });
+    }
+    return true;
   }
 
   // Путь для помощника из from в to (с 0.8). Стены помощники не проверяют —

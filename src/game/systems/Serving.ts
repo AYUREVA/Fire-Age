@@ -132,8 +132,9 @@ function serveFirst(table: StoneTable, first: Traveler, stats: LevelStats, tusks
     first.eatTime += delta;
     if (first.eatTime < TRAVELER_EAT_TIME) return;
     table.addTusks(first.order * tusksPerFood, first.getMouthPoint());
-    first.leave(true, table.getForestPoint());
     stats.fed += 1;
+    if (first.wants().type === 'cookedFish') stats.fishFed += 1;
+    first.leave(true, table.getForestPoint());
     return;
   }
 

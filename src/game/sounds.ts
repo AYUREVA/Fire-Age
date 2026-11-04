@@ -49,9 +49,10 @@ export function createSounds(scene: Phaser.Scene): void {
 }
 
 // Проиграть звук один раз с громкостью volume.
-export function playSound(scene: Phaser.Scene, key: string, volume: number): void {
+// detune — насколько ниже (меньше нуля) или выше звучит звук, в центах (1200 — октава).
+export function playSound(scene: Phaser.Scene, key: string, volume: number, detune = 0): void {
   if (!scene.cache.audio.exists(key)) return;
-  scene.sound.play(key, { volume });
+  scene.sound.play(key, { volume, detune });
 }
 
 // Выключить или включить звук и запомнить это в сохранении. Вернёт, выключен ли звук теперь.

@@ -7,8 +7,10 @@ export type Phase = 'day' | 'night';
 // 'sunset'   — до ночи осталось SUNSET_TIME, начинается закат;
 // 'night'    — началась ночь;
 // 'morning'  — наступило утро следующего дня;
-// 'lastDawn' — рассвет после последней ночи: уровень пройден.
-export type CycleEvent = 'sunset' | 'night' | 'morning' | 'lastDawn';
+// 'lastDawn' — рассвет после последней ночи: уровень пройден;
+// 'bossDawn' — (с 0.9) рассвет после последней ночи на уровне с боссом: начался день боя;
+// 'bossDusk' — (с 0.9) день боя кончился, а босс не побеждён: поражение.
+export type CycleEvent = 'sunset' | 'night' | 'morning' | 'lastDawn' | 'bossDawn' | 'bossDusk';
 
 /**
  * Смена дня и ночи: хранит фазу, номер суток и сколько осталось до конца фазы.
@@ -35,11 +37,16 @@ export class DayNightCycle {
   private dayCount: number;
   private dayDuration: number;
   private nightDuration: number;
+  // Сколько мс длится день боя с боссом (нет — на уровне нет босса) и идёт ли он сейчас.
+  private bossDayDuration?: number;
+  private isBossDayNow = false;
 
   // dayCount — сколько суток, dayDuration и nightDuration — длина дня и ночи уровня (мс).
   // Ночь не бывает дольше NIGHT_MAX_DURATION, даже если уровень просит больше.
-  constructor(dayCount: number, dayDuration: number, nightDuration: number) {
+  // bossDayDuration — длина дня боя (с 0.9): после последней ночи вместо победы наступает этот день.
+  constructor(dayCount: number, dayDuration: number, nightDuration: number, bossDayDuration?: number) {
     this.dayCount = dayCount;
+    this.bossDayDuration = bossDayDuration;
     this.dayDuration = dayDuration;
     this.nightDuration = Math.min(nightDuration, NIGHT_MAX_DURATION);
     this.timeLeft = dayDuration;
@@ -49,14 +56,15 @@ export class DayNightCycle {
   update(delta: number): CycleEvent | undefined {
     this.timeLeft = Math.max(0, this.timeLeft - delta);
 
-    // День: незадолго до конца — закат, в конце — ночь.
+    // День: незадолго до конца — закат, в конце — ночь. День боя в конце — поражение.
     if (this.phase === 'day') {
-      if (this.shouldEnterNight()) return this.enterNight();
+      if (this.shouldEnterNight()) return this.isBossDayNow ? 'bossDusk' : this.enterNight();
       if (this.shouldStartSunset()) return this.startSunset();
       return undefined;
     }
 
-    // Ночь: в конце — рассвет.
+    // Ночь: в конце — рассвет. После последней ночи на уровне с боссом — день боя.
+    if (this.shouldStartBossDay()) return this.startBossDay();
     if (this.shouldStartMorning()) return this.startMorning();
     return undefined;
   }
@@ -78,6 +86,16 @@ export class DayNightCycle {
     return this.timeLeft <= 0;
   }
 
+  // Пора ли начинать день боя: кончилась последняя ночь, а у уровня есть босс.
+  private shouldStartBossDay(): boolean {
+    return this.timeLeft <= 0 && this.dayNumber >= this.dayCount && this.bossDayDuration !== undefined;
+  }
+
+  // Идёт ли день боя с боссом.
+  isBossDay(): boolean {
+    return this.isBossDayNow;
+  }
+
   // ===== Переходы: что меняется =====
 
   // Закат: небо начинает розоветь (это рисует сцена).
@@ -91,6 +109,16 @@ export class DayNightCycle {
     this.phase = 'night';
     this.timeLeft = this.nightDuration;
     return 'night';
+  }
+
+  // День боя: новый день длиной bossDayDuration, ночи после него нет.
+  private startBossDay(): CycleEvent {
+    this.dayNumber += 1;
+    this.phase = 'day';
+    this.timeLeft = this.bossDayDuration ?? this.dayDuration;
+    this.isSunsetStarted = false;
+    this.isBossDayNow = true;
+    return 'bossDawn';
   }
 
   // Утро: после последней ночи — победа, иначе новый день.

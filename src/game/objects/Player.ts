@@ -1,6 +1,14 @@
 import Phaser from 'phaser';
 import { CanStep, Point, pop } from '../fx';
-import { JOYSTICK_RADIUS, PLAYER_SPEED, WORLD_EDGE, WORLD_HEIGHT, WORLD_WIDTH } from '../settings';
+import {
+  JOYSTICK_RADIUS,
+  KNOCKBACK_DISTANCE,
+  KNOCKBACK_TIME,
+  PLAYER_SPEED,
+  WORLD_EDGE,
+  WORLD_HEIGHT,
+  WORLD_WIDTH,
+} from '../settings';
 import { SOUNDS, SOUND_VOLUMES, playSound } from '../sounds';
 import { TEXTURES, WEAPON_GRIP_FROM_BOTTOM } from '../textures';
 import { WEAPONS, Weapon } from '../data/upgrades';
@@ -154,6 +162,9 @@ export class Player {
   facing = 1;
 
   private scene: Phaser.Scene;
+  // Отлёт от тарана мамонта (с 0.9): сколько мс ещё летит и куда. Пока летит — управление не слушается.
+  private knockTimeLeft = 0;
+  private knockDirection = new Phaser.Math.Vector2(0, 0);
   // Фаза шага (радианы): из неё считаются движения ног, руки и тела.
   private stepPhase = 0;
   // Куда сейчас отведены ноги: от -1 до 1 (0 — стоят ровно).
@@ -260,7 +271,14 @@ export class Player {
     const direction = this.readInput();
     const isMoving = direction.length() > 0;
 
-    this.move(direction, delta, speedMultiplier, canStep);
+    if (this.knockTimeLeft > 0) {
+      // Отлетает от тарана: KNOCKBACK_DISTANCE за KNOCKBACK_TIME, сквозь стену — нет.
+      this.knockTimeLeft -= delta;
+      const knockSpeed = (KNOCKBACK_DISTANCE / KNOCKBACK_TIME) * 1000;
+      this.move(this.knockDirection, delta, knockSpeed / PLAYER_SPEED, canStep);
+    } else {
+      this.move(direction, delta, speedMultiplier, canStep);
+    }
     this.animate(delta, isMoving);
     this.place();
   }
@@ -295,6 +313,19 @@ export class Player {
         { ...SWING_REST, duration: duration * SWING_RECOVER_SHARE, ease: 'Sine.easeOut' },
       ],
     });
+  }
+
+  // Таран мамонта попал (с 0.9): вождь отлетает от точки from.
+  knockBack(from: Point): void {
+    this.knockDirection.set(this.x - from.x, this.y - from.y);
+    if (this.knockDirection.length() === 0) this.knockDirection.set(-this.facing, 0);
+    this.knockDirection.normalize();
+    this.knockTimeLeft = KNOCKBACK_TIME;
+  }
+
+  // Отлетает ли сейчас от тарана.
+  isKnocked(): boolean {
+    return this.knockTimeLeft > 0;
   }
 
   // Оружие, которое сейчас в руке: скорость удара и урон.

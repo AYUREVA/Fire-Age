@@ -2,7 +2,7 @@
 //  Сохранение прогресса игрока.
 //
 //  Прогресс между уровнями хранит только этот файл (раздел 9 плана, правило 10):
-//  звёзды за уровни, потраченные звёзды, купленные мета-улучшения, звук.
+//  звёзды за уровни, потраченные звёзды, купленные мета-улучшения, звук, достижения (с 0.9).
 //  Остальные его только читают (getProgress), а меняют — функциями ниже.
 //  Каждое изменение сразу сохраняется: после обновления страницы прогресс на месте.
 //
@@ -12,7 +12,8 @@
 
 // Номер версии схемы сохранения. Поменялась схема — номер растёт,
 // а upgradeSave() обновляет старое сохранение, не теряя прогресс.
-const SAVE_VERSION = 1;
+// 2 — с 0.9: появились достижения.
+const SAVE_VERSION = 2;
 
 // Под каким ключом сохранение лежит в localStorage.
 const SAVE_KEY = 'fire-age-save';
@@ -28,6 +29,7 @@ export type Progress = {
   spentStars: number; // сколько звёзд потрачено на мета-улучшения
   meta: MetaLevels; // купленные мета-улучшения
   isMuted: boolean; // звук выключен
+  achievements: string[]; // id полученных достижений (data/achievements.ts), с 0.9
 };
 
 // Прогресс в памяти. Загружается один раз при запуске игры.
@@ -78,6 +80,16 @@ export function buyMetaUpgrade(id: keyof MetaLevels, price: number): boolean {
   return true;
 }
 
+// Уровень закончен: достижения ids выполнены. Новые запоминаются;
+// вернёт только новые (их показывает плашка на итогах).
+export function unlockAchievements(ids: string[]): string[] {
+  const fresh = ids.filter((id) => !progress.achievements.includes(id));
+  if (fresh.length === 0) return fresh;
+  progress.achievements.push(...fresh);
+  store();
+  return fresh;
+}
+
 // Звук выключен или включён.
 export function setMuted(isMuted: boolean): void {
   progress.isMuted = isMuted;
@@ -115,6 +127,7 @@ function newProgress(): Progress {
     spentStars: 0,
     meta: { speed: 0, capacity: 0, startWood: 0 },
     isMuted: false,
+    achievements: [],
   };
 }
 
@@ -140,6 +153,10 @@ function upgradeSave(raw: unknown): Progress {
       startWood: toCount(savedMeta.startWood),
     },
     isMuted: saved.isMuted === true,
+    // В сохранении версии 1 достижений нет — пустой список.
+    achievements: Array.isArray(saved.achievements)
+      ? saved.achievements.filter((id): id is string => typeof id === 'string')
+      : fresh.achievements,
   };
 }
 

@@ -30,15 +30,19 @@ import {
   RAW_FISH_PILE_CAPACITY,
   COOKED_FISH_PILE_POSITION,
   COOKED_FISH_PILE_CAPACITY,
+  MAMMOTH_START,
+  MAMMOTH_FALL_TIME,
+  BOSS_SHAKE_TIME,
+  BOSS_SHAKE_INTENSITY,
 } from '../settings';
 import { TEXTURES, createTextures, loadFonts } from '../textures';
-import { createSounds } from '../sounds';
+import { SOUNDS, SOUND_VOLUMES, createSounds, playSound } from '../sounds';
 import { Player } from '../objects/Player';
 import { Backpack } from '../objects/Backpack';
 import { ResourceNode } from '../objects/ResourceNode';
 import { ItemPile } from '../objects/ItemPile';
 import { Rabbit } from '../objects/Rabbit';
-import { Wolf } from '../objects/Wolf';
+import { Loot, Wolf } from '../objects/Wolf';
 import { Spit } from '../objects/Spit';
 import { StoneTable } from '../objects/StoneTable';
 import { Traveler } from '../objects/Traveler';
@@ -48,11 +52,13 @@ import { Hut } from '../objects/Hut';
 import { Fence } from '../objects/Fence';
 import { IceHole } from '../objects/IceHole';
 import { Helper } from '../objects/Helper';
+import { Mammoth } from '../objects/Mammoth';
 import { CanStep, sway } from '../fx';
 import { Hud } from '../objects/Hud';
 import { CycleEvent, DayNightCycle } from '../objects/DayNightCycle';
 import { NightOverlay } from '../objects/NightOverlay';
 import { PhaseBanner } from '../ui/PhaseBanner';
+import { BossBar } from '../ui/BossBar';
 import { TutorialHint } from '../ui/TutorialHint';
 import { StarGoals, describeStarGoals } from '../ui/StarGoals';
 import { updateTutorial } from '../systems/Tutorial';
@@ -63,10 +69,12 @@ import { updateFire } from '../systems/Fire';
 import { updatePurchases } from '../systems/Purchases';
 import { updateWolfFight, updateWolves } from '../systems/Predators';
 import { updateHelpers } from '../systems/Helpers';
+import { BossWorld, chooseAim, updateMammoth, updateMammothFight, updateSpilled } from '../systems/Boss';
 import { HELPERS, HelperRole, WEAPONS } from '../data/upgrades';
-import { LEVELS, LevelData } from '../data/levels';
-import { LevelStats, PauseSource, track } from '../analytics';
-import { getProgress, recordLevel } from '../save';
+import { LEVELS, LEVELS_PER_EPOCH, LevelData } from '../data/levels';
+import { LevelOutcome, LevelStats, PauseSource, track } from '../analytics';
+import { getProgress, recordLevel, unlockAchievements } from '../save';
+import { ACHIEVEMENTS } from '../data/achievements';
 import { metaBonus } from '../data/metaUpgrades';
 import { ReadyData } from './ReadyScene';
 import { PauseData } from './PauseScene';
@@ -112,6 +120,9 @@ const SHADOW_DEPTH_SHIFT = -0.5;
 // закат и ночная тьма — 11400 и 11500 (NightOverlay.ts), падающий снег — 12000 (здесь),
 // метель — 12100 (NightOverlay.ts), HUD и джойстик — 20000 (Hud.ts, Player.ts).
 const SNOWFALL_DEPTH = 12000;
+
+// Шаг мамонта — тот же глухой удар, что у оружия, на октаву ниже (в центах).
+const BOSS_STEP_DETUNE = -1200;
 
 // ===== Декор мира =====
 
@@ -230,6 +241,12 @@ export class GameScene extends Phaser.Scene {
   private fenceZone?: BuyZone;
   // Лагерь у проруби — только на уровне с рыбалкой (иначе undefined).
   private fishCamp?: FishCamp;
+  // Мамонт — только на уровне с боссом (иначе undefined). До дня боя он спрятан.
+  private mammoth?: Mammoth;
+  // Полоса здоровья мамонта — только на уровне с боссом.
+  private bossBar?: BossBar;
+  // Предметы, рассыпанные по снегу тараном мамонта: лежат, пока вождь их не подберёт.
+  private spilled: Loot[] = [];
   // Интерфейс: сколько осталось до конца дня или ночи, кнопка паузы.
   private hud!: Hud;
   // Смена дня и ночи: фаза, номер суток, сколько осталось до конца фазы.
@@ -280,6 +297,9 @@ export class GameScene extends Phaser.Scene {
     this.weaponZone = undefined;
     this.fenceZone = undefined;
     this.fishCamp = undefined;
+    this.mammoth = undefined;
+    this.bossBar = undefined;
+    this.spilled = [];
     this.mode = 'ready';
     this.stats = {
       fed: 0,
@@ -292,6 +312,8 @@ export class GameScene extends Phaser.Scene {
       meatCooked: 0,
       fishCaught: 0,
       fishCooked: 0,
+      bossTime: 0,
+      fishFed: 0,
     };
 
     createTextures(this);
@@ -336,6 +358,7 @@ export class GameScene extends Phaser.Scene {
 
     this.createBuyZones();
     if (this.level.fishing) this.fishCamp = this.createFishCamp();
+    if (this.level.boss) this.mammoth = new Mammoth(this);
 
     // Мета-улучшения за звёзды (save.ts хранит, сколько раз куплено, metaUpgrades.ts — что дают):
     // скорость вождя, вместимость колонок за спиной, стартовый хворост в поленнице.
@@ -345,16 +368,17 @@ export class GameScene extends Phaser.Scene {
 
     this.player = new Player(this, PLAYER_START.x, PLAYER_START.y);
     this.backpack = new Backpack(this, STACK_CAPACITY + metaBonus('capacity', meta.capacity));
-    this.cycle = new DayNightCycle(this.level.dayCount, this.level.day, this.level.night);
+    this.cycle = new DayNightCycle(this.level.dayCount, this.level.day, this.level.night, this.level.boss?.day);
     this.hud = new Hud(this, () => this.pauseGame('button'));
     this.hud.setTimeLeft(this.cycle.timeLeft);
-    this.starGoals = new StarGoals(this, this.level.starFed);
+    this.starGoals = new StarGoals(this, this.level.starFed, this.level.boss !== undefined);
 
     this.setupCamera();
     this.createSnowfall();
     this.nightOverlay = new NightOverlay(this);
     this.phaseBanner = new PhaseBanner(this);
     this.tutorial = this.level.hasTutorial ? new TutorialHint(this) : undefined;
+    if (this.level.boss) this.bossBar = new BossBar(this);
     this.setupPause();
 
     // Мир построен — игра в режиме READY: ждём касания, клика или клавиши.
@@ -404,6 +428,13 @@ export class GameScene extends Phaser.Scene {
       this.canWolfStep,
       delta,
     );
+    // Мамонт — раньше волков: уставший мамонт важнее всего.
+    if (this.mammoth) {
+      updateMammoth(this.mammoth, this.getBossWorld(), delta);
+      updateMammothFight(this.player, this.mammoth);
+      updateSpilled(this.player, this.backpack, this.spilled);
+      this.bossBar?.update(this.mammoth.hp);
+    }
     updateWolfFight(this.player, this.backpack, this.wolves, this.stats);
     updateGathering(this.player, this.backpack, this.bushes, this.stats, delta);
     updateHunting(this.player, this.backpack, this.rabbits, this.stats);
@@ -418,6 +449,7 @@ export class GameScene extends Phaser.Scene {
         backpack: this.backpack,
         fence: this.fence,
         stats: this.stats,
+        mammoth: this.mammoth,
       },
       delta,
     );
@@ -469,9 +501,12 @@ export class GameScene extends Phaser.Scene {
     const cycleEvent = this.cycle.update(delta);
     this.hud.setTimeLeft(this.cycle.timeLeft);
 
-    // Костёр погас — поражение. Остальное решают события смены дня и ночи.
-    if (isFireOut) {
-      this.endGame(false);
+    // Мамонт пал — победа, когда он долежал до итогов (MAMMOTH_FALL_TIME): пока он падает,
+    // уровень уже не проиграть. Костёр погас — поражение. Остальное решают события смены дня и ночи.
+    if (this.mammoth?.getState() === 'fallen') {
+      if (this.mammoth.stateTime >= MAMMOTH_FALL_TIME) this.endGame('bossDefeated');
+    } else if (isFireOut) {
+      this.endGame('fireOut');
     } else if (cycleEvent) {
       this.onCycleEvent(cycleEvent);
     }
@@ -512,9 +547,49 @@ export class GameScene extends Phaser.Scene {
         this.phaseBanner.showMorning(this.cycle.dayNumber, () => this.starGoals.setVisible(true));
         break;
       case 'lastDawn':
-        this.endGame(true);
+        this.endGame('dawn');
+        break;
+      // День боя с мамонтом (с 0.9): утро после последней ночи — идёт мамонт.
+      case 'bossDawn':
+        this.nightOverlay.startDay();
+        this.hud.setPhase(false);
+        this.hud.setModifiers(false);
+        this.startBossFight();
+        break;
+      // Закат дня боя, а мамонт не повержен — поражение.
+      case 'bossDusk':
+        this.endGame('bossSunset');
         break;
     }
+  }
+
+  // ===== Мамонт =====
+
+  // Идёт мамонт: экран трясётся от шагов, глухой удар, с деревьев сыплется снег,
+  // выезжает табличка «ИДЁТ МАМОНТ!», мамонт выходит из леса и выбирает цель.
+  private startBossFight(): void {
+    if (!this.mammoth) return;
+    this.cameras.main.shake(BOSS_SHAKE_TIME, BOSS_SHAKE_INTENSITY);
+    playSound(this, SOUNDS.hit, SOUND_VOLUMES.hit, BOSS_STEP_DETUNE);
+    this.starGoals.setVisible(false);
+    this.phaseBanner.showBoss(() => {
+      this.starGoals.setVisible(true);
+      this.bossBar?.show();
+    });
+    this.mammoth.appear(MAMMOTH_START);
+    chooseAim(this.mammoth, this.getBossWorld());
+  }
+
+  // С чем мамонт имеет дело: вождь с рюкзаком, кучи у главного костра, частокол и рассыпанное.
+  private getBossWorld(): BossWorld {
+    return {
+      player: this.player,
+      backpack: this.backpack,
+      piles: [this.woodpile, this.rawMeatPile, this.cookedMeatPile],
+      fence: this.fence,
+      spilled: this.spilled,
+      stats: this.stats,
+    };
   }
 
   // ===== Лагерь у проруби =====
@@ -544,6 +619,7 @@ export class GameScene extends Phaser.Scene {
   // просто рыба не жарится, пока его снова не накормят.
   private updateFishCamp(camp: FishCamp, burnMultiplier: number, delta: number): void {
     updateFishing(this.player, this.backpack, camp.hole, this.stats, delta);
+    camp.hole.update(delta);
     updateDropping(this.player, this.backpack, [camp.woodpile, camp.rawPile], delta);
     updatePickup(this.player, this.backpack, camp.cookedPile, delta);
     updateFire(camp.fire, camp.woodpile, delta, burnMultiplier);
@@ -677,7 +753,8 @@ export class GameScene extends Phaser.Scene {
   // Допустимые переходы (раздел 9 плана, правило 11):
   //   READY → PLAYING, PLAYING → PAUSED, PAUSED → PLAYING,
   //   PAUSED → READY, PLAYING → RESULT, RESULT → READY,
-  //   PAUSED → меню, RESULT → меню, RESULT → READY следующего уровня.
+  //   PAUSED → меню, RESULT → меню, RESULT → READY следующего уровня,
+  //   RESULT → заставка эпохи в меню (с 0.9).
   //   Из меню сцена запускается в READY выбранного уровня.
   // Каждый переход — одна функция. Первой строкой она проверяет, можно ли
   // перейти из текущего режима; если нельзя — ничего не делает.
@@ -774,42 +851,82 @@ export class GameScene extends Phaser.Scene {
     this.scene.restart(data);
   }
 
+  // RESULT → заставка эпохи (с 0.9): «Следующая эпоха →» на итогах последнего уровня эпохи.
+  // Табличка закрывается, уровень выключается, меню показывает заставку смены эпохи.
+  private nextEpoch(): void {
+    if (this.mode !== 'result') return;
+    this.mode = 'ready';
+
+    this.scene.stop('ResultScene');
+    const data: MenuData = { view: 'epochEnd' };
+    this.scene.start('MenuScene', data);
+  }
+
   // PLAYING → RESULT: победа или поражение. Игра замирает, поверх — табличка итога.
+  // outcome — чем кончился уровень: рассвет, костёр погас, (с 0.9) мамонт повержен или закат раньше.
   // Звёзды сразу сохраняются (save.ts хранит лучший результат уровня).
-  private endGame(isWin: boolean): void {
+  private endGame(outcome: LevelOutcome): void {
     if (this.mode !== 'playing') return;
     this.mode = 'result';
+    const isWin = outcome === 'dawn' || outcome === 'bossDefeated';
     // Звёзды (раздел 5 плана): проиграл — ни одной; победа — звезда за рассвет и по звезде
     // за жар не ниже засечки и за starFed накормленных путников. Условия — в StarGoals.ts.
-    const starGoals = describeStarGoals(isWin, this.campfire.wasBelowMark, this.stats.fed, this.level.starFed);
+    const starGoals = describeStarGoals(
+      isWin,
+      this.campfire.wasBelowMark,
+      this.stats.fed,
+      this.level.starFed,
+      this.level.boss !== undefined,
+    );
     const stars = starGoals.filter((goal) => goal.isDone).length;
     recordLevel(this.levelIndex, stars);
     track({
       name: 'levelEnd',
       level: this.levelIndex + 1,
       isWin,
-      reason: isWin ? 'dawn' : 'fireOut',
+      reason: outcome,
       day: this.cycle.dayNumber,
       stars,
       ...this.stats,
     });
+    const newAchievements = this.unlockEarnedAchievements(outcome);
 
     this.scene.pause();
     this.sound.pauseAll();
-    const hasNext = isWin && this.levelIndex + 1 < LEVELS.length;
+    // Последний уровень эпохи пройден — вместо «Дальше» кнопка «Следующая эпоха →».
+    const isEpochDone = isWin && this.levelIndex === LEVELS_PER_EPOCH - 1;
+    const hasNext = isWin && !isEpochDone && this.levelIndex + 1 < LEVELS.length;
     const data: ResultData = {
-      isWin,
+      outcome,
       starGoals,
       stats: this.stats,
       // Пережиты все сутки уровня — или те, что успели закончиться до поражения.
       days: isWin ? this.level.dayCount : this.cycle.dayNumber - 1,
       hasWolves: this.level.wolves !== undefined,
       hasFishing: this.level.fishing !== undefined,
+      hasBoss: this.level.boss !== undefined,
+      newAchievements,
       onRestart: () => this.restart(),
       onMenu: () => this.quitToMenu(),
       onNext: hasNext ? () => this.nextLevel() : undefined,
+      onNextEpoch: isEpochDone ? () => this.nextEpoch() : undefined,
     };
     this.scene.launch('ResultScene', data);
+  }
+
+  // Уровень кончился с итогом outcome: какие достижения выполнены (data/achievements.ts).
+  // Новые save.ts запоминает, аналитика получает событие. Вернёт названия новых — для плашки на итогах.
+  private unlockEarnedAchievements(outcome: LevelOutcome): string[] {
+    const end = {
+      levelIndex: this.levelIndex,
+      outcome,
+      stats: this.stats,
+      hasWolves: this.level.wolves !== undefined,
+    };
+    const earned = ACHIEVEMENTS.filter((achievement) => achievement.isEarned(end));
+    const fresh = unlockAchievements(earned.map((achievement) => achievement.id));
+    for (const id of fresh) track({ name: 'achievement', id });
+    return earned.filter((achievement) => fresh.includes(achievement.id)).map((achievement) => achievement.name);
   }
 
   // ===== Мир =====
