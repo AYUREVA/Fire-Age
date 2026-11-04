@@ -125,11 +125,13 @@ export const COLORS = {
   wolfEar: 0xc98290, // розовое внутри уха волка
 
   // ===== Мамонт (с 0.9) =====
-  mammoth: 0x8a5a3c, // бурая шерсть
-  mammothDark: 0x5e3a26, // шерсть в тени: дальние ноги, ухо, пряди
-  mammothLight: 0xb07a52, // шерсть на свету: спина, макушка
-  mammothTusk: 0xf4ead2, // бивни
-  mammothTuskShade: 0xcfc2a2, // бивни в тени
+  mammoth: 0x7a4a2e, // бурая шерсть
+  mammothDark: 0x4f2d1a, // шерсть в тени: ухо, пряди, брюхо
+  mammothLight: 0xb07a4c, // шерсть на свету: спина, макушка
+  mammothTusk: 0xf6ecd4, // бивни и ногти
+  mammothTuskShade: 0xcdbd98, // бивни в тени, дальний бивень
+  mammothNose: 0xc98a78, // розовый кончик хобота
+  mammothFarLeg: 0xa8968a, // краска для дальних ног: они в тени туловища
   bossBar: 0xd9482b, // заливка полосы здоровья мамонта
   medalRibbon: 0xc8432b, // лента медальона достижения
   medalGold: 0xffc93c, // золотой медальон достижения
