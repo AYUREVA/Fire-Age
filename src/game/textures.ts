@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { COLORS } from './palette';
+import type { Point } from './fx';
 
 // =====================================================================
 //  Текстуры игры. Всё рисуется кодом через Graphics один раз при старте.
@@ -53,10 +54,12 @@ export const TEXTURES = {
   girlBack: 'girl-back', // девушка: две косы с бусинами, корзина за спиной
   girlFront: 'girl-front',
   bubble: 'bubble', // пузырь над головой путника: что он хочет
-  // Помощники вождя (с 0.8): смотрят на нас, без капюшона — рыжие волосы и повязка охрой.
+  // Помощники вождя (с 0.8): смотрят на нас, у каждой роли свой наряд (см. drawHelper).
   // Точка опоры — ноги. Они же — картинка на точке найма.
-  gatherer: 'gatherer', // сборщик: зелёная накидка, каменный топорик
-  helperHunter: 'helper-hunter', // охотник: серая волчья накидка, копьё
+  gatherer: 'gatherer', // сборщик: меховая шапка с ушами и помпоном, бурая накидка, топорик
+  helperHunter: 'helper-hunter', // охотник: волчья шкура (голова волка над лбом, лапы на плечах), копьё
+  helperBadgeGatherer: 'helper-badge-gatherer', // каменный значок с топором над головой работающего сборщика
+  helperBadgeHunter: 'helper-badge-hunter', // каменный значок с копьём над головой работающего охотника
   bush: 'bush', // зелёный куст, точка опоры — низ ствола
   bushSnow: 'bush-snow', // снег на кроне куста (тот же размер, ложится поверх)
   stump: 'stump', // пенёк — куст без хвороста
@@ -66,7 +69,11 @@ export const TEXTURES = {
   cookedMeat: 'cooked-meat', // жареное мясо: румяная ножка с косточкой
   rawFish: 'raw-fish', // сырая рыба: серебристая, хвостом влево
   cookedFish: 'cooked-fish', // жареная рыба: золотистая, с полосками от огня
-  iceHole: 'ice-hole', // прорубь: тёмная вода в ледяном ободке со снегом (лежит на земле)
+  iceHole: 'ice-hole', // прорубь: тёмная вода в неровной ледяной кромке (лежит на льду озера)
+  iceLake: 'ice-lake', // замёрзшее озеро вокруг проруби: снежный берег, лёд синеет к середине, трещины
+  fishShadow: 'fish-shadow', // тень рыбы подо льдом, смотрит вправо (красится прозрачностью)
+  reed: 'reed', // стебель камыша с бархатной метёлкой; точка опоры — низ
+  bobber: 'bobber', // поплавок: красный верх, белый низ, палочка сверху
   snowflake: 'snowflake', // снежинка: падающий снег и снег из куста
   chip: 'chip', // щепка, летит из куста при ударе
   dropZone: 'drop-zone', // площадка кучи у костра: светлая рамка (иконку ставит ItemPile)
@@ -112,6 +119,26 @@ export const TEXTURES = {
   pauseButton: 'pause-button', // круглая каменная кнопка паузы в углу экрана
   soundOnButton: 'sound-on-button', // круглая каменная кнопка звука: динамик со звуковыми волнами
   soundOffButton: 'sound-off-button', // та же кнопка, звук выключен: динамик перечёркнут
+  // Мамонт (с 0.9).
+  // Мамонт собран из частей, как волк: все смотрят вправо. Где каждая часть
+  // и вокруг какой точки вращается — MAMMOTH_PARTS (ниже), собирает Mammoth.ts.
+  mammothBody: 'mammoth-body', // туловище: горб у плеч, спина скатом к крупу, снег по спине
+  mammothSkirt: 'mammoth-skirt', // юбка шерсти: длинные пряди висят почти до земли (за туловищем)
+  mammothHead: 'mammoth-head', // голова: купол макушки, ухо, глаз с бровью; вращается у шеи
+  mammothLid: 'mammoth-lid', // веко: закрывает глаз, когда мамонт моргает
+  mammothTrunk0: 'mammoth-trunk-0', // хобот — три звена, каждое вращается от конца предыдущего
+  mammothTrunk1: 'mammoth-trunk-1',
+  mammothTrunk2: 'mammoth-trunk-2', // последнее звено — загнутый «палец» на конце
+  mammothTusk: 'mammoth-tusk', // ближний бивень: длинная дуга вперёд и вверх
+  mammothTuskFar: 'mammoth-tusk-far', // дальний бивень — темнее, за головой
+  mammothLeg: 'mammoth-leg', // нога-столб с меховой манжетой и ногтями; вращается у бедра
+  mammothTail: 'mammoth-tail', // хвост с кисточкой; вращается у основания
+  mammothIcon: 'mammoth-icon', // маленький мамонт: на табличке «ИДЁТ МАМОНТ!» и на полосе здоровья
+  bossBarPlate: 'boss-bar-plate', // каменная плашка полосы здоровья мамонта
+  bossChip: 'boss-chip', // каменная плашка «Победи его до заката» под табличкой «ИДЁТ МАМОНТ!»
+  achievementMedal: 'achievement-medal', // золотой медальон на ленте: иконка достижения
+  achievementPlate: 'achievement-plate', // каменная плашка «НОВОЕ ДОСТИЖЕНИЕ»
+  meatMountain: 'meat-mountain', // мультяшная гора окороков на снегу — там, где пал мамонт
 } as const;
 
 // Шрифт всех надписей. Это тоже «ассет»: свой шрифт подключается здесь.
@@ -154,6 +181,13 @@ const FIRE_CLUB_FLAME_ROOM = 30;
 const FIRE_CLUB_FLAME_SIDE = 8;
 const FIRE_CLUB_SIZE: Size = { w: CLUB_SIZE.w + FIRE_CLUB_FLAME_SIDE * 2, h: CLUB_SIZE.h + FIRE_CLUB_FLAME_ROOM };
 const AXE_SIZE: Size = { w: 88, h: 100 };
+// Помощник рисуется как путник, но картинка шире и выше на HELPER_ROOM: волчий плащ с хвостом
+// шире путника, уши волка — выше головы. Ноги — по-прежнему у нижнего края.
+const HELPER_ROOM = { side: 18, top: 30 };
+const HELPER_SIZE: Size = { w: 84 + HELPER_ROOM.side * 2, h: 112 + HELPER_ROOM.top };
+const HELPER_BADGE_SIZE: Size = { w: 44, h: 50 };
+// Значок роли: иконка инструмента внутри — такой высоты.
+const HELPER_BADGE_ICON_HEIGHT = 26;
 const SPEAR_SIZE: Size = { w: 40, h: 150 };
 const RING_SIZE: Size = { w: 90, h: 44 };
 const JOYSTICK_BASE_SIZE: Size = { w: 128, h: 128 };
@@ -175,6 +209,13 @@ const MEAT_SIZE: Size = { w: 48, h: 32 };
 // Рыба того же размера, что мясо: стопки и кучи складываются одинаково.
 const FISH_SIZE: Size = MEAT_SIZE;
 const ICE_HOLE_SIZE: Size = { w: 190, h: 110 };
+export const ICE_LAKE_SIZE: Size = { w: 400, h: 240 };
+// Где прорубь на картинке озера: от середины озера. Прорубь у левого края —
+// озеро тянется от неё вправо, не заходя под деревья леса.
+export const ICE_LAKE_HOLE_OFFSET = { x: -80, y: -16 };
+const FISH_SHADOW_SIZE: Size = { w: 44, h: 22 };
+const REED_SIZE: Size = { w: 40, h: 110 };
+const BOBBER_SIZE: Size = { w: 24, h: 34 };
 const TUSK_SIZE: Size = { w: 36, h: 44 };
 // Высота корня клыка (тёмная верхняя часть).
 const TUSK_ROOT_HEIGHT = 12;
@@ -236,6 +277,16 @@ const TUTORIAL_ARROW_SIZE: Size = { w: 48, h: 56 };
 const STONE_BANNER_SIZE: Size = { w: 520, h: 170 };
 const STONE_BUTTON_SIZE: Size = { w: 210, h: 66 };
 const PAUSE_BUTTON_SIZE: Size = { w: 60, h: 60 };
+// Иконка — мамонт целиком в покое, уменьшенный в MAMMOTH_ICON_SCALE раз;
+// MAMMOTH_ICON_GROUND — где в иконке его земля (точка опоры).
+const MAMMOTH_ICON_SIZE: Size = { w: 75, h: 60 };
+const MAMMOTH_ICON_SCALE = 0.175;
+const MAMMOTH_ICON_GROUND = { x: 31, y: 56 };
+const MEAT_MOUNTAIN_SIZE: Size = { w: 190, h: 120 };
+const BOSS_CHIP_SIZE: Size = { w: 250, h: 46 };
+export const BOSS_BAR_SIZE: Size = { w: 300, h: 62 };
+const ACHIEVEMENT_MEDAL_SIZE: Size = { w: 56, h: 64 };
+export const ACHIEVEMENT_PLATE_SIZE: Size = { w: 320, h: 84 };
 
 // ===== Параметры рисования =====
 
@@ -317,8 +368,10 @@ export function createTextures(scene: Phaser.Scene): void {
   bake(scene, TEXTURES.girlBack, TRAVELER_SIZE, (g) => drawGirl(g, false));
   bake(scene, TEXTURES.girlFront, TRAVELER_SIZE, (g) => drawGirl(g, true));
   bake(scene, TEXTURES.bubble, BUBBLE_SIZE, drawBubble);
-  bake(scene, TEXTURES.gatherer, TRAVELER_SIZE, (g) => drawHelper(g, COLORS.gathererRobe, COLORS.gathererRobeShade, false));
-  bake(scene, TEXTURES.helperHunter, TRAVELER_SIZE, (g) => drawHelper(g, COLORS.hunterRobe, COLORS.hunterRobeShade, true));
+  bake(scene, TEXTURES.gatherer, HELPER_SIZE, (g) => drawHelper(g, false));
+  bake(scene, TEXTURES.helperHunter, HELPER_SIZE, (g) => drawHelper(g, true));
+  bake(scene, TEXTURES.helperBadgeGatherer, HELPER_BADGE_SIZE, (g) => drawHelperBadge(g, COLORS.gathererRole, (icon) => drawAxe(icon, false), AXE_SIZE));
+  bake(scene, TEXTURES.helperBadgeHunter, HELPER_BADGE_SIZE, (g) => drawHelperBadge(g, COLORS.hunterRole, (icon) => drawSpear(icon, false), SPEAR_SIZE));
   bake(scene, TEXTURES.bush, BUSH_SIZE, drawBush);
   bake(scene, TEXTURES.bushSnow, BUSH_SIZE, drawBushSnow);
   bake(scene, TEXTURES.stump, STUMP_SIZE, drawStump);
@@ -333,6 +386,10 @@ export function createTextures(scene: Phaser.Scene): void {
     drawFish(g, COLORS.cookedFish, COLORS.cookedFishShade, COLORS.cookedFishBelly, true),
   );
   bake(scene, TEXTURES.iceHole, ICE_HOLE_SIZE, drawIceHole);
+  bake(scene, TEXTURES.iceLake, ICE_LAKE_SIZE, drawIceLake);
+  bake(scene, TEXTURES.fishShadow, FISH_SHADOW_SIZE, drawFishShadow);
+  bake(scene, TEXTURES.reed, REED_SIZE, drawReed);
+  bake(scene, TEXTURES.bobber, BOBBER_SIZE, drawBobber);
   bake(scene, TEXTURES.snowflake, SNOWFLAKE_SIZE, drawSnowflake);
   bake(scene, TEXTURES.chip, CHIP_SIZE, drawChip);
   bake(scene, TEXTURES.dropZone, DROP_ZONE_SIZE, drawDropZone);
@@ -376,6 +433,24 @@ export function createTextures(scene: Phaser.Scene): void {
   bake(scene, TEXTURES.epochPolar, EPOCH_ICON_SIZE, drawEpochPolar);
   bake(scene, TEXTURES.epochFuture, EPOCH_ICON_SIZE, drawEpochFuture);
   bake(scene, TEXTURES.tutorialArrow, TUTORIAL_ARROW_SIZE, drawTutorialArrow);
+  for (const part of Object.values(MAMMOTH_PARTS)) {
+    bake(scene, part.key, { w: part.box.w, h: part.box.h }, (g) => {
+      g.translateCanvas(-part.box.x, -part.box.y);
+      part.draw(g);
+    });
+  }
+  bake(scene, TEXTURES.mammothIcon, MAMMOTH_ICON_SIZE, (g) => {
+    g.save();
+    g.translateCanvas(MAMMOTH_ICON_GROUND.x, MAMMOTH_ICON_GROUND.y);
+    g.scaleCanvas(MAMMOTH_ICON_SCALE, MAMMOTH_ICON_SCALE);
+    drawWholeMammoth(g);
+    g.restore();
+  });
+  bake(scene, TEXTURES.meatMountain, MEAT_MOUNTAIN_SIZE, drawMeatMountain);
+  bakeStonePlate(scene, TEXTURES.bossChip, BOSS_CHIP_SIZE.w, BOSS_CHIP_SIZE.h);
+  bakeStonePlate(scene, TEXTURES.bossBarPlate, BOSS_BAR_SIZE.w, BOSS_BAR_SIZE.h);
+  bake(scene, TEXTURES.achievementMedal, ACHIEVEMENT_MEDAL_SIZE, drawAchievementMedal);
+  bakeStonePlate(scene, TEXTURES.achievementPlate, ACHIEVEMENT_PLATE_SIZE.w, ACHIEVEMENT_PLATE_SIZE.h);
 }
 
 // Рисует картинку на временном Graphics и сохраняет её как текстуру под ключом key.
@@ -2011,31 +2086,121 @@ function drawHunter(g: Graphics, isFront: boolean): void {
   }
 }
 
-// Помощник вождя (с 0.8) — как путник, но без капюшона: рыжие волосы, повязка охрой
-// на лбу, накидка своего цвета. Охотник держит копьё, сборщик — каменный топорик.
-function drawHelper(g: Graphics, robe: number, shade: number, isHunter: boolean): void {
+// Помощник вождя (с 0.8): спереди, как путник, но без капюшона и в своём наряде.
+// Сборщик — меховая шапка с ушами-клапанами и помпоном (над бровями, лицо открыто),
+// бурая накидка, каменный топорик. Охотник — волчья шкура: плащ с хвостом, лапы на плечах,
+// бусы из клыков, голова волка над лбом, копьё. Картинка шире и выше путника на HELPER_ROOM.
+function drawHelper(g: Graphics, isHunter: boolean): void {
+  g.save();
+  g.translateCanvas(HELPER_ROOM.side, HELPER_ROOM.top);
+  if (isHunter) drawHunterHelper(g);
+  else drawGathererHelper(g);
+  g.restore();
+}
+
+function drawGathererHelper(g: Graphics): void {
   const cx = TRAVELER_CX;
   const y = TRAVELER_HEAD_Y;
   const toolX = cx + TRAVELER_STICK_X;
-
-  if (isHunter) drawTravelerStick(g, toolX, true);
-  drawTravelerRobe(g, robe, shade);
-  if (!isHunter) {
-    // Топорик: короткая рукоять в руке и каменное лезвие на ремне.
-    limb(g, toolX, 84, toolX - 4, 40, 4, COLORS.wood);
-    const blade = [toolX - 5, 36, toolX + 9, 30, toolX + 12, 44, toolX - 3, 48];
-    fillPolygon(g, blade, COLORS.stone);
-    fillPolygon(g, [toolX + 9, 30, toolX + 12, 44, toolX + 4, 46], COLORS.stoneDark);
-    strokePolygon(g, blade);
-    limb(g, toolX - 7, 42, toolX - 1, 44, 3, COLORS.leather);
-  }
-  // Рука в рукавице на рукояти.
+  drawTravelerRobe(g, COLORS.gathererRobe, COLORS.gathererRobeShade);
+  // Топорик: короткая рукоять в руке и каменное лезвие на ремне.
+  limb(g, toolX, 84, toolX - 4, 36, 4, COLORS.wood);
+  const blade = [toolX - 5, 32, toolX + 9, 26, toolX + 12, 40, toolX - 3, 44];
+  fillPolygon(g, blade, COLORS.stone);
+  fillPolygon(g, [toolX + 9, 26, toolX + 12, 40, toolX + 4, 42], COLORS.stoneDark);
+  strokePolygon(g, blade);
+  limb(g, toolX - 7, 38, toolX - 1, 40, 3, COLORS.leather);
   outlinedCircle(g, toolX - 2, 64, 6, COLORS.furDark);
-  // Лохматые волосы за головой, лицо, повязка охрой с узелком.
-  outlinedBlobs(g, [cx - 13, y - 6, 8, cx - 6, y - 12, 9, cx + 4, y - 13, 9, cx + 12, y - 7, 8, cx - 15, y + 3, 6, cx + 15, y + 3, 6], COLORS.hair);
+  // Уши-клапаны шапки по бокам лица, лицо, купол шапки над бровями, меховой край, помпон.
+  outlinedEllipse(g, cx - 19, y + 4, 12, 26, COLORS.furDark);
+  outlinedEllipse(g, cx + 19, y + 4, 12, 26, COLORS.furDark);
   drawTravelerFace(g);
-  limb(g, cx - 13, y - 8, cx + 13, y - 8, 4, COLORS.ochre);
-  outlinedCircle(g, cx + 14, y - 7, 3, COLORS.ochre);
+  outlinedBlobs(g, [cx, y - 24, 16, cx - 11, y - 18, 10, cx + 11, y - 18, 10], COLORS.furDark);
+  crescent(g, cx, y - 24, 15, 15, 0, -4, COLORS.hairShade, 0.6);
+  const rim: number[] = [];
+  for (let x = cx - 19; x <= cx + 19; x += 6.3) rim.push(x, y - 13, 4.5);
+  outlinedBlobs(g, rim, COLORS.travelerHideLight);
+  shadeBlobs(g, rim, COLORS.travelerHide);
+  outlinedCircle(g, cx, y - 42, 6, COLORS.travelerHideLight);
+}
+
+function drawHunterHelper(g: Graphics): void {
+  const { h } = TRAVELER_SIZE;
+  const cx = TRAVELER_CX;
+  const y = TRAVELER_HEAD_Y;
+  const toolX = cx + TRAVELER_STICK_X;
+  drawTravelerStick(g, toolX, true);
+  // Волчий плащ за спиной — шире тела, с хвостом.
+  const cape = splinePoints([cx - 18, 38, cx - 32, 70, cx - 34, h - 12, cx + 34, h - 12, cx + 32, 70, cx + 18, 38, cx - 18, 38], 24);
+  fillPolygon(g, cape, COLORS.hunterRobeShade);
+  strokePolygon(g, cape);
+  taper(g, splinePoints([cx - 30, h - 30, cx - 42, h - 22, cx - 44, h - 10], 8), 12, 6, COLORS.hunterRobe);
+  drawTravelerRobe(g, COLORS.hunterRobe, COLORS.hunterRobeShade);
+  // Лапы шкуры на плечах (с когтями) и бусы из клыков.
+  for (const side of [-1, 1]) {
+    taper(g, splinePoints([cx + side * 16, 44, cx + side * 8, 56, cx + side * 2, 60], 8), 9, 7, COLORS.hunterRobe);
+    g.fillStyle(COLORS.outline, 1);
+    for (let i = 0; i < 3; i++) g.fillCircle(cx + side * (1 + i * 2.5), 62, 1.2);
+  }
+  for (let i = 0; i < 5; i++) {
+    const a = Math.PI * (0.18 + i * 0.16);
+    const bx = cx + Math.cos(a) * 13;
+    const by = 52 + Math.sin(a) * 9;
+    const fang = [bx - 2.5, by - 2, bx + 2.5, by - 2, bx, by + 7];
+    fillPolygon(g, fang, COLORS.bone);
+    g.lineStyle(1.5, COLORS.outline, 1);
+    g.strokePoints(toPoints(fang), true, true);
+  }
+  outlinedCircle(g, toolX - 2, 64, 6, COLORS.furDark);
+  // Шкура обрамляет лицо по бокам, голова волка — над лбом.
+  for (const side of [-1, 1]) outlinedEllipse(g, cx + side * 19, y + 4, 12, 28, COLORS.hunterRobe);
+  drawTravelerFace(g);
+  drawWolfHood(g, cx, y - 20);
+}
+
+// Голова волка капюшоном с серединой в (cx, y): уши с розовым внутри, купол головы,
+// светлая морда с носом, клыки снизу морды, жёлтые глаза.
+function drawWolfHood(g: Graphics, cx: number, y: number): void {
+  for (const side of [-1, 1]) {
+    const ear = [cx + side * 6, y - 20, cx + side * 15, y - 40, cx + side * 21, y - 16];
+    fillPolygon(g, ear, COLORS.hunterRobe);
+    fillPolygon(g, [cx + side * 9, y - 21, cx + side * 15, y - 34, cx + side * 18, y - 19], COLORS.wolfEar);
+    strokePolygon(g, ear);
+  }
+  outlinedBlobs(g, [cx, y - 10, 20, cx - 14, y - 2, 10, cx + 14, y - 2, 10], COLORS.hunterRobe);
+  crescent(g, cx, y - 10, 19, 19, 0, -4, COLORS.hunterRobeShade, 0.5);
+  outlinedEllipse(g, cx, y - 2, 24, 16, COLORS.wolfBelly);
+  outlinedEllipse(g, cx, y - 8, 9, 6, COLORS.outline);
+  g.fillStyle(COLORS.white, 0.7);
+  g.fillCircle(cx - 2, y - 9, 1.5);
+  for (const side of [-1, 1]) {
+    const fang = [cx + side * 7, y + 4, cx + side * 4, y + 4, cx + side * 5.5, y + 10];
+    fillPolygon(g, fang, COLORS.white);
+    g.lineStyle(1.5, COLORS.outline, 1);
+    g.strokePoints(toPoints(fang), true, true);
+    outlinedEllipse(g, cx + side * 10, y - 17, 7, 5, COLORS.wolfEye);
+    g.fillStyle(COLORS.outline, 1);
+    g.fillEllipse(cx + side * 10, y - 17, 2, 4);
+  }
+}
+
+// Значок роли: каменный кружок с кольцом цвета роли, хвостик снизу (указывает на помощника),
+// внутри — иконка инструмента (drawIcon рисует её в рамке iconSize, уменьшаем до HELPER_BADGE_ICON_HEIGHT).
+function drawHelperBadge(g: Graphics, color: number, drawIcon: (icon: Graphics) => void, iconSize: Size): void {
+  const cx = HELPER_BADGE_SIZE.w / 2;
+  const cy = 22;
+  outlinedPolygon(g, [cx - 6, cy + 16, cx, cy + 25, cx + 6, cy + 16], COLORS.badgeStone);
+  outlinedCircle(g, cx, cy, 18, COLORS.badgeStone);
+  g.lineStyle(3.5, color, 1);
+  g.strokeCircle(cx, cy, 14);
+  g.fillStyle(COLORS.white, 0.18);
+  g.fillEllipse(cx - 6, cy - 9, 13, 6);
+  const scale = HELPER_BADGE_ICON_HEIGHT / iconSize.h;
+  g.save();
+  g.translateCanvas(cx - (iconSize.w * scale) / 2, cy - (iconSize.h * scale) / 2);
+  g.scaleCanvas(scale, scale);
+  drawIcon(g);
+  g.restore();
 }
 
 // Старец: кожаный плащ с капюшоном, длинная седая борода, посох с перьями.
@@ -2628,45 +2793,126 @@ function drawDropZone(g: Graphics): void {
 
 // Прорубь, вид сверху под углом: снежный вал, ледяной ободок с трещинами,
 // тёмная вода с бликом и кругами. Лежит плоско на земле, точка опоры — середина.
+// Неровный замкнутый контур вокруг (cx, cy): радиусы rx, ry, «рябь» wobble (доля радиуса),
+// seed — чтобы у каждого контура своя форма. Возвращает гладкие точки [x, y, …].
+function wobblyLoop(cx: number, cy: number, rx: number, ry: number, seed: number, wobble: number, corners = 26): number[] {
+  const points: number[] = [];
+  for (let i = 0; i < corners; i++) {
+    const a = (i / corners) * Math.PI * 2;
+    const k = 1 + wobble * (Math.sin(a * 3 + seed) * 0.6 + Math.sin(a * 5 + seed * 2.3) * 0.4);
+    points.push(cx + Math.cos(a) * rx * k, cy + Math.sin(a) * ry * k);
+  }
+  return splinePoints([...points, points[0], points[1]], corners * 4);
+}
+
+// Многоугольник с тёмной обводкой.
+function outlinedPolygon(g: Graphics, points: number[], color: number): void {
+  fillPolygon(g, points, color);
+  strokePolygon(g, points);
+}
+
+// Прорубь: неровная ледяная кромка с толщиной, тёмная вода с глубиной, блики на воде и кромке.
+// Снежного вала нет — прорубь лежит на льду озера (TEXTURES.iceLake).
 function drawIceHole(g: Graphics): void {
   const { w, h } = ICE_HOLE_SIZE;
   const cx = w / 2;
   const cy = h / 2;
-  // Снежный вал вокруг льда — неровный, из нескольких сугробиков.
-  g.fillStyle(COLORS.snowShade, 1);
-  g.fillEllipse(cx, cy + 4, w - 8, h - 14);
-  g.fillStyle(COLORS.snowLight, 1);
-  for (const [x, y, rx, ry] of [[-62, -6, 26, 16], [-30, -26, 32, 14], [18, -28, 34, 13], [60, -8, 26, 16], [44, 22, 32, 14], [-40, 24, 34, 13]]) {
-    g.fillEllipse(cx + x, cy + y, rx * 2, ry * 2);
+  const rx = 46;
+  const ry = 26;
+  outlinedPolygon(g, wobblyLoop(cx, cy, rx + 12, ry + 9, 4, 0.08), COLORS.ice);
+  outlinedPolygon(g, wobblyLoop(cx, cy, rx, ry, 5, 0.06), COLORS.iceShade);
+  fillPolygon(g, wobblyLoop(cx, cy + ry * 0.18, rx * 0.95, ry * 0.8, 5, 0.06), COLORS.water);
+  softEllipse(g, cx, cy + ry * 0.25, rx * 1.4, ry * 1.1, COLORS.outline, 0.12, 4);
+  // Блики на воде — две дуги.
+  g.lineStyle(4, COLORS.waterLight, 0.9);
+  g.beginPath();
+  g.arc(cx - rx * 0.15, cy + ry * 0.15, rx * 0.55, Math.PI * 1.1, Math.PI * 1.45, false);
+  g.strokePath();
+  g.lineStyle(3, COLORS.waterLight, 0.6);
+  g.beginPath();
+  g.arc(cx + rx * 0.2, cy + ry * 0.3, rx * 0.35, Math.PI * 1.65, Math.PI * 1.85, false);
+  g.strokePath();
+  // Блик на кромке слева сверху.
+  g.lineStyle(3, COLORS.white, 0.95);
+  g.strokePoints(toPoints(splinePoints([cx - rx - 4, cy - 4, cx - rx * 0.6, cy - ry - 6, cx - rx * 0.1, cy - ry - 9], 10)), false);
+}
+
+// Замёрзшее озеро: снежный берег с сугробами, голубая тень под ним, лёд синеет к середине,
+// трещины лучами от проруби, блики-штрихи, языки позёмки. Прорубь — отдельно, сверху.
+function drawIceLake(g: Graphics): void {
+  const { w, h } = ICE_LAKE_SIZE;
+  const cx = w / 2;
+  const cy = h / 2;
+  const hole = { x: cx + ICE_LAKE_HOLE_OFFSET.x, y: cy + ICE_LAKE_HOLE_OFFSET.y };
+  const shore = wobblyLoop(cx, cy, 160, 90, 1.2, 0.13, 30);
+  outlinedPolygon(g, shore, COLORS.snowLight);
+  fillPolygon(g, wobblyLoop(cx, cy + 1, 151, 82, 1.2, 0.13, 30), COLORS.snowShade);
+  outlinedPolygon(g, wobblyLoop(cx, cy + 2, 145, 76, 1.2, 0.13, 30), COLORS.lakeIce);
+  for (const [k, color] of [[0.82, COLORS.lakeIceMid], [0.62, COLORS.lakeIceDeep], [0.42, COLORS.lakeIceDeepest]]) {
+    fillPolygon(g, wobblyLoop(cx - 20 + (hole.x - cx + 20) * (1 - k), cy + 2, 145 * k, 74 * k, 2.4 + k, 0.16), color);
   }
-  // Ледяной ободок.
-  outlinedEllipse(g, cx, cy, 136, 72, COLORS.ice);
-  g.fillStyle(COLORS.iceShade, 1);
-  g.fillEllipse(cx, cy + 10, 120, 44);
-  g.fillStyle(COLORS.ice, 1);
-  g.fillEllipse(cx, cy + 4, 118, 46);
-  // Трещины во льду.
-  g.lineStyle(1.5, COLORS.iceShade, 1);
-  g.strokePoints(toPoints([cx - 62, cy - 4, cx - 54, cy - 2, cx - 50, cy + 4]), false);
-  g.strokePoints(toPoints([cx + 50, cy - 14, cx + 56, cy - 10, cx + 62, cy - 12]), false);
-  g.strokePoints(toPoints([cx + 30, cy + 26, cx + 34, cy + 31]), false);
-  // Вода: тёмная, с тенью от кромки льда сверху.
-  g.fillStyle(COLORS.water, 1);
-  g.fillEllipse(cx, cy + 4, 90, 36);
-  g.lineStyle(OUTLINE_WIDTH, COLORS.outline, 1);
-  g.strokeEllipse(cx, cy + 4, 90, 36);
-  g.fillStyle(COLORS.outline, 0.3);
-  g.fillEllipse(cx, cy - 6, 76, 12);
-  // Круги на воде и блик.
-  g.lineStyle(1.5, COLORS.waterLight, 0.9);
-  g.strokeEllipse(cx + 8, cy + 8, 34, 12);
-  g.strokeEllipse(cx + 8, cy + 8, 18, 6);
-  g.fillStyle(COLORS.white, 0.7);
-  g.fillEllipse(cx - 22, cy + 2, 14, 3);
-  // Блики на льду.
-  g.fillStyle(COLORS.white, 0.9);
-  g.fillEllipse(cx - 40, cy - 16, 16, 4);
-  g.fillEllipse(cx + 42, cy + 18, 10, 3);
+  // Трещины: ломаные лучи от проруби, белые с голубой тенью.
+  for (const [a, length] of [[0.3, 105], [1.2, 66], [2.2, 115], [2.9, 88], [3.9, 110], [5.0, 72], [5.7, 126]]) {
+    const crack: number[] = [hole.x, hole.y];
+    for (let i = 1; i <= 4; i++) {
+      const r = (length * i) / 4;
+      const bend = a + Math.sin(i * 2.1) * 0.12;
+      crack.push(hole.x + Math.cos(bend) * r, hole.y + Math.sin(bend) * r * 0.5);
+    }
+    g.lineStyle(2.2, COLORS.white, 0.9);
+    g.strokePoints(toPoints(crack), false);
+    g.lineStyle(1.2, COLORS.iceShade, 0.8);
+    g.strokePoints(toPoints(crack.map((v, i) => (i % 2 ? v + 2 : v))), false);
+  }
+  // Блики-штрихи на льду.
+  g.lineStyle(4, COLORS.white, 0.7);
+  for (const [x, y] of [[-110, -30], [80, -40], [100, 40], [-80, 40]]) {
+    g.lineBetween(cx + x, cy + y, cx + x + 22, cy + y - 8);
+    g.lineBetween(cx + x + 8, cy + y + 5, cx + x + 19, cy + y + 1);
+  }
+  // Языки позёмки на льду.
+  for (const [x, y, length] of [[-130, -6, 70], [10, 52, 86], [60, -44, 52]]) {
+    const tongue = [cx + x, cy + y, cx + x + length * 0.5, cy + y - 6, cx + x + length, cy + y - 1, cx + x + length * 0.6, cy + y + 5];
+    fillPolygon(g, splinePoints([...tongue, tongue[0], tongue[1]], 24), COLORS.snowLight);
+  }
+  // Сугробы по берегу — кучки по три.
+  const drifts: number[] = [];
+  for (const i of [16, 40, 72, 96]) {
+    const x = shore[i * 2];
+    const y = shore[i * 2 + 1];
+    drifts.push(x - 13, y + 1, 10, x, y - 4, 13, x + 13, y + 1, 9);
+  }
+  outlinedBlobs(g, drifts, COLORS.snowLight);
+  shadeBlobs(g, drifts, COLORS.snowShade);
+}
+
+// Тень рыбы подо льдом: тело, хвост, спинной плавник.
+function drawFishShadow(g: Graphics): void {
+  g.fillStyle(COLORS.fishShadow, 1);
+  g.fillEllipse(28, 12, 32, 13);
+  g.fillPoints(toPoints([12, 12, 0, 4, 2, 12, 0, 20]), true);
+  g.fillPoints(toPoints([26, 6, 34, 1, 36, 7]), true);
+}
+
+// Камыш: тонкий стебель, бархатная метёлка с бликом и пушком на конце, сухой лист.
+function drawReed(g: Graphics): void {
+  limbChain(g, splinePoints([20, 106, 19, 60, 21, 26], 10), 3.5, COLORS.reedStem);
+  outlinedEllipse(g, 21, 22, 11, 30, COLORS.reedHead);
+  g.fillStyle(COLORS.reedHeadLight, 1);
+  g.fillEllipse(19, 18, 4, 18);
+  drawShaggyMass(g, [21, 8, 5], [[21, 6, -90, 8, 3, 20]], COLORS.reedFluff);
+  limbChain(g, splinePoints([20, 100, 10, 70, 4, 52], 10), 3.5, COLORS.reedLeaf);
+}
+
+// Поплавок: палочка сверху, белый шар, верхняя половина красная, блик.
+function drawBobber(g: Graphics): void {
+  limb(g, 12, 3, 12, 10, 2, COLORS.woodDark);
+  outlinedCircle(g, 12, 20, 8, COLORS.white);
+  g.fillStyle(COLORS.bobber, 1);
+  g.slice(12, 20, 8, Math.PI, 0, false);
+  g.fillPath();
+  g.fillStyle(COLORS.white, 0.8);
+  g.fillCircle(9, 16, 2);
 }
 
 // Круг точки покупки: утоптанный снег с тёплой заливкой и светлым пунктиром
@@ -3927,6 +4173,315 @@ function drawSoundButton(g: Graphics, isOn: boolean): void {
     g.lineBetween(cx + 6, cx - 9, cx + 17, cx + 4);
     g.lineBetween(cx + 17, cx - 9, cx + 6, cx + 4);
   }
+}
+
+// ===== Мамонт (с 0.9) =====
+
+// Мамонт собран из частей, как волк. Все части нарисованы в одной системе координат:
+// мамонт смотрит вправо, земля — y = 0, середина туловища — x = 0.
+// box — рамка картинки части в этих координатах, pivot — точка вращения
+// (у туловища и юбки — просто точка, где они стоят).
+type MammothPart = { key: string; box: { x: number; y: number; w: number; h: number }; pivot: Point; draw: (g: Graphics) => void };
+
+// Точки строения: где бёдра (дальние ноги — far, передние — front), шея, основание хобота
+// и длины его звеньев, хвост, глаз, макушка (над ней — звёздочки уставшего).
+export const MAMMOTH_ANATOMY = {
+  legLength: 80,
+  legWidth: 40,
+  hips: [
+    { x: 78, y: -78, far: true, front: true },
+    { x: -64, y: -78, far: true, front: false },
+    { x: 54, y: -74, far: false, front: true },
+    { x: -88, y: -74, far: false, front: false },
+  ],
+  neck: { x: 78, y: -176 },
+  trunkBase: { x: 152, y: -146 },
+  trunk: [40, 36, 30],
+  trunkWidths: [32, 26, 20, 13],
+  // Бивни растут чуть позади основания хобота: ближний ниже, дальний выше.
+  tuskNear: { x: 144, y: -134 },
+  tuskFar: { x: 142, y: -138 },
+  tail: { x: -150, y: -150 },
+  eye: { x: 138, y: -194 },
+  headTop: { x: 112, y: -262 },
+};
+
+const MA = MAMMOTH_ANATOMY;
+
+// Сужающаяся полоса через точки: ширина от w0 до w1, общая тёмная обводка
+// (хобот, бивни, хвост). Как limbChain, только к концу тоньше.
+function taper(g: Graphics, points: number[], w0: number, w1: number, color: number): void {
+  const n = points.length / 2;
+  for (const [lineColor, extra] of [[COLORS.outline, OUTLINE_WIDTH], [color, 0]]) {
+    for (let i = 0; i < n; i++) {
+      const w = Phaser.Math.Linear(w0, w1, i / Math.max(1, n - 1));
+      g.fillStyle(lineColor, 1);
+      g.fillCircle(points[i * 2], points[i * 2 + 1], w / 2 + extra);
+      if (i + 1 < n) {
+        const wNext = Phaser.Math.Linear(w0, w1, (i + 1) / Math.max(1, n - 1));
+        g.lineStyle((w + wNext) / 2 + extra * 2, lineColor, 1);
+        g.lineBetween(points[i * 2], points[i * 2 + 1], points[i * 2 + 2], points[i * 2 + 3]);
+      }
+    }
+  }
+}
+
+// Гладкая кривая через опорные точки: список [x, y, …] из steps + 1 точек.
+function splinePoints(points: number[], steps: number): number[] {
+  const out: number[] = [];
+  for (const p of new Phaser.Curves.Spline(toPoints(points)).getPoints(steps)) out.push(p.x, p.y);
+  return out;
+}
+
+// Снежная шапка вдоль линии спины: белая полоса с обводкой, толще в середине,
+// снизу — подтёки, тень и блик.
+function drawSnowCap(g: Graphics, line: number[], thickness: number): void {
+  const top: number[] = [];
+  const bottom: number[] = [];
+  const n = line.length / 2;
+  for (let i = 0; i < n; i++) {
+    const x = line[i * 2];
+    const y = line[i * 2 + 1];
+    const middle = Math.sin((i / (n - 1)) * Math.PI);
+    top.push(x, y - thickness * 0.35 * middle - 1);
+    const drip = Math.max(0, Math.sin(i * 1.3)) * 4;
+    bottom.push(x, y + thickness * (0.5 + 0.5 * middle) + drip * middle);
+  }
+  const shape = [...top];
+  for (let i = n - 1; i >= 0; i--) shape.push(bottom[i * 2], bottom[i * 2 + 1]);
+  fillPolygon(g, shape, COLORS.snowLight);
+  strokePolygon(g, shape);
+  g.lineStyle(3, COLORS.snowShade, 1);
+  g.strokePoints(toPoints(bottom.map((v, i) => (i % 2 ? v - 3 : v))), false);
+  g.lineStyle(2.5, COLORS.white, 0.9);
+  g.strokePoints(toPoints(top.slice(4, top.length - 6).map((v, i) => (i % 2 ? v + 4 : v))), false);
+}
+
+// Пряди шерсти: пары волнистых штрихов [x, y, длина] поверх заливки.
+function drawFurStrokes(g: Graphics, spots: number[][], color: number, alpha: number): void {
+  for (const [x, y, len] of spots) {
+    g.lineStyle(2.6, color, alpha);
+    g.strokePoints(toPoints(splinePoints([x, y, x - 4, y + len * 0.55, x - 1, y + len], 8)), false);
+    g.lineStyle(2, color, alpha * 0.8);
+    g.strokePoints(toPoints(splinePoints([x + 7, y + 4, x + 4, y + 4 + len * 0.45, x + 6, y + 4 + len * 0.8], 8)), false);
+  }
+}
+
+// Туловище: круп, середина, плечи, горб, грудь, брюхо. Пряди висят с груди и крупа.
+// Свет сверху, тень снизу, штрихи шерсти, снег по линии спины.
+function drawMammothBody(g: Graphics): void {
+  const blobs = [-100, -128, 56, -40, -146, 68, 28, -170, 66, 18, -206, 42, 66, -126, 52, -30, -100, 58];
+  const locks: Lock[] = [
+    [102, -116, 75, 28, 12, 18],
+    [92, -96, 88, 26, 11, 12],
+    [-150, -118, 125, 24, 11, -12],
+    [-148, -96, 105, 22, 10, -15],
+    [-146, -150, 160, 18, 10, -25],
+  ];
+  drawShaggyMass(g, blobs, locks, COLORS.mammoth);
+  softEllipse(g, -16, -186, 150, 46, COLORS.mammothLight, 0.2, 4);
+  softEllipse(g, 26, -206, 60, 30, COLORS.mammothLight, 0.22, 3);
+  crescent(g, -30, -128, 128, 82, -4, -16, COLORS.mammothDark, 0.45);
+  drawFurStrokes(g, [[-112, -150, 20], [-64, -176, 18], [-48, -126, 22], [4, -168, 20], [36, -128, 22], [-96, -108, 16], [70, -150, 18], [-6, -106, 18]], COLORS.mammothDark, 0.55);
+  drawFurStrokes(g, [[-92, -178, 12], [-30, -204, 12], [20, -222, 12]], COLORS.mammothLight, 0.85);
+  drawSnowCap(g, splinePoints([-142, -160, -104, -184, -54, -210, -4, -236, 22, -246, 52, -236], 24), 11);
+}
+
+// Юбка шерсти: длинные пряди внизу, между ними тёмная глубина.
+function drawMammothSkirt(g: Graphics): void {
+  const locks: Lock[] = [];
+  let i = 0;
+  for (let x = -146; x <= 110; x += 13, i++) {
+    const length = 44 + (i % 3) * 5 - Math.abs(x + 20) * 0.04;
+    locks.push([x, -96 + (i % 2) * 5, 90 + (i % 2 ? 10 : -6), length, 13, i % 2 ? 22 : -18]);
+  }
+  drawShaggyMass(g, [], locks, COLORS.mammoth);
+  g.fillStyle(COLORS.mammothDark, 0.35);
+  for (let k = 1; k < locks.length; k += 2) g.fillEllipse(locks[k][0] - 6, locks[k][1] + locks[k][3] * 0.45, 7, locks[k][3] * 0.6);
+  g.fillStyle(COLORS.mammothDark, 0.5);
+  for (const lock of locks) g.fillEllipse(lock[0], lock[1] + 8, 14, 10);
+}
+
+// Голова: купол макушки выше горба, лоб, щека, лохматое ухо, глаз с тяжёлой бровью, снег на макушке.
+function drawMammothHead(g: Graphics): void {
+  const top = MA.headTop;
+  drawShaggyMass(g, [114, -214, 46, 138, -176, 34, 114, -160, 38, 90, -196, 34], [], COLORS.mammoth);
+  softEllipse(g, top.x + 4, top.y + 34, 70, 34, COLORS.mammothLight, 0.3, 3);
+  crescent(g, 110, -158, 40, 44, -4, -6, COLORS.mammothDark, 0.35);
+  drawSnowCap(g, splinePoints([top.x - 34, top.y + 26, top.x - 10, top.y + 8, top.x + 18, top.y + 12, top.x + 34, top.y + 30], 12), 7);
+  // Ухо: небольшой лохматый лоскут.
+  const ear = { x: 98, y: -178 };
+  drawShaggyMass(g, [ear.x, ear.y, 14, ear.x - 2, ear.y + 10, 12], [[ear.x - 8, ear.y + 16, 110, 14, 6, 15], [ear.x + 4, ear.y + 18, 85, 12, 6, -12]], COLORS.mammothDark);
+  crescent(g, ear.x, ear.y + 2, 12, 14, 3, 3, COLORS.mammoth, 0.6);
+  // Глаз с бликом и тяжёлая бровь.
+  const eye = MA.eye;
+  g.fillStyle(COLORS.outline, 1);
+  g.fillEllipse(eye.x, eye.y, 13, 14);
+  g.fillStyle(COLORS.mammothDark, 1);
+  g.fillEllipse(eye.x + 0.5, eye.y + 0.5, 8, 9);
+  g.fillStyle(COLORS.white, 1);
+  g.fillCircle(eye.x + 2.5, eye.y - 2, 2.2);
+  g.lineStyle(7, COLORS.mammothDark, 1);
+  g.lineBetween(eye.x - 12, eye.y - 12, eye.x + 10, eye.y - 7);
+  g.lineStyle(2.5, COLORS.outline, 1);
+  g.lineBetween(eye.x - 12, eye.y - 15.5, eye.x + 10, eye.y - 10.5);
+}
+
+// Веко: шерсть поверх глаза и тёмная черта ресниц.
+function drawMammothLid(g: Graphics): void {
+  const eye = MA.eye;
+  g.fillStyle(COLORS.mammoth, 1);
+  g.fillEllipse(eye.x, eye.y, 16, 16);
+  g.lineStyle(2.5, COLORS.outline, 1);
+  g.lineBetween(eye.x - 6, eye.y + 2, eye.x + 6, eye.y + 3);
+}
+
+// Звено хобота номер index: сверху вниз, к концу тоньше, складки поперёк.
+// У последнего на конце загнутый «палец» и розовый кончик.
+function drawMammothTrunk(g: Graphics, index: number): void {
+  const length = MA.trunk[index];
+  const w0 = MA.trunkWidths[index];
+  const w1 = MA.trunkWidths[index + 1];
+  const isLast = index === MA.trunk.length - 1;
+  const points = isLast ? [0, 0, 1, length * 0.55, 6, length * 0.92, 14, length * 1.02] : [0, 0, 0, length];
+  taper(g, splinePoints(points, 10), w0, w1, COLORS.mammoth);
+  if (isLast) {
+    g.fillStyle(COLORS.mammothNose, 1);
+    g.fillEllipse(16, length * 1.02 + 1, 6, 4);
+  }
+  g.lineStyle(2, COLORS.mammothDark, 0.9);
+  for (let y = 6; y < length - 2; y += 8) {
+    const w = Phaser.Math.Linear(w0, w1, y / length) * 0.36;
+    g.lineBetween(-w, y, w, y + 1.5);
+  }
+  softEllipse(g, -w0 * 0.18, length * 0.5, w0 * 0.3, length * 0.8, COLORS.mammothLight, 0.18, 2);
+}
+
+// Бивень от основания (0, 0): дуга вниз-вперёд и вверх. Дальний — темнее, без бликов.
+function drawMammothTusk(g: Graphics, isFar: boolean): void {
+  const tusk = splinePoints([0, 0, 8, 28, 28, 50, 58, 56, 80, 40, 86, 16], 26);
+  taper(g, tusk, 17, 6, isFar ? COLORS.mammothTuskShade : COLORS.mammothTusk);
+  if (isFar) return;
+  g.lineStyle(2.5, COLORS.mammothTuskShade, 1);
+  g.strokePoints(toPoints(tusk.slice(8, -6).map((v, i) => (i % 2 ? v + 3.5 : v))), false);
+  g.lineStyle(2, COLORS.white, 0.7);
+  g.strokePoints(toPoints(tusk.slice(4, 24).map((v, i) => (i % 2 ? v - 3 : v - 1))), false);
+}
+
+// Нога-столб от бедра (0, 0) вниз: тень сбоку, меховая манжета над стопой, три ногтя.
+function drawMammothLeg(g: Graphics, color: number): void {
+  const length = MA.legLength;
+  const w = MA.legWidth;
+  const leg = [-w / 2 + 2, 0, w / 2 - 2, 0, w / 2 + 1, length - 14, w / 2 + 4, length - 4, -w / 2 - 4, length - 4, -w / 2 - 1, length - 14];
+  fillPolygon(g, leg, color);
+  strokePolygon(g, leg);
+  crescent(g, 0, length * 0.5, w / 2 - 1, length * 0.5, -5, 0, COLORS.mammothDark, 0.45);
+  drawFurStrokes(g, [[-8, length * 0.25, 14], [-2, length * 0.5, 12]], COLORS.mammothDark, 0.6);
+  const cuff: Lock[] = [];
+  for (let i = 0; i < 5; i++) cuff.push([-w / 2 + 4 + i * ((w - 8) / 4), length - 26, 90 + (i - 2) * 10, 12, 6, i % 2 ? 10 : -10]);
+  drawShaggyMass(g, [], cuff, color);
+  for (let i = 0; i < 3; i++) {
+    const x = -w / 2 + 8 + i * ((w - 6) / 2);
+    outlinedEllipse(g, x, length - 7, 11, 9, COLORS.mammothTusk);
+    g.fillStyle(COLORS.mammothTuskShade, 1);
+    g.fillEllipse(x, length - 4.5, 9, 3);
+  }
+}
+
+// Хвост от основания (0, 0): короткий, с тёмной кисточкой.
+function drawMammothTail(g: Graphics): void {
+  taper(g, splinePoints([0, 0, -10, 18, -14, 34], 8), 10, 7, COLORS.mammoth);
+  drawShaggyMass(g, [-14, 38, 7], [[-14, 40, 100, 14, 6, 10], [-18, 38, 130, 12, 5, -10]], COLORS.mammothDark);
+}
+
+// Все части мамонта: ключ, рамка, точка вращения и рисунок.
+export const MAMMOTH_PARTS = {
+  body: { key: TEXTURES.mammothBody, box: { x: -190, y: -300, w: 330, h: 260 }, pivot: { x: 0, y: -60 }, draw: drawMammothBody },
+  skirt: { key: TEXTURES.mammothSkirt, box: { x: -170, y: -110, w: 300, h: 100 }, pivot: { x: -20, y: -96 }, draw: drawMammothSkirt },
+  head: { key: TEXTURES.mammothHead, box: { x: 30, y: -270, w: 150, h: 170 }, pivot: MA.neck, draw: drawMammothHead },
+  lid: { key: TEXTURES.mammothLid, box: { x: MA.eye.x - 12, y: MA.eye.y - 10, w: 24, h: 20 }, pivot: MA.neck, draw: drawMammothLid },
+  trunk0: { key: TEXTURES.mammothTrunk0, box: { x: -30, y: -20, w: 70, h: MA.trunk[0] + 40 }, pivot: { x: 0, y: 0 }, draw: (g: Graphics) => drawMammothTrunk(g, 0) },
+  trunk1: { key: TEXTURES.mammothTrunk1, box: { x: -30, y: -20, w: 70, h: MA.trunk[1] + 40 }, pivot: { x: 0, y: 0 }, draw: (g: Graphics) => drawMammothTrunk(g, 1) },
+  trunk2: { key: TEXTURES.mammothTrunk2, box: { x: -30, y: -20, w: 70, h: MA.trunk[2] + 40 }, pivot: { x: 0, y: 0 }, draw: (g: Graphics) => drawMammothTrunk(g, 2) },
+  tusk: { key: TEXTURES.mammothTusk, box: { x: -20, y: -20, w: 120, h: 100 }, pivot: { x: 0, y: 0 }, draw: (g: Graphics) => drawMammothTusk(g, false) },
+  tuskFar: { key: TEXTURES.mammothTuskFar, box: { x: -20, y: -20, w: 120, h: 100 }, pivot: { x: 0, y: 0 }, draw: (g: Graphics) => drawMammothTusk(g, true) },
+  leg: { key: TEXTURES.mammothLeg, box: { x: -32, y: -6, w: 64, h: MA.legLength + 12 }, pivot: { x: 0, y: 0 }, draw: (g: Graphics) => drawMammothLeg(g, COLORS.mammoth) },
+  tail: { key: TEXTURES.mammothTail, box: { x: -36, y: -10, w: 50, h: 70 }, pivot: { x: 0, y: 0 }, draw: drawMammothTail },
+} satisfies Record<string, MammothPart>;
+
+// Мамонт целиком в покое (для иконки): части в том же порядке, что собирает Mammoth.ts.
+function drawWholeMammoth(g: Graphics): void {
+  const at = (point: Point, draw: () => void): void => {
+    g.save();
+    g.translateCanvas(point.x, point.y);
+    draw();
+    g.restore();
+  };
+  for (const hip of MA.hips.filter((h) => h.far)) at(hip, () => drawMammothLeg(g, COLORS.mammothDark));
+  at(MA.tail, () => drawMammothTail(g));
+  for (const hip of MA.hips.filter((h) => !h.far)) at(hip, () => drawMammothLeg(g, COLORS.mammoth));
+  drawMammothSkirt(g);
+  drawMammothBody(g);
+  at(MA.tuskFar, () => drawMammothTusk(g, true));
+  drawMammothHead(g);
+  at(MA.trunkBase, () => {
+    drawMammothTrunk(g, 0);
+    g.translateCanvas(0, MA.trunk[0] - 4);
+    drawMammothTrunk(g, 1);
+    g.translateCanvas(0, MA.trunk[1] - 4);
+    drawMammothTrunk(g, 2);
+  });
+  at(MA.tuskNear, () => drawMammothTusk(g, false));
+}
+
+// Гора окороков: снежный холмик и на нём кучей жареные окорока (рисунок drawMeat, крупнее).
+function drawMeatMountain(g: Graphics): void {
+  const { w, h } = MEAT_MOUNTAIN_SIZE;
+  outlinedEllipse(g, w / 2, h - 18, w - 12, 30, COLORS.snow);
+  // Окорока: x, y левого верхнего угла и размер (снизу — крупнее, наверху — один).
+  const hams = [
+    [8, 58, 1.5],
+    [64, 62, 1.6],
+    [118, 58, 1.5],
+    [34, 30, 1.5],
+    [92, 30, 1.5],
+    [62, 4, 1.4],
+  ];
+  for (const [x, y, scale] of hams) {
+    g.save();
+    g.translateCanvas(x, y);
+    g.scaleCanvas(scale, scale);
+    drawMeat(g, COLORS.cookedMeat, COLORS.cookedMeatShade, COLORS.cookedMeatLight, true);
+    g.restore();
+  }
+}
+
+// ===== Достижения (с 0.9) =====
+
+// Медальон достижения: две ленты сверху, золотой круг с выпуклой звездой.
+function drawAchievementMedal(g: Graphics): void {
+  const { w, h } = ACHIEVEMENT_MEDAL_SIZE;
+  const cx = w / 2;
+  const cy = h - 25;
+  // Ленты — галочкой от верхнего края к медальону.
+  for (const side of [-1, 1]) {
+    const ribbon = [cx + side * 4, cy - 10, cx + side * 18, 3, cx + side * 8, 3, cx - side * 4, cy - 14];
+    fillPolygon(g, ribbon, COLORS.medalRibbon);
+    strokePolygon(g, ribbon);
+  }
+  outlinedCircle(g, cx, cy, 21, COLORS.medalGold);
+  g.lineStyle(2, COLORS.medalGoldShade, 1);
+  g.strokeCircle(cx, cy, 15);
+  // Звезда посередине.
+  const points: number[] = [];
+  for (let i = 0; i < 10; i++) {
+    const angle = -Math.PI / 2 + (i * Math.PI) / 5;
+    const r = i % 2 === 0 ? 11 : 5;
+    points.push(cx + r * Math.cos(angle), cy + 1 + r * Math.sin(angle));
+  }
+  fillPolygon(g, points, COLORS.medalGoldShade);
+  g.fillStyle(COLORS.white, 0.8);
+  g.fillCircle(cx - 9, cy - 9, 3);
 }
 
 // ===== Помощники рисования =====

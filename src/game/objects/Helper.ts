@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { TEXTURES } from '../textures';
+import { COLORS } from '../palette';
 import { ITEMS } from '../items';
 import { pop, Point } from '../fx';
 import { HELPERS, HelperData, HelperRole } from '../data/upgrades';
@@ -19,6 +20,20 @@ const SWING_ANGLE = 14;
 // Стопка за спиной: точка на спине относительно ног (x — от середины в сторону спины).
 const BACK_OFFSET_X = -16;
 const BACK_OFFSET_Y = -58;
+// Кольцо цвета роли под ногами нанятого (как у вождя): ширина, прозрачность, «дыхание».
+const RING_WIDTH = 64;
+const RING_ALPHA = 0.85;
+const RING_PULSE_SCALE = 1.1;
+const RING_PULSE_TIME = 800;
+const RING_DEPTH_SHIFT = -0.6;
+// Значок роли над головой: только пока работает (рубит, бьёт, сдаёт). Высота над ногами,
+// покачивание, за сколько мс выпрыгивает и прячется.
+const BADGE_OFFSET_Y = -128;
+const BADGE_BOB_HEIGHT = 3;
+const BADGE_BOB_SPEED = 0.004;
+const BADGE_SHOW_TIME = 300;
+const BADGE_HIDE_TIME = 200;
+const BADGE_DEPTH_SHIFT = 1;
 
 // Что делает помощник. Это конечный автомат (план, раздел 0.8):
 //   'hidden'   — не нанят, его нет на поле;
@@ -66,6 +81,10 @@ export class Helper {
   private image: Phaser.GameObjects.Image;
   private shadow: Phaser.GameObjects.Image;
   private carry: CarryStack;
+  // Кольцо цвета роли под ногами и значок роли над головой (виден, пока работает).
+  private ring: Phaser.GameObjects.Image;
+  private badge: Phaser.GameObjects.Image;
+  private isBadgeShown = false;
 
   // role — сборщик или охотник, (x, y) — где он появится после найма.
   constructor(scene: Phaser.Scene, role: HelperRole, x: number, y: number) {
@@ -78,6 +97,20 @@ export class Helper {
     this.shadow = scene.add.image(x, y, TEXTURES.shadow).setVisible(false);
     this.shadow.setScale(SHADOW_WIDTH / this.shadow.width);
     this.image = scene.add.image(x, y, this.info.texture).setOrigin(0.5, 1).setVisible(false);
+    const roleColor = role === 'gatherer' ? COLORS.gathererRole : COLORS.hunterRole;
+    this.ring = scene.add.image(x, y, TEXTURES.ring).setTint(roleColor).setAlpha(RING_ALPHA).setVisible(false);
+    const ringScale = RING_WIDTH / this.ring.width;
+    this.ring.setScale(ringScale);
+    scene.tweens.add({
+      targets: this.ring,
+      scale: ringScale * RING_PULSE_SCALE,
+      duration: RING_PULSE_TIME,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
+    });
+    const badgeTexture = role === 'gatherer' ? TEXTURES.helperBadgeGatherer : TEXTURES.helperBadgeHunter;
+    this.badge = scene.add.image(x, y, badgeTexture).setOrigin(0.5, 1).setScale(0);
     // Сборщик носит хворост, охотник — сырое мясо. «МАКС» у помощников не показываем.
     const loot = role === 'gatherer' ? ITEMS.wood.texture : ITEMS.rawMeat.texture;
     this.carry = new CarryStack(scene, loot, this.info.carry, false);
@@ -127,6 +160,7 @@ export class Helper {
     this.state = 'seeking';
     this.image.setVisible(true);
     this.shadow.setVisible(true);
+    this.ring.setVisible(true);
     pop(this.scene, this.image);
   }
 
@@ -221,12 +255,29 @@ export class Helper {
     }
     this.image.setPosition(this.x, this.y - bob).setDepth(this.y);
     this.shadow.setPosition(this.x, this.y).setDepth(this.y + SHADOW_DEPTH_SHIFT);
+    this.ring.setPosition(this.x, this.y).setDepth(this.y + RING_DEPTH_SHIFT);
+    this.updateBadge(this.state === 'acting' || this.state === 'dropping');
     this.carry.update(
       delta,
       { x: this.x + BACK_OFFSET_X * this.facing, y: this.y + BACK_OFFSET_Y - bob },
       velocityX,
       this.y,
     );
+  }
+
+  // Значок роли выпрыгивает над головой, пока помощник работает, и прячется, когда он идёт.
+  private updateBadge(isWorking: boolean): void {
+    const bob = Math.sin(this.scene.time.now * BADGE_BOB_SPEED) * BADGE_BOB_HEIGHT;
+    this.badge.setPosition(this.x, this.y + BADGE_OFFSET_Y + bob).setDepth(this.y + BADGE_DEPTH_SHIFT);
+    if (isWorking === this.isBadgeShown) return;
+    this.isBadgeShown = isWorking;
+    this.scene.tweens.killTweensOf(this.badge);
+    this.scene.tweens.add({
+      targets: this.badge,
+      scale: isWorking ? 1 : 0,
+      duration: isWorking ? BADGE_SHOW_TIME : BADGE_HIDE_TIME,
+      ease: isWorking ? 'Back.easeOut' : 'Sine.easeIn',
+    });
   }
 
   // Шаг по маршруту: к ближайшей точке со своей скоростью. Дошёл до точки — следующая.
