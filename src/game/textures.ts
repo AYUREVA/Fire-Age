@@ -54,10 +54,12 @@ export const TEXTURES = {
   girlBack: 'girl-back', // девушка: две косы с бусинами, корзина за спиной
   girlFront: 'girl-front',
   bubble: 'bubble', // пузырь над головой путника: что он хочет
-  // Помощники вождя (с 0.8): смотрят на нас, без капюшона — рыжие волосы и повязка охрой.
+  // Помощники вождя (с 0.8): смотрят на нас, у каждой роли свой наряд (см. drawHelper).
   // Точка опоры — ноги. Они же — картинка на точке найма.
-  gatherer: 'gatherer', // сборщик: зелёная накидка, каменный топорик
-  helperHunter: 'helper-hunter', // охотник: серая волчья накидка, копьё
+  gatherer: 'gatherer', // сборщик: меховая шапка с ушами и помпоном, бурая накидка, топорик
+  helperHunter: 'helper-hunter', // охотник: волчья шкура (голова волка над лбом, лапы на плечах), копьё
+  helperBadgeGatherer: 'helper-badge-gatherer', // каменный значок с топором над головой работающего сборщика
+  helperBadgeHunter: 'helper-badge-hunter', // каменный значок с копьём над головой работающего охотника
   bush: 'bush', // зелёный куст, точка опоры — низ ствола
   bushSnow: 'bush-snow', // снег на кроне куста (тот же размер, ложится поверх)
   stump: 'stump', // пенёк — куст без хвороста
@@ -179,6 +181,13 @@ const FIRE_CLUB_FLAME_ROOM = 30;
 const FIRE_CLUB_FLAME_SIDE = 8;
 const FIRE_CLUB_SIZE: Size = { w: CLUB_SIZE.w + FIRE_CLUB_FLAME_SIDE * 2, h: CLUB_SIZE.h + FIRE_CLUB_FLAME_ROOM };
 const AXE_SIZE: Size = { w: 88, h: 100 };
+// Помощник рисуется как путник, но картинка шире и выше на HELPER_ROOM: волчий плащ с хвостом
+// шире путника, уши волка — выше головы. Ноги — по-прежнему у нижнего края.
+const HELPER_ROOM = { side: 18, top: 30 };
+const HELPER_SIZE: Size = { w: 84 + HELPER_ROOM.side * 2, h: 112 + HELPER_ROOM.top };
+const HELPER_BADGE_SIZE: Size = { w: 44, h: 50 };
+// Значок роли: иконка инструмента внутри — такой высоты.
+const HELPER_BADGE_ICON_HEIGHT = 26;
 const SPEAR_SIZE: Size = { w: 40, h: 150 };
 const RING_SIZE: Size = { w: 90, h: 44 };
 const JOYSTICK_BASE_SIZE: Size = { w: 128, h: 128 };
@@ -359,8 +368,10 @@ export function createTextures(scene: Phaser.Scene): void {
   bake(scene, TEXTURES.girlBack, TRAVELER_SIZE, (g) => drawGirl(g, false));
   bake(scene, TEXTURES.girlFront, TRAVELER_SIZE, (g) => drawGirl(g, true));
   bake(scene, TEXTURES.bubble, BUBBLE_SIZE, drawBubble);
-  bake(scene, TEXTURES.gatherer, TRAVELER_SIZE, (g) => drawHelper(g, COLORS.gathererRobe, COLORS.gathererRobeShade, false));
-  bake(scene, TEXTURES.helperHunter, TRAVELER_SIZE, (g) => drawHelper(g, COLORS.hunterRobe, COLORS.hunterRobeShade, true));
+  bake(scene, TEXTURES.gatherer, HELPER_SIZE, (g) => drawHelper(g, false));
+  bake(scene, TEXTURES.helperHunter, HELPER_SIZE, (g) => drawHelper(g, true));
+  bake(scene, TEXTURES.helperBadgeGatherer, HELPER_BADGE_SIZE, (g) => drawHelperBadge(g, COLORS.gathererRole, (icon) => drawAxe(icon, false), AXE_SIZE));
+  bake(scene, TEXTURES.helperBadgeHunter, HELPER_BADGE_SIZE, (g) => drawHelperBadge(g, COLORS.hunterRole, (icon) => drawSpear(icon, false), SPEAR_SIZE));
   bake(scene, TEXTURES.bush, BUSH_SIZE, drawBush);
   bake(scene, TEXTURES.bushSnow, BUSH_SIZE, drawBushSnow);
   bake(scene, TEXTURES.stump, STUMP_SIZE, drawStump);
@@ -2075,31 +2086,121 @@ function drawHunter(g: Graphics, isFront: boolean): void {
   }
 }
 
-// Помощник вождя (с 0.8) — как путник, но без капюшона: рыжие волосы, повязка охрой
-// на лбу, накидка своего цвета. Охотник держит копьё, сборщик — каменный топорик.
-function drawHelper(g: Graphics, robe: number, shade: number, isHunter: boolean): void {
+// Помощник вождя (с 0.8): спереди, как путник, но без капюшона и в своём наряде.
+// Сборщик — меховая шапка с ушами-клапанами и помпоном (над бровями, лицо открыто),
+// бурая накидка, каменный топорик. Охотник — волчья шкура: плащ с хвостом, лапы на плечах,
+// бусы из клыков, голова волка над лбом, копьё. Картинка шире и выше путника на HELPER_ROOM.
+function drawHelper(g: Graphics, isHunter: boolean): void {
+  g.save();
+  g.translateCanvas(HELPER_ROOM.side, HELPER_ROOM.top);
+  if (isHunter) drawHunterHelper(g);
+  else drawGathererHelper(g);
+  g.restore();
+}
+
+function drawGathererHelper(g: Graphics): void {
   const cx = TRAVELER_CX;
   const y = TRAVELER_HEAD_Y;
   const toolX = cx + TRAVELER_STICK_X;
-
-  if (isHunter) drawTravelerStick(g, toolX, true);
-  drawTravelerRobe(g, robe, shade);
-  if (!isHunter) {
-    // Топорик: короткая рукоять в руке и каменное лезвие на ремне.
-    limb(g, toolX, 84, toolX - 4, 40, 4, COLORS.wood);
-    const blade = [toolX - 5, 36, toolX + 9, 30, toolX + 12, 44, toolX - 3, 48];
-    fillPolygon(g, blade, COLORS.stone);
-    fillPolygon(g, [toolX + 9, 30, toolX + 12, 44, toolX + 4, 46], COLORS.stoneDark);
-    strokePolygon(g, blade);
-    limb(g, toolX - 7, 42, toolX - 1, 44, 3, COLORS.leather);
-  }
-  // Рука в рукавице на рукояти.
+  drawTravelerRobe(g, COLORS.gathererRobe, COLORS.gathererRobeShade);
+  // Топорик: короткая рукоять в руке и каменное лезвие на ремне.
+  limb(g, toolX, 84, toolX - 4, 36, 4, COLORS.wood);
+  const blade = [toolX - 5, 32, toolX + 9, 26, toolX + 12, 40, toolX - 3, 44];
+  fillPolygon(g, blade, COLORS.stone);
+  fillPolygon(g, [toolX + 9, 26, toolX + 12, 40, toolX + 4, 42], COLORS.stoneDark);
+  strokePolygon(g, blade);
+  limb(g, toolX - 7, 38, toolX - 1, 40, 3, COLORS.leather);
   outlinedCircle(g, toolX - 2, 64, 6, COLORS.furDark);
-  // Лохматые волосы за головой, лицо, повязка охрой с узелком.
-  outlinedBlobs(g, [cx - 13, y - 6, 8, cx - 6, y - 12, 9, cx + 4, y - 13, 9, cx + 12, y - 7, 8, cx - 15, y + 3, 6, cx + 15, y + 3, 6], COLORS.hair);
+  // Уши-клапаны шапки по бокам лица, лицо, купол шапки над бровями, меховой край, помпон.
+  outlinedEllipse(g, cx - 19, y + 4, 12, 26, COLORS.furDark);
+  outlinedEllipse(g, cx + 19, y + 4, 12, 26, COLORS.furDark);
   drawTravelerFace(g);
-  limb(g, cx - 13, y - 8, cx + 13, y - 8, 4, COLORS.ochre);
-  outlinedCircle(g, cx + 14, y - 7, 3, COLORS.ochre);
+  outlinedBlobs(g, [cx, y - 24, 16, cx - 11, y - 18, 10, cx + 11, y - 18, 10], COLORS.furDark);
+  crescent(g, cx, y - 24, 15, 15, 0, -4, COLORS.hairShade, 0.6);
+  const rim: number[] = [];
+  for (let x = cx - 19; x <= cx + 19; x += 6.3) rim.push(x, y - 13, 4.5);
+  outlinedBlobs(g, rim, COLORS.travelerHideLight);
+  shadeBlobs(g, rim, COLORS.travelerHide);
+  outlinedCircle(g, cx, y - 42, 6, COLORS.travelerHideLight);
+}
+
+function drawHunterHelper(g: Graphics): void {
+  const { h } = TRAVELER_SIZE;
+  const cx = TRAVELER_CX;
+  const y = TRAVELER_HEAD_Y;
+  const toolX = cx + TRAVELER_STICK_X;
+  drawTravelerStick(g, toolX, true);
+  // Волчий плащ за спиной — шире тела, с хвостом.
+  const cape = splinePoints([cx - 18, 38, cx - 32, 70, cx - 34, h - 12, cx + 34, h - 12, cx + 32, 70, cx + 18, 38, cx - 18, 38], 24);
+  fillPolygon(g, cape, COLORS.hunterRobeShade);
+  strokePolygon(g, cape);
+  taper(g, splinePoints([cx - 30, h - 30, cx - 42, h - 22, cx - 44, h - 10], 8), 12, 6, COLORS.hunterRobe);
+  drawTravelerRobe(g, COLORS.hunterRobe, COLORS.hunterRobeShade);
+  // Лапы шкуры на плечах (с когтями) и бусы из клыков.
+  for (const side of [-1, 1]) {
+    taper(g, splinePoints([cx + side * 16, 44, cx + side * 8, 56, cx + side * 2, 60], 8), 9, 7, COLORS.hunterRobe);
+    g.fillStyle(COLORS.outline, 1);
+    for (let i = 0; i < 3; i++) g.fillCircle(cx + side * (1 + i * 2.5), 62, 1.2);
+  }
+  for (let i = 0; i < 5; i++) {
+    const a = Math.PI * (0.18 + i * 0.16);
+    const bx = cx + Math.cos(a) * 13;
+    const by = 52 + Math.sin(a) * 9;
+    const fang = [bx - 2.5, by - 2, bx + 2.5, by - 2, bx, by + 7];
+    fillPolygon(g, fang, COLORS.bone);
+    g.lineStyle(1.5, COLORS.outline, 1);
+    g.strokePoints(toPoints(fang), true, true);
+  }
+  outlinedCircle(g, toolX - 2, 64, 6, COLORS.furDark);
+  // Шкура обрамляет лицо по бокам, голова волка — над лбом.
+  for (const side of [-1, 1]) outlinedEllipse(g, cx + side * 19, y + 4, 12, 28, COLORS.hunterRobe);
+  drawTravelerFace(g);
+  drawWolfHood(g, cx, y - 20);
+}
+
+// Голова волка капюшоном с серединой в (cx, y): уши с розовым внутри, купол головы,
+// светлая морда с носом, клыки снизу морды, жёлтые глаза.
+function drawWolfHood(g: Graphics, cx: number, y: number): void {
+  for (const side of [-1, 1]) {
+    const ear = [cx + side * 6, y - 20, cx + side * 15, y - 40, cx + side * 21, y - 16];
+    fillPolygon(g, ear, COLORS.hunterRobe);
+    fillPolygon(g, [cx + side * 9, y - 21, cx + side * 15, y - 34, cx + side * 18, y - 19], COLORS.wolfEar);
+    strokePolygon(g, ear);
+  }
+  outlinedBlobs(g, [cx, y - 10, 20, cx - 14, y - 2, 10, cx + 14, y - 2, 10], COLORS.hunterRobe);
+  crescent(g, cx, y - 10, 19, 19, 0, -4, COLORS.hunterRobeShade, 0.5);
+  outlinedEllipse(g, cx, y - 2, 24, 16, COLORS.wolfBelly);
+  outlinedEllipse(g, cx, y - 8, 9, 6, COLORS.outline);
+  g.fillStyle(COLORS.white, 0.7);
+  g.fillCircle(cx - 2, y - 9, 1.5);
+  for (const side of [-1, 1]) {
+    const fang = [cx + side * 7, y + 4, cx + side * 4, y + 4, cx + side * 5.5, y + 10];
+    fillPolygon(g, fang, COLORS.white);
+    g.lineStyle(1.5, COLORS.outline, 1);
+    g.strokePoints(toPoints(fang), true, true);
+    outlinedEllipse(g, cx + side * 10, y - 17, 7, 5, COLORS.wolfEye);
+    g.fillStyle(COLORS.outline, 1);
+    g.fillEllipse(cx + side * 10, y - 17, 2, 4);
+  }
+}
+
+// Значок роли: каменный кружок с кольцом цвета роли, хвостик снизу (указывает на помощника),
+// внутри — иконка инструмента (drawIcon рисует её в рамке iconSize, уменьшаем до HELPER_BADGE_ICON_HEIGHT).
+function drawHelperBadge(g: Graphics, color: number, drawIcon: (icon: Graphics) => void, iconSize: Size): void {
+  const cx = HELPER_BADGE_SIZE.w / 2;
+  const cy = 22;
+  outlinedPolygon(g, [cx - 6, cy + 16, cx, cy + 25, cx + 6, cy + 16], COLORS.badgeStone);
+  outlinedCircle(g, cx, cy, 18, COLORS.badgeStone);
+  g.lineStyle(3.5, color, 1);
+  g.strokeCircle(cx, cy, 14);
+  g.fillStyle(COLORS.white, 0.18);
+  g.fillEllipse(cx - 6, cy - 9, 13, 6);
+  const scale = HELPER_BADGE_ICON_HEIGHT / iconSize.h;
+  g.save();
+  g.translateCanvas(cx - (iconSize.w * scale) / 2, cy - (iconSize.h * scale) / 2);
+  g.scaleCanvas(scale, scale);
+  drawIcon(g);
+  g.restore();
 }
 
 // Старец: кожаный плащ с капюшоном, длинная седая борода, посох с перьями.
