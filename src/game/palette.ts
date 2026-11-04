@@ -165,6 +165,18 @@ export const COLORS = {
   iceShade: 0x9cc6dc, // лёд в тени, трещины
   water: 0x1f4f6e, // тёмная вода в проруби
   waterLight: 0x4f8db0, // блики и круги на воде
+  lakeIce: 0xdff2fa, // лёд озера у берега
+  lakeIceMid: 0xc6e7f5, // лёд озера дальше от берега
+  lakeIceDeep: 0xa9daf0, // лёд озера синеет к середине
+  lakeIceDeepest: 0x8ccbe8, // самая середина озера, у проруби
+  fishShadow: 0x1d4a66, // тень рыбы подо льдом (полупрозрачная)
+  reedStem: 0xb08a4e, // стебель камыша
+  reedHead: 0x7a4a2a, // бархатная метёлка камыша
+  reedHeadLight: 0xa86a3e, // блик на метёлке
+  reedFluff: 0xf3ead8, // пушок на кончике метёлки
+  reedLeaf: 0x9a8a4a, // сухой лист камыша
+  bobber: 0xe8432a, // красная половинка поплавка
+  fishingLine: 0x3b3340, // леска
 
   // ===== Ветки и связки хвороста =====
   brush: 0x7a5c48, // сухие ветки куста

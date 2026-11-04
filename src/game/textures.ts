@@ -67,7 +67,11 @@ export const TEXTURES = {
   cookedMeat: 'cooked-meat', // жареное мясо: румяная ножка с косточкой
   rawFish: 'raw-fish', // сырая рыба: серебристая, хвостом влево
   cookedFish: 'cooked-fish', // жареная рыба: золотистая, с полосками от огня
-  iceHole: 'ice-hole', // прорубь: тёмная вода в ледяном ободке со снегом (лежит на земле)
+  iceHole: 'ice-hole', // прорубь: тёмная вода в неровной ледяной кромке (лежит на льду озера)
+  iceLake: 'ice-lake', // замёрзшее озеро вокруг проруби: снежный берег, лёд синеет к середине, трещины
+  fishShadow: 'fish-shadow', // тень рыбы подо льдом, смотрит вправо (красится прозрачностью)
+  reed: 'reed', // стебель камыша с бархатной метёлкой; точка опоры — низ
+  bobber: 'bobber', // поплавок: красный верх, белый низ, палочка сверху
   snowflake: 'snowflake', // снежинка: падающий снег и снег из куста
   chip: 'chip', // щепка, летит из куста при ударе
   dropZone: 'drop-zone', // площадка кучи у костра: светлая рамка (иконку ставит ItemPile)
@@ -196,6 +200,13 @@ const MEAT_SIZE: Size = { w: 48, h: 32 };
 // Рыба того же размера, что мясо: стопки и кучи складываются одинаково.
 const FISH_SIZE: Size = MEAT_SIZE;
 const ICE_HOLE_SIZE: Size = { w: 190, h: 110 };
+export const ICE_LAKE_SIZE: Size = { w: 400, h: 240 };
+// Где прорубь на картинке озера: от середины озера. Прорубь у левого края —
+// озеро тянется от неё вправо, не заходя под деревья леса.
+export const ICE_LAKE_HOLE_OFFSET = { x: -80, y: -16 };
+const FISH_SHADOW_SIZE: Size = { w: 44, h: 22 };
+const REED_SIZE: Size = { w: 40, h: 110 };
+const BOBBER_SIZE: Size = { w: 24, h: 34 };
 const TUSK_SIZE: Size = { w: 36, h: 44 };
 // Высота корня клыка (тёмная верхняя часть).
 const TUSK_ROOT_HEIGHT = 12;
@@ -364,6 +375,10 @@ export function createTextures(scene: Phaser.Scene): void {
     drawFish(g, COLORS.cookedFish, COLORS.cookedFishShade, COLORS.cookedFishBelly, true),
   );
   bake(scene, TEXTURES.iceHole, ICE_HOLE_SIZE, drawIceHole);
+  bake(scene, TEXTURES.iceLake, ICE_LAKE_SIZE, drawIceLake);
+  bake(scene, TEXTURES.fishShadow, FISH_SHADOW_SIZE, drawFishShadow);
+  bake(scene, TEXTURES.reed, REED_SIZE, drawReed);
+  bake(scene, TEXTURES.bobber, BOBBER_SIZE, drawBobber);
   bake(scene, TEXTURES.snowflake, SNOWFLAKE_SIZE, drawSnowflake);
   bake(scene, TEXTURES.chip, CHIP_SIZE, drawChip);
   bake(scene, TEXTURES.dropZone, DROP_ZONE_SIZE, drawDropZone);
@@ -2677,45 +2692,126 @@ function drawDropZone(g: Graphics): void {
 
 // Прорубь, вид сверху под углом: снежный вал, ледяной ободок с трещинами,
 // тёмная вода с бликом и кругами. Лежит плоско на земле, точка опоры — середина.
+// Неровный замкнутый контур вокруг (cx, cy): радиусы rx, ry, «рябь» wobble (доля радиуса),
+// seed — чтобы у каждого контура своя форма. Возвращает гладкие точки [x, y, …].
+function wobblyLoop(cx: number, cy: number, rx: number, ry: number, seed: number, wobble: number, corners = 26): number[] {
+  const points: number[] = [];
+  for (let i = 0; i < corners; i++) {
+    const a = (i / corners) * Math.PI * 2;
+    const k = 1 + wobble * (Math.sin(a * 3 + seed) * 0.6 + Math.sin(a * 5 + seed * 2.3) * 0.4);
+    points.push(cx + Math.cos(a) * rx * k, cy + Math.sin(a) * ry * k);
+  }
+  return splinePoints([...points, points[0], points[1]], corners * 4);
+}
+
+// Многоугольник с тёмной обводкой.
+function outlinedPolygon(g: Graphics, points: number[], color: number): void {
+  fillPolygon(g, points, color);
+  strokePolygon(g, points);
+}
+
+// Прорубь: неровная ледяная кромка с толщиной, тёмная вода с глубиной, блики на воде и кромке.
+// Снежного вала нет — прорубь лежит на льду озера (TEXTURES.iceLake).
 function drawIceHole(g: Graphics): void {
   const { w, h } = ICE_HOLE_SIZE;
   const cx = w / 2;
   const cy = h / 2;
-  // Снежный вал вокруг льда — неровный, из нескольких сугробиков.
-  g.fillStyle(COLORS.snowShade, 1);
-  g.fillEllipse(cx, cy + 4, w - 8, h - 14);
-  g.fillStyle(COLORS.snowLight, 1);
-  for (const [x, y, rx, ry] of [[-62, -6, 26, 16], [-30, -26, 32, 14], [18, -28, 34, 13], [60, -8, 26, 16], [44, 22, 32, 14], [-40, 24, 34, 13]]) {
-    g.fillEllipse(cx + x, cy + y, rx * 2, ry * 2);
+  const rx = 46;
+  const ry = 26;
+  outlinedPolygon(g, wobblyLoop(cx, cy, rx + 12, ry + 9, 4, 0.08), COLORS.ice);
+  outlinedPolygon(g, wobblyLoop(cx, cy, rx, ry, 5, 0.06), COLORS.iceShade);
+  fillPolygon(g, wobblyLoop(cx, cy + ry * 0.18, rx * 0.95, ry * 0.8, 5, 0.06), COLORS.water);
+  softEllipse(g, cx, cy + ry * 0.25, rx * 1.4, ry * 1.1, COLORS.outline, 0.12, 4);
+  // Блики на воде — две дуги.
+  g.lineStyle(4, COLORS.waterLight, 0.9);
+  g.beginPath();
+  g.arc(cx - rx * 0.15, cy + ry * 0.15, rx * 0.55, Math.PI * 1.1, Math.PI * 1.45, false);
+  g.strokePath();
+  g.lineStyle(3, COLORS.waterLight, 0.6);
+  g.beginPath();
+  g.arc(cx + rx * 0.2, cy + ry * 0.3, rx * 0.35, Math.PI * 1.65, Math.PI * 1.85, false);
+  g.strokePath();
+  // Блик на кромке слева сверху.
+  g.lineStyle(3, COLORS.white, 0.95);
+  g.strokePoints(toPoints(splinePoints([cx - rx - 4, cy - 4, cx - rx * 0.6, cy - ry - 6, cx - rx * 0.1, cy - ry - 9], 10)), false);
+}
+
+// Замёрзшее озеро: снежный берег с сугробами, голубая тень под ним, лёд синеет к середине,
+// трещины лучами от проруби, блики-штрихи, языки позёмки. Прорубь — отдельно, сверху.
+function drawIceLake(g: Graphics): void {
+  const { w, h } = ICE_LAKE_SIZE;
+  const cx = w / 2;
+  const cy = h / 2;
+  const hole = { x: cx + ICE_LAKE_HOLE_OFFSET.x, y: cy + ICE_LAKE_HOLE_OFFSET.y };
+  const shore = wobblyLoop(cx, cy, 160, 90, 1.2, 0.13, 30);
+  outlinedPolygon(g, shore, COLORS.snowLight);
+  fillPolygon(g, wobblyLoop(cx, cy + 1, 151, 82, 1.2, 0.13, 30), COLORS.snowShade);
+  outlinedPolygon(g, wobblyLoop(cx, cy + 2, 145, 76, 1.2, 0.13, 30), COLORS.lakeIce);
+  for (const [k, color] of [[0.82, COLORS.lakeIceMid], [0.62, COLORS.lakeIceDeep], [0.42, COLORS.lakeIceDeepest]]) {
+    fillPolygon(g, wobblyLoop(cx - 20 + (hole.x - cx + 20) * (1 - k), cy + 2, 145 * k, 74 * k, 2.4 + k, 0.16), color);
   }
-  // Ледяной ободок.
-  outlinedEllipse(g, cx, cy, 136, 72, COLORS.ice);
-  g.fillStyle(COLORS.iceShade, 1);
-  g.fillEllipse(cx, cy + 10, 120, 44);
-  g.fillStyle(COLORS.ice, 1);
-  g.fillEllipse(cx, cy + 4, 118, 46);
-  // Трещины во льду.
-  g.lineStyle(1.5, COLORS.iceShade, 1);
-  g.strokePoints(toPoints([cx - 62, cy - 4, cx - 54, cy - 2, cx - 50, cy + 4]), false);
-  g.strokePoints(toPoints([cx + 50, cy - 14, cx + 56, cy - 10, cx + 62, cy - 12]), false);
-  g.strokePoints(toPoints([cx + 30, cy + 26, cx + 34, cy + 31]), false);
-  // Вода: тёмная, с тенью от кромки льда сверху.
-  g.fillStyle(COLORS.water, 1);
-  g.fillEllipse(cx, cy + 4, 90, 36);
-  g.lineStyle(OUTLINE_WIDTH, COLORS.outline, 1);
-  g.strokeEllipse(cx, cy + 4, 90, 36);
-  g.fillStyle(COLORS.outline, 0.3);
-  g.fillEllipse(cx, cy - 6, 76, 12);
-  // Круги на воде и блик.
-  g.lineStyle(1.5, COLORS.waterLight, 0.9);
-  g.strokeEllipse(cx + 8, cy + 8, 34, 12);
-  g.strokeEllipse(cx + 8, cy + 8, 18, 6);
-  g.fillStyle(COLORS.white, 0.7);
-  g.fillEllipse(cx - 22, cy + 2, 14, 3);
-  // Блики на льду.
-  g.fillStyle(COLORS.white, 0.9);
-  g.fillEllipse(cx - 40, cy - 16, 16, 4);
-  g.fillEllipse(cx + 42, cy + 18, 10, 3);
+  // Трещины: ломаные лучи от проруби, белые с голубой тенью.
+  for (const [a, length] of [[0.3, 105], [1.2, 66], [2.2, 115], [2.9, 88], [3.9, 110], [5.0, 72], [5.7, 126]]) {
+    const crack: number[] = [hole.x, hole.y];
+    for (let i = 1; i <= 4; i++) {
+      const r = (length * i) / 4;
+      const bend = a + Math.sin(i * 2.1) * 0.12;
+      crack.push(hole.x + Math.cos(bend) * r, hole.y + Math.sin(bend) * r * 0.5);
+    }
+    g.lineStyle(2.2, COLORS.white, 0.9);
+    g.strokePoints(toPoints(crack), false);
+    g.lineStyle(1.2, COLORS.iceShade, 0.8);
+    g.strokePoints(toPoints(crack.map((v, i) => (i % 2 ? v + 2 : v))), false);
+  }
+  // Блики-штрихи на льду.
+  g.lineStyle(4, COLORS.white, 0.7);
+  for (const [x, y] of [[-110, -30], [80, -40], [100, 40], [-80, 40]]) {
+    g.lineBetween(cx + x, cy + y, cx + x + 22, cy + y - 8);
+    g.lineBetween(cx + x + 8, cy + y + 5, cx + x + 19, cy + y + 1);
+  }
+  // Языки позёмки на льду.
+  for (const [x, y, length] of [[-130, -6, 70], [10, 52, 86], [60, -44, 52]]) {
+    const tongue = [cx + x, cy + y, cx + x + length * 0.5, cy + y - 6, cx + x + length, cy + y - 1, cx + x + length * 0.6, cy + y + 5];
+    fillPolygon(g, splinePoints([...tongue, tongue[0], tongue[1]], 24), COLORS.snowLight);
+  }
+  // Сугробы по берегу — кучки по три.
+  const drifts: number[] = [];
+  for (const i of [16, 40, 72, 96]) {
+    const x = shore[i * 2];
+    const y = shore[i * 2 + 1];
+    drifts.push(x - 13, y + 1, 10, x, y - 4, 13, x + 13, y + 1, 9);
+  }
+  outlinedBlobs(g, drifts, COLORS.snowLight);
+  shadeBlobs(g, drifts, COLORS.snowShade);
+}
+
+// Тень рыбы подо льдом: тело, хвост, спинной плавник.
+function drawFishShadow(g: Graphics): void {
+  g.fillStyle(COLORS.fishShadow, 1);
+  g.fillEllipse(28, 12, 32, 13);
+  g.fillPoints(toPoints([12, 12, 0, 4, 2, 12, 0, 20]), true);
+  g.fillPoints(toPoints([26, 6, 34, 1, 36, 7]), true);
+}
+
+// Камыш: тонкий стебель, бархатная метёлка с бликом и пушком на конце, сухой лист.
+function drawReed(g: Graphics): void {
+  limbChain(g, splinePoints([20, 106, 19, 60, 21, 26], 10), 3.5, COLORS.reedStem);
+  outlinedEllipse(g, 21, 22, 11, 30, COLORS.reedHead);
+  g.fillStyle(COLORS.reedHeadLight, 1);
+  g.fillEllipse(19, 18, 4, 18);
+  drawShaggyMass(g, [21, 8, 5], [[21, 6, -90, 8, 3, 20]], COLORS.reedFluff);
+  limbChain(g, splinePoints([20, 100, 10, 70, 4, 52], 10), 3.5, COLORS.reedLeaf);
+}
+
+// Поплавок: палочка сверху, белый шар, верхняя половина красная, блик.
+function drawBobber(g: Graphics): void {
+  limb(g, 12, 3, 12, 10, 2, COLORS.woodDark);
+  outlinedCircle(g, 12, 20, 8, COLORS.white);
+  g.fillStyle(COLORS.bobber, 1);
+  g.slice(12, 20, 8, Math.PI, 0, false);
+  g.fillPath();
+  g.fillStyle(COLORS.white, 0.8);
+  g.fillCircle(9, 16, 2);
 }
 
 // Круг точки покупки: утоптанный снег с тёплой заливкой и светлым пунктиром

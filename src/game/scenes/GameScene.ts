@@ -619,6 +619,7 @@ export class GameScene extends Phaser.Scene {
   // просто рыба не жарится, пока его снова не накормят.
   private updateFishCamp(camp: FishCamp, burnMultiplier: number, delta: number): void {
     updateFishing(this.player, this.backpack, camp.hole, this.stats, delta);
+    camp.hole.update(delta);
     updateDropping(this.player, this.backpack, [camp.woodpile, camp.rawPile], delta);
     updatePickup(this.player, this.backpack, camp.cookedPile, delta);
     updateFire(camp.fire, camp.woodpile, delta, burnMultiplier);
