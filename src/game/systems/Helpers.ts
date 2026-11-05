@@ -204,7 +204,7 @@ function strike(helper: Helper, world: HelperWorld, delta: number): void {
   }
   // Мамонт: урон охотника (пока охотник замахивался, мамонт мог отдохнуть — hit() это проверит).
   if (prey instanceof Mammoth) {
-    helper.swing(prey.x, helper.info.hitInterval, () => prey.hit(helper.info.damage));
+    helper.swing(prey.x, helper.info.hitInterval, () => prey.hit(helper.info.damage, helper));
     return;
   }
   // Кролик замирает, охотник замахивается. В момент удара — «пуф» и мясо в стопку.

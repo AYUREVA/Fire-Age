@@ -18,6 +18,8 @@ export const SOUNDS = {
   tusk: 'sound-tusk', // клык упал в счётчик или ушёл на покупку
   howl: 'sound-howl', // вой волка, выходящего из леса
   star: 'sound-star', // звезда «впечаталась» на экране итогов
+  roar: 'sound-roar', // рёв мамонта: выход из леса и ярость (с 0.9.1)
+  drum: 'sound-drum', // барабан боя с мамонтом (с 0.9.1)
 } as const;
 
 // Громкость каждого звука (0 — тихо, 1 — во всю силу).
@@ -27,6 +29,8 @@ export const SOUND_VOLUMES = {
   tusk: 0.35,
   howl: 0.4,
   star: 0.55,
+  roar: 0.5,
+  drum: 0.5,
 };
 
 // Звук в виде формулы: t — секунды от начала, dt — длина одного шага (1 / частота дискретизации).
@@ -46,6 +50,8 @@ export function createSounds(scene: Phaser.Scene): void {
   bake(scene, SOUNDS.tusk, 0.3, tuskSynth());
   bake(scene, SOUNDS.howl, 1.7, howlSynth());
   bake(scene, SOUNDS.star, 0.45, starSynth());
+  bake(scene, SOUNDS.roar, ROAR_LENGTH, roarSynth());
+  bake(scene, SOUNDS.drum, 0.35, drumSynth());
 }
 
 // Проиграть звук один раз с громкостью volume.
@@ -150,4 +156,23 @@ function starSynth(): Synth {
   const main = tone((t) => 880 + 900 * Math.min(1, t / 0.08));
   const octave = tone((t) => 2 * (880 + 900 * Math.min(1, t / 0.08)));
   return (t, dt) => (0.5 * main(t, dt) + 0.2 * octave(t, dt)) * Math.exp(-t * 7);
+}
+
+// Рёв мамонта: низкий трубный тон с дрожью — поднимается и срывается вниз,
+// сверху призвук на октаву выше; нарастает и затихает.
+const ROAR_LENGTH = 1.4;
+function roarSynth(): Synth {
+  const pitch = (t: number): number => 120 + 140 * Math.sin(Math.min(1, t / (ROAR_LENGTH - 0.1)) * Math.PI);
+  const voice = tone((t) => pitch(t) + 9 * Math.sin(2 * Math.PI * 11 * t));
+  const overtone = tone((t) => 2.02 * pitch(t));
+  return (t, dt) => {
+    const envelope = Math.min(1, t / 0.15) * Math.min(1, Math.max(0, ROAR_LENGTH - t) / 0.4);
+    return envelope * (0.55 * voice(t, dt) + 0.25 * overtone(t, dt));
+  };
+}
+
+// Барабан боя: глухой низкий удар — тон быстро падает по частоте и затухает.
+function drumSynth(): Synth {
+  const body = tone((t) => 48 + 60 * Math.exp(-t * 25));
+  return (t, dt) => 0.9 * body(t, dt) * Math.exp(-t * 11) * Math.min(1, t / 0.004);
 }

@@ -171,7 +171,7 @@ function serveFirst(table: StoneTable, first: Traveler, stats: LevelStats, tusks
 // ===== Клыки в счётчик =====
 
 // Вождь стоит в зоне над столом — клыки с края стола сразу становятся его (player.tusks),
-// а в HUD каждый клык летит в счётчик и показывает новое число, когда долетит.
+// а в HUD клыки по очереди летят в счётчик и показывают новое число, когда долетят.
 // Клык лежит в мире, а счётчик — на экране: из точки мира вычитаем
 // левый верхний угол того, что видит камера, и получаем точку экрана.
 export function updateTusks(
@@ -183,10 +183,11 @@ export function updateTusks(
 ): void {
   if (!table.contains(player.x, player.y)) return;
 
-  for (const tusk of table.takeTusks()) {
+  // Клыки летят по очереди — «лесенкой» (номер клыка в пачке — index).
+  table.takeTusks().forEach((tusk, index) => {
     player.tusks += 1;
     stats.tusksEarned += 1;
-    hud.flyTuskToCounter(tusk.x - camera.worldView.x, tusk.y - camera.worldView.y, player.tusks);
+    hud.flyTuskToCounter(tusk.x - camera.worldView.x, tusk.y - camera.worldView.y, player.tusks, index);
     tusk.destroy();
-  }
+  });
 }
