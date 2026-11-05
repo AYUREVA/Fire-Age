@@ -32,12 +32,17 @@ const HIT_SHAKE_SHIFT = 4;
 const HIT_SHAKE_TIME = 60;
 // Полоса появляется плавно за столько мс.
 const FADE_TIME = 250;
+// Ярость (с 0.9.1): подпись меняется и мигает столько раз, по столько мс.
+const RAGE_LABEL = 'Мамонт в ярости!';
+const RAGE_BLINKS = 4;
+const RAGE_BLINK_TIME = 120;
 
 /**
  * Полоса здоровья мамонта (с 0.9): каменная плашка «Мамонт» вверху экрана.
  *
  * Здоровье хранит мамонт (Mammoth.hp). Полоса его только показывает:
  * сцена каждый кадр передаёт число в update(). Здоровье убыло — полоса вздрагивает.
+ * Мамонт в ярости — заливка темнеет, подпись краснеет и мигает.
  * На широком экране полоса в верхнем ряду между плашками HUD и кнопками,
  * на узком — слева под плашками HUD.
  */
@@ -47,12 +52,16 @@ export class BossBar {
   private container: Phaser.GameObjects.Container;
   // Заливка полосы: её ширина — доля здоровья.
   private fill: Phaser.GameObjects.Rectangle;
+  // Подпись «Мамонт» (в ярости меняется).
+  private label: Phaser.GameObjects.Text;
+  // Показана ли уже ярость.
+  private isRage = false;
   // Здоровье, которое полоса показывает сейчас (чтобы заметить удар).
   private shownHp = MAMMOTH_HP;
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
-    const label = scene.add
+    this.label = scene.add
       .text(LABEL_X, LABEL_Y, 'Мамонт', {
         fontFamily: FONT_FAMILY,
         fontSize: '17px',
@@ -73,7 +82,7 @@ export class BossBar {
       .container(0, 0, [
         scene.add.image(0, 0, TEXTURES.bossBarPlate),
         scene.add.image(ICON_X, 0, TEXTURES.mammothIcon).setScale(ICON_SCALE),
-        label,
+        this.label,
         back,
         this.fill,
       ])
@@ -101,8 +110,10 @@ export class BossBar {
     this.scene.tweens.add({ targets: this.container, alpha: 0, duration: FADE_TIME });
   }
 
-  // Каждый кадр: hp — здоровье мамонта. Убыло — полоса короче и вздрагивает.
-  update(hp: number): void {
+  // Каждый кадр: hp — здоровье мамонта, isEnraged — в ярости ли он.
+  // Убыло здоровье — полоса короче и вздрагивает.
+  update(hp: number, isEnraged: boolean): void {
+    if (isEnraged && !this.isRage) this.showRage();
     if (hp === this.shownHp) return;
     this.shownHp = hp;
     this.fill.width = (BAR_WIDTH * hp) / MAMMOTH_HP;
@@ -112,6 +123,20 @@ export class BossBar {
       x: this.container.x + HIT_SHAKE_SHIFT,
       duration: HIT_SHAKE_TIME,
       yoyo: true,
+    });
+  }
+
+  // Ярость: заливка темнеет, подпись краснеет и мигает.
+  private showRage(): void {
+    this.isRage = true;
+    this.fill.setFillStyle(COLORS.bossBarRage);
+    this.label.setText(RAGE_LABEL).setColor(toCss(COLORS.heatLow));
+    this.scene.tweens.add({
+      targets: this.label,
+      alpha: 0.2,
+      duration: RAGE_BLINK_TIME,
+      yoyo: true,
+      repeat: RAGE_BLINKS - 1,
     });
   }
 

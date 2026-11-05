@@ -495,7 +495,7 @@ export class GameScene extends Phaser.Scene {
       if (this.mammoth.getState() === 'fallen' && !this.isFinaleStarted) this.startFinale();
       updateMammothFight(this.player, this.mammoth);
       updateSpilled(this.player, this.backpack, this.spilled);
-      this.bossBar?.update(this.mammoth.hp);
+      this.bossBar?.update(this.mammoth.hp, this.mammoth.isEnraged);
     }
     updateWolfFight(this.player, this.backpack, this.wolves, this.stats);
     updateGathering(this.player, this.backpack, this.bushes, this.stats, delta);

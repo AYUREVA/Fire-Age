@@ -1,8 +1,16 @@
 import Phaser from 'phaser';
-import { MAMMOTH_CHARGE_SPEED, MAMMOTH_HP, MAMMOTH_SPEED } from '../settings';
+import {
+  MAMMOTH_CHARGE_SPEED,
+  MAMMOTH_HP,
+  MAMMOTH_RAM_RADIUS,
+  MAMMOTH_SPEED,
+  MAMMOTH_STOMP_RADIUS,
+  MAMMOTH_STOMP_WINDUP,
+} from '../settings';
 import { COLORS } from '../palette';
 import { MAMMOTH_ANATOMY, MAMMOTH_PARTS, TEXTURES } from '../textures';
 import { floatText, pop, Point } from '../fx';
+import { SOUNDS, SOUND_VOLUMES, playSound } from '../sounds';
 
 // ===== Вид =====
 
@@ -17,12 +25,15 @@ const SHADOW_DEPTH_SHIFT = -0.5;
 // углы трёх звеньев хобота (минус — вперёд), хвост, растяжение по ширине и высоте,
 // размах ног и скорость шага (0 — стоит), насколько подпрыгивает на шаге.
 type Pose = { lean: number; head: number; trunk: number[]; tail: number; stretchX: number; stretchY: number; legSwing: number; stepSpeed: number; bob: number };
-const POSES: Record<'idle' | 'wander' | 'prepare' | 'charge' | 'tired', Pose> = {
+const POSES: Record<'idle' | 'wander' | 'prepare' | 'charge' | 'tired' | 'rage' | 'stomp', Pose> = {
   idle: { lean: 0, head: 0, trunk: [-4, -8, -18], tail: 10, stretchX: 1, stretchY: 1, legSwing: 0, stepSpeed: 0, bob: 0 },
   wander: { lean: 1, head: 2, trunk: [-6, -8, -16], tail: 18, stretchX: 1, stretchY: 1, legSwing: 17, stepSpeed: 0.0085, bob: 4 },
   prepare: { lean: -7, head: -16, trunk: [-120, -30, -40], tail: -20, stretchX: 0.97, stretchY: 1.04, legSwing: 0, stepSpeed: 0, bob: 0 },
   charge: { lean: 9, head: 12, trunk: [28, 18, 14], tail: 70, stretchX: 1.07, stretchY: 0.95, legSwing: 32, stepSpeed: 0.03, bob: 8 },
   tired: { lean: 4, head: 18, trunk: [10, 6, -6], tail: -6, stretchX: 1, stretchY: 1, legSwing: 0, stepSpeed: 0, bob: 0 },
+  // Ярость — встаёт на дыбы, голова и хобот вверх (ревёт). Топот — тоже на дыбах, перед ударом.
+  rage: { lean: -14, head: -22, trunk: [-130, -30, -40], tail: -30, stretchX: 0.96, stretchY: 1.06, legSwing: 0, stepSpeed: 0, bob: 0 },
+  stomp: { lean: -22, head: -18, trunk: [-110, -25, -30], tail: -20, stretchX: 0.97, stretchY: 1.05, legSwing: 0, stepSpeed: 0, bob: 0 },
 };
 
 // Пружины: части догоняют позу с лёгким перелётом. Жёсткость и затухание — тело, голова,
@@ -125,6 +136,48 @@ const FALL_FADE_TIME = 200;
 const FALL_SHAKE_TIME = 380;
 const FALL_SHAKE_INTENSITY = 0.008;
 
+// ===== Ярость, топот, путь тарана (с 0.9.1) =====
+
+// Ярость: рёв, тряска экрана, надпись над мамонтом. Потом до конца боя глаза горят красным,
+// шерсть пульсирует красным, со спины идёт пар.
+const RAGE_SHAKE_TIME = 900;
+const RAGE_SHAKE = 0.012;
+const RAGE_TEXT_LIFT = 250;
+const RAGE_TEXT = 'ЯРОСТЬ!';
+const RAGE_EYE_SCALE = 0.2;
+const RAGE_PULSE_SPEED = 0.012;
+const RAGE_STEAM_EVERY = 450;
+const RAGE_BACK = { x: -20, y: -210 };
+// Топот: середина удара — перед мамонтом; круг предупреждения сплюснут (смотрим сверху-сбоку);
+// после удара волна расходится за WAVE_TIME мс, летят ледяные осколки, экран трясётся.
+const STOMP_FRONT = 60;
+const STOMP_FLATTEN = 0.5;
+// Красный круг: прозрачность заливки (и на сколько она пульсирует), толщина края.
+const STOMP_FILL_ALPHA = 0.3;
+const STOMP_FILL_PULSE = 0.12;
+const STOMP_EDGE_WIDTH = 6;
+const STOMP_SLAM_SQUASH = 2.4;
+const STOMP_SLAM_LEAN = 140;
+const STOMP_WAVE_TIME = 450;
+const STOMP_SHARDS = 26;
+const STOMP_SHAKE_TIME = 450;
+const STOMP_SHAKE = 0.014;
+const STOMP_SOUND_DETUNE = -1400;
+// Путь тарана: дорожка шириной в два радиуса тарана, полоски по ней и стрелка в конце.
+// Пока мамонт роет — мигает; на таране тает.
+const LANE_ALPHA = 0.16;
+const LANE_DASH_ALPHA = 0.55;
+const LANE_DASH = 40;
+const LANE_DASH_STEP = 70;
+const LANE_ARROW = 60;
+const LANE_BLINK_SPEED = 0.012;
+const LANE_FADE_TIME = 400;
+// «!» над вождём, если дорожка тарана идёт через него: столько пикселей над его ногами.
+const WARN_LIFT = 150;
+const WARN_TEXT = '!';
+// Дорожка и круг лежат на снегу, под всеми стоящими предметами (как площадки куч).
+const GROUND_MARK_DEPTH = -90;
+
 // Частицы: комья снега (копыто, таран), снежная пыль, пар, клочья шерсти.
 const SNOW_CLODS: Phaser.Types.GameObjects.Particles.ParticleEmitterConfig = {
   emitting: false,
@@ -163,6 +216,16 @@ const TUFTS: Phaser.Types.GameObjects.Particles.ParticleEmitterConfig = {
   rotate: { start: 0, end: 540 },
   tint: COLORS.mammoth,
 };
+const SHARDS: Phaser.Types.GameObjects.Particles.ParticleEmitterConfig = {
+  emitting: false,
+  speed: { min: 150, max: 340 },
+  angle: { min: 190, max: 350 },
+  gravityY: 700,
+  lifespan: 800,
+  scale: { start: 1.6, end: 0.6 },
+  rotate: { start: 0, end: 540 },
+  tint: [COLORS.ice, COLORS.white, COLORS.iceShade],
+};
 // Частицы — перед мамонтом.
 const PARTICLES_DEPTH_SHIFT = 2;
 
@@ -182,9 +245,11 @@ function springTo(spring: Spring, target: number, seconds: number, stiffness: nu
 //   'prepare' — роет землю копытом: сейчас будет таран;
 //   'charge'  — таранит по прямой;
 //   'tired'   — устал и стоит: окно для ударов;
+//   'rage'    — ярость (с 0.9.1): на половине здоровья ревёт на дыбах, дальше таранит дважды;
+//   'stomp'   — топот (с 0.9.1): на дыбах, на снегу красный круг, удар ногами — волна;
 //   'fallen'  — повержен.
 // Когда переходить в следующее состояние, решает systems/Boss.ts.
-export type MammothState = 'hidden' | 'wander' | 'prepare' | 'charge' | 'tired' | 'fallen';
+export type MammothState = 'hidden' | 'wander' | 'prepare' | 'charge' | 'tired' | 'rage' | 'stomp' | 'fallen';
 
 /**
  * Мамонт — финальный босс каменного века (с 0.9).
@@ -210,6 +275,16 @@ export class Mammoth {
   aim = -1;
   // Задел ли этот таран вождя: за один таран вождь отлетает один раз. Меняет systems/Boss.ts.
   hasRammedPlayer = false;
+  // Куда побежит таран: выбран в начале «роет копытом» (по нему рисуется дорожка).
+  chargeTo: Point = { x: 0, y: 0 };
+  // В ярости ли (с половины здоровья до конца боя) и идёт ли сейчас второй таран подряд.
+  // Ставят enrage() и systems/Boss.ts.
+  isEnraged = false;
+  isSecondCharge = false;
+  // Сколько атак на вождя было (чередование тарана и топота) и ударил ли уже топот.
+  // Меняет systems/Boss.ts.
+  attacks = 0;
+  hasStomped = false;
 
   private scene: Phaser.Scene;
   // Состояние автомата. Меняют его только функции переходов ниже.
@@ -245,6 +320,13 @@ export class Mammoth {
   private snowDust: Phaser.GameObjects.Particles.ParticleEmitter;
   private steam: Phaser.GameObjects.Particles.ParticleEmitter;
   private tufts: Phaser.GameObjects.Particles.ParticleEmitter;
+  private shards: Phaser.GameObjects.Particles.ParticleEmitter;
+  // На снегу: дорожка тарана и красный круг топота (рисуются кодом). Горящие глаза в ярости.
+  private lane: Phaser.GameObjects.Graphics;
+  private stompMark: Phaser.GameObjects.Graphics;
+  private rageEyes: Phaser.GameObjects.Image;
+  // Сколько мс ещё белеет вспышка удара (пока она идёт, красная ярость не красит шерсть).
+  private flashLeft = 0;
 
   // Пружины позы.
   private lean: Spring = { value: 0, velocity: 0 };
@@ -309,6 +391,17 @@ export class Mammoth {
     this.snowDust = scene.add.particles(0, 0, TEXTURES.glow, SNOW_DUST);
     this.steam = scene.add.particles(0, 0, TEXTURES.glow, STEAM);
     this.tufts = scene.add.particles(0, 0, TEXTURES.chip, TUFTS);
+    this.shards = scene.add.particles(0, 0, TEXTURES.chip, SHARDS);
+    this.lane = scene.add.graphics().setDepth(GROUND_MARK_DEPTH);
+    this.stompMark = scene.add.graphics().setDepth(GROUND_MARK_DEPTH);
+    const eye = { x: MAMMOTH_ANATOMY.eye.x - neck.x, y: MAMMOTH_ANATOMY.eye.y - neck.y };
+    this.rageEyes = scene.add
+      .image(eye.x, eye.y, TEXTURES.glow)
+      .setTint(COLORS.heatLow)
+      .setBlendMode(Phaser.BlendModes.ADD)
+      .setScale(RAGE_EYE_SCALE)
+      .setVisible(false);
+    this.head.add(this.rageEyes);
   }
 
   // Картинка части: стоит в точке at (в координатах родителя), вращается вокруг своей точки pivot.
@@ -370,12 +463,14 @@ export class Mammoth {
     this.enter('wander');
   }
 
-  // wander → prepare: остановился и роет землю копытом в сторону toX.
-  // Приседает, задирает хобот и через миг трубит.
-  prepare(toX: number): void {
+  // wander → prepare: остановился и роет землю копытом — сейчас таран до точки to.
+  // Приседает, задирает хобот и через миг трубит; на снегу мигает дорожка тарана.
+  prepare(to: Point): void {
     this.target = { x: this.x, y: this.y };
-    this.face(toX);
+    this.chargeTo = { ...to };
+    this.face(to.x);
     this.enter('prepare');
+    this.drawLane();
     this.squash.velocity += PREPARE_SQUASH;
     this.scene.time.delayedCall(TRUMPET_DELAY, () => {
       if (this.state === 'prepare') this.trumpet();
@@ -385,6 +480,7 @@ export class Mammoth {
   // prepare → charge: таран по прямой до точки to. На старте — облако снега.
   charge(to: Point): void {
     this.target = { ...to };
+    this.scene.tweens.add({ targets: this.lane, alpha: 0, duration: LANE_FADE_TIME });
     this.hasRammedPlayer = false;
     this.face(to.x);
     this.enter('charge');
@@ -398,6 +494,65 @@ export class Mammoth {
     this.target = { x: this.x, y: this.y };
     this.enter('tired');
     this.squash.velocity += TIRED_SQUASH;
+    this.lane.clear();
+    this.stompMark.clear();
+  }
+
+  // → rage: ярость (один раз за бой). Встаёт на дыбы и ревёт, экран трясётся, над ним «ЯРОСТЬ!»;
+  // глаза загораются. Когда кончится — решает systems/Boss.ts.
+  enrage(): void {
+    this.isEnraged = true;
+    this.target = { x: this.x, y: this.y };
+    this.enter('rage');
+    this.lane.clear();
+    this.squash.velocity += PREPARE_SQUASH;
+    this.trumpet();
+    playSound(this.scene, SOUNDS.roar, SOUND_VOLUMES.roar);
+    this.scene.cameras.main.shake(RAGE_SHAKE_TIME, RAGE_SHAKE);
+    floatText(this.scene, this.x, this.y - RAGE_TEXT_LIFT * SCALE, RAGE_TEXT, COLORS.heatLow);
+    this.rageEyes.setVisible(true);
+  }
+
+  // wander → stomp: встаёт на дыбы к точке towardX, на снегу растёт красный круг.
+  // Удар (slam) — когда скажет systems/Boss.ts.
+  stomp(towardX: number): void {
+    this.target = { x: this.x, y: this.y };
+    this.face(towardX);
+    this.enter('stomp');
+    this.hasStomped = false;
+  }
+
+  // «!» над вождём (он стоит в точке at): дорожка тарана идёт через него.
+  warn(at: Point): void {
+    floatText(this.scene, at.x, at.y - WARN_LIFT, WARN_TEXT, COLORS.heatLow);
+  }
+
+  // Середина удара топота: перед мамонтом.
+  getStompCenter(): Point {
+    return { x: this.x + this.facing * STOMP_FRONT, y: this.y };
+  }
+
+  // Удар топота: мамонт обрушивается, по снегу расходится волна, летят ледяные осколки.
+  slam(): void {
+    this.hasStomped = true;
+    this.stompMark.clear();
+    this.squash.velocity += STOMP_SLAM_SQUASH;
+    this.lean.velocity += STOMP_SLAM_LEAN;
+    const center = this.getStompCenter();
+    const wave = this.scene.add.image(center.x, center.y, TEXTURES.ring).setDepth(GROUND_MARK_DEPTH + 1).setScale(0.3);
+    this.scene.tweens.add({
+      targets: wave,
+      scaleX: (MAMMOTH_STOMP_RADIUS * 2) / wave.width,
+      scaleY: (MAMMOTH_STOMP_RADIUS * 2 * STOMP_FLATTEN) / wave.height,
+      alpha: 0,
+      duration: STOMP_WAVE_TIME,
+      ease: 'Cubic.easeOut',
+      onComplete: () => wave.destroy(),
+    });
+    this.shards.setDepth(center.y + PARTICLES_DEPTH_SHIFT).explode(STOMP_SHARDS, center.x, center.y);
+    this.snowDust.setDepth(center.y + PARTICLES_DEPTH_SHIFT).explode(12, center.x, center.y);
+    this.scene.cameras.main.shake(STOMP_SHAKE_TIME, STOMP_SHAKE);
+    playSound(this.scene, SOUNDS.hit, SOUND_VOLUMES.hit, STOMP_SOUND_DETUNE);
   }
 
   // Удар на damage: белая вспышка, сжатие, клочья шерсти, всплывает урон.
@@ -406,6 +561,7 @@ export class Mammoth {
     if (!this.canBeHit()) return;
     this.hp = Math.max(0, this.hp - damage);
     for (const image of this.images) image.setTint(COLORS.white).setTintMode(Phaser.TintModes.FILL);
+    this.flashLeft = HIT_FLASH_TIME;
     this.scene.time.delayedCall(HIT_FLASH_TIME, () => {
       for (const image of this.images) image.clearTint();
       this.legs.forEach((leg, i) => {
@@ -424,6 +580,9 @@ export class Mammoth {
   // тает — и на его месте вырастает гора окороков (мультяшная декорация).
   private fall(): void {
     this.enter('fallen');
+    this.lane.clear();
+    this.stompMark.clear();
+    this.rageEyes.setVisible(false);
     const side = -this.facing;
     this.scene.tweens.chain({
       targets: this.root,
@@ -487,6 +646,7 @@ export class Mammoth {
     const seconds = delta / 1000;
     this.time += delta;
     const pose = POSES[this.state === 'hidden' || this.state === 'fallen' ? 'idle' : this.state];
+    this.flashLeft -= delta;
     // Скорость по x (пикс/с): от неё отстают хобот и юбка.
     const velocityX = (this.x - this.lastX) / Math.max(seconds, 0.001);
     this.lastX = this.x;
@@ -533,6 +693,54 @@ export class Mammoth {
     const skirt = -velocityX * SKIRT_DRAG * this.facing + Math.sin(this.stepPhase * 2);
     this.skirt.setAngle(Phaser.Math.Clamp(springTo(this.skirtAngle, skirt, seconds, TAIL_SPRING.stiffness, TAIL_SPRING.damping), -SKIRT_MAX_ANGLE, SKIRT_MAX_ANGLE));
     this.blink(delta);
+    this.animateMarks();
+    this.animateRage();
+  }
+
+  // Дорожка тарана мигает, пока мамонт роет; красный круг топота растёт, пока мамонт на дыбах.
+  private animateMarks(): void {
+    if (this.state === 'prepare') {
+      this.lane.setAlpha(0.5 + 0.5 * Math.abs(Math.sin(this.time * LANE_BLINK_SPEED)));
+    }
+    if (this.state !== 'stomp' || this.hasStomped) return;
+    const share = Math.min(1, this.stateTime / MAMMOTH_STOMP_WINDUP);
+    const center = this.getStompCenter();
+    const g = this.stompMark;
+    g.clear();
+    g.fillStyle(COLORS.heatLow, STOMP_FILL_ALPHA + STOMP_FILL_PULSE * Math.sin(this.time * LANE_BLINK_SPEED * 2));
+    g.fillEllipse(center.x, center.y, MAMMOTH_STOMP_RADIUS * 2 * share, MAMMOTH_STOMP_RADIUS * 2 * STOMP_FLATTEN * share);
+    g.lineStyle(STOMP_EDGE_WIDTH, COLORS.heatLow, 1);
+    g.strokeEllipse(center.x, center.y, MAMMOTH_STOMP_RADIUS * 2, MAMMOTH_STOMP_RADIUS * 2 * STOMP_FLATTEN);
+  }
+
+  // В ярости: глаза горят и мерцают, шерсть пульсирует красным (кроме вспышки удара).
+  private animateRage(): void {
+    if (!this.isEnraged) return;
+    const pulse = 0.5 + 0.5 * Math.sin(this.time * RAGE_PULSE_SPEED);
+    this.rageEyes.setAlpha(0.6 + 0.4 * pulse);
+    if (this.flashLeft > 0) return;
+    const green = Math.round(170 + 60 * pulse);
+    const blue = Math.round(150 + 60 * pulse);
+    const tint = Phaser.Display.Color.GetColor(255, green, blue);
+    const farTint = Phaser.Display.Color.GetColor(200, Math.round(green * 0.75), Math.round(blue * 0.7));
+    this.images.forEach((image) => image.setTint(tint));
+    this.legs.forEach((leg, i) => {
+      if (MAMMOTH_ANATOMY.hips[i].far) leg.setTint(farTint);
+    });
+  }
+
+  // Дорожка тарана от мамонта до chargeTo: полоса шириной в два радиуса тарана, полоски, стрелка.
+  private drawLane(): void {
+    const g = this.lane;
+    const length = Phaser.Math.Distance.Between(this.x, this.y, this.chargeTo.x, this.chargeTo.y);
+    const width = MAMMOTH_RAM_RADIUS * 2;
+    g.clear();
+    g.setPosition(this.x, this.y).setRotation(Math.atan2(this.chargeTo.y - this.y, this.chargeTo.x - this.x)).setAlpha(1);
+    g.fillStyle(COLORS.fireOrange, LANE_ALPHA);
+    g.fillRect(0, -width / 2, length, width);
+    g.fillStyle(COLORS.fireOrange, LANE_DASH_ALPHA);
+    for (let x = LANE_DASH; x < length - LANE_ARROW; x += LANE_DASH_STEP) g.fillRect(x, -6, LANE_DASH, 12);
+    g.fillTriangle(length - LANE_ARROW, -width / 3, length, 0, length - LANE_ARROW, width / 3);
   }
 
   // Ноги шагают по диагоналям (передняя ближняя с задней дальней) и поднимаются при выносе.
@@ -581,6 +789,10 @@ export class Mammoth {
     } else if (this.state === 'tired') {
       this.steam.setDepth(depth).explode(3, this.x + MOUTH_OFFSET.x * this.facing, this.y + MOUTH_OFFSET.y);
       this.effectTimer = TIRED_STEAM_EVERY;
+    } else if (this.isEnraged && this.state !== 'charge') {
+      // В ярости со спины идёт пар.
+      this.steam.setDepth(depth).explode(3, this.x + RAGE_BACK.x * this.facing * SCALE, this.y + RAGE_BACK.y * SCALE);
+      this.effectTimer = RAGE_STEAM_EVERY;
     } else if (this.state === 'charge') {
       this.snowClods.setDepth(this.y - 1).explode(1, this.x - this.facing * 70 * SCALE, this.y);
       this.snowDust.setDepth(this.y - 1).explode(2, this.x - this.facing * 110 * SCALE, this.y - 8);

@@ -398,6 +398,23 @@ export const MAMMOTH_HIT_RADIUS = 130;
 // Доля целей «куча у костра» (остальные — вождь): 0.3 — примерно каждый третий таран.
 export const MAMMOTH_PILE_CHANCE = 0.3;
 
+// Ярость (с 0.9.1): здоровье упало до этой доли — мамонт один раз встаёт на дыбы и ревёт
+// MAMMOTH_RAGE_TIME мс, а дальше таранит дважды подряд: перед вторым тараном роет копытом
+// только MAMMOTH_RAGE_PREPARE_TIME мс.
+export const MAMMOTH_RAGE_SHARE = 0.5;
+export const MAMMOTH_RAGE_TIME = 1300;
+export const MAMMOTH_RAGE_PREPARE_TIME = 450;
+
+// Топот (с 0.9.1): каждая MAMMOTH_STOMP_EVERY-я атака на вождя — топот. Для него мамонт
+// подходит ближе MAMMOTH_STOMP_RANGE, встаёт на дыбы (на снегу растёт красный круг)
+// MAMMOTH_STOMP_WINDUP мс и бьёт ногами: вождь в круге MAMMOTH_STOMP_RADIUS отлетает.
+// После удара мамонт стоит ещё MAMMOTH_STOMP_RECOVER мс и устаёт.
+export const MAMMOTH_STOMP_EVERY = 2;
+export const MAMMOTH_STOMP_RANGE = 260;
+export const MAMMOTH_STOMP_RADIUS = 200;
+export const MAMMOTH_STOMP_WINDUP = 950;
+export const MAMMOTH_STOMP_RECOVER = 350;
+
 // Таран попал по вождю: на сколько пикселей он отлетает и за сколько мс.
 export const KNOCKBACK_DISTANCE = 220;
 export const KNOCKBACK_TIME = 350;

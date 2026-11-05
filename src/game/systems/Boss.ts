@@ -3,9 +3,18 @@ import {
   MAMMOTH_CHARGE_DISTANCE,
   MAMMOTH_CHARGE_OVERSHOOT,
   MAMMOTH_HIT_RADIUS,
+  MAMMOTH_HP,
   MAMMOTH_PILE_CHANCE,
   MAMMOTH_PREPARE_TIME,
+  MAMMOTH_RAGE_PREPARE_TIME,
+  MAMMOTH_RAGE_SHARE,
+  MAMMOTH_RAGE_TIME,
   MAMMOTH_RAM_RADIUS,
+  MAMMOTH_STOMP_EVERY,
+  MAMMOTH_STOMP_RADIUS,
+  MAMMOTH_STOMP_RANGE,
+  MAMMOTH_STOMP_RECOVER,
+  MAMMOTH_STOMP_WINDUP,
   MAMMOTH_TIRED_TIME,
   SPILL_PICKUP_RADIUS,
   SPILL_RADIUS,
@@ -36,6 +45,8 @@ const CHARGE_EDGE_MARGIN = 120;
 // =====================================================================
 //  Финальный бой с мамонтом (с 0.9): мамонт выбирает цель, роет копытом,
 //  таранит и устаёт; вождь бьёт уставшего мамонта.
+//  С 0.9.1: каждая вторая атака на вождя вблизи — топот; на половине здоровья —
+//  ярость, после неё таран двойной.
 //
 //  Это функции, а не класс: нужные объекты приходят аргументами,
 //  своего состояния здесь нет. Здоровье, состояние и таймер хранит сам мамонт.
@@ -63,21 +74,38 @@ export function updateMammoth(mammoth: Mammoth, world: BossWorld, delta: number)
   if (mammoth.isActive()) world.stats.bossTime += delta;
   // Прошёл сквозь частокол — пролом. Таран о стену кончается: мамонт устал.
   const isWallBroken = mammoth.isActive() && world.fence.breakThrough(from, mammoth);
-  if (isWallBroken && mammoth.getState() === 'charge') mammoth.tire();
+  if (isWallBroken && mammoth.getState() === 'charge') {
+    mammoth.isSecondCharge = false;
+    mammoth.tire();
+  }
 
   switch (mammoth.getState()) {
     case 'wander':
       walkToAim(mammoth, world);
       break;
-    case 'prepare':
-      if (mammoth.stateTime >= MAMMOTH_PREPARE_TIME) mammoth.charge(chargeEnd(mammoth, aimPoint(mammoth, world)));
+    case 'prepare': {
+      const prepareTime = mammoth.isSecondCharge ? MAMMOTH_RAGE_PREPARE_TIME : MAMMOTH_PREPARE_TIME;
+      if (mammoth.stateTime >= prepareTime) mammoth.charge(mammoth.chargeTo);
       break;
+    }
     case 'charge':
       ram(mammoth, world);
-      if (mammoth.isArrived()) mammoth.tire();
+      if (mammoth.isArrived()) endCharge(mammoth, world);
+      break;
+    case 'stomp':
+      updateStomp(mammoth, world);
       break;
     case 'tired':
-      if (mammoth.stateTime >= MAMMOTH_TIRED_TIME) {
+      // Здоровье упало до половины — ярость (один раз за бой).
+      if (!mammoth.isEnraged && mammoth.hp <= MAMMOTH_HP * MAMMOTH_RAGE_SHARE) {
+        mammoth.enrage();
+      } else if (mammoth.stateTime >= MAMMOTH_TIRED_TIME) {
+        chooseAim(mammoth, world);
+        mammoth.wander();
+      }
+      break;
+    case 'rage':
+      if (mammoth.stateTime >= MAMMOTH_RAGE_TIME) {
         chooseAim(mammoth, world);
         mammoth.wander();
       }
@@ -86,15 +114,67 @@ export function updateMammoth(mammoth: Mammoth, world: BossWorld, delta: number)
 }
 
 // Идёт к цели. Цели-кучи больше нет (опустела) — выбирает новую.
-// Подошёл на расстояние разгона — останавливается и роет копытом.
+// Подошёл на расстояние атаки — атакует. На вождя каждая вторая атака (MAMMOTH_STOMP_EVERY) —
+// топот: для него мамонт подходит ближе (MAMMOTH_STOMP_RANGE). Остальные атаки — таран.
 function walkToAim(mammoth: Mammoth, world: BossWorld): void {
   if (mammoth.aim >= 0 && world.piles[mammoth.aim].isEmpty()) chooseAim(mammoth, world);
   const aim = aimPoint(mammoth, world);
-  if (Phaser.Math.Distance.Between(mammoth.x, mammoth.y, aim.x, aim.y) <= MAMMOTH_CHARGE_DISTANCE) {
-    mammoth.prepare(aim.x);
-  } else {
+  const isStompTurn = mammoth.aim < 0 && mammoth.attacks % MAMMOTH_STOMP_EVERY === MAMMOTH_STOMP_EVERY - 1;
+  const range = isStompTurn ? MAMMOTH_STOMP_RANGE : MAMMOTH_CHARGE_DISTANCE;
+  if (Phaser.Math.Distance.Between(mammoth.x, mammoth.y, aim.x, aim.y) > range) {
     mammoth.walkTo(aim);
+    return;
   }
+  if (mammoth.aim < 0) mammoth.attacks++;
+  if (isStompTurn) {
+    mammoth.stomp(aim.x);
+  } else {
+    startCharge(mammoth, world);
+  }
+}
+
+// Роет копытом: цель тарана выбирается сейчас и больше не двигается — по ней на снегу
+// рисуется дорожка. Дорожка идёт через вождя — над ним «!».
+function startCharge(mammoth: Mammoth, world: BossWorld): void {
+  const to = chargeEnd(mammoth, aimPoint(mammoth, world));
+  const { player } = world;
+  if (distanceToLane(player, mammoth, to) <= MAMMOTH_RAM_RADIUS) {
+    mammoth.warn(player);
+  }
+  mammoth.prepare(to);
+}
+
+// Таран добежал. В ярости после первого тарана — сразу второй (короткое «роет»), потом устал.
+function endCharge(mammoth: Mammoth, world: BossWorld): void {
+  if (mammoth.isEnraged && !mammoth.isSecondCharge) {
+    mammoth.isSecondCharge = true;
+    startCharge(mammoth, world);
+    return;
+  }
+  mammoth.isSecondCharge = false;
+  mammoth.tire();
+}
+
+// Сколько от точки до дорожки тарана (отрезок от мамонта до to): ближайшая точка отрезка
+// — проекция точки на него, обрезанная концами (share от 0 до 1).
+function distanceToLane(point: Point, mammoth: Mammoth, to: Point): number {
+  const dx = to.x - mammoth.x;
+  const dy = to.y - mammoth.y;
+  const lengthSquared = Math.max(1, dx * dx + dy * dy);
+  const share = Phaser.Math.Clamp(((point.x - mammoth.x) * dx + (point.y - mammoth.y) * dy) / lengthSquared, 0, 1);
+  return Phaser.Math.Distance.Between(point.x, point.y, mammoth.x + dx * share, mammoth.y + dy * share);
+}
+
+// Топот: красный круг растёт MAMMOTH_STOMP_WINDUP мс, потом удар — вождь в круге отлетает
+// (стопки на спине не рассыпаются: топот мягче тарана). Ещё миг — и мамонт устал.
+function updateStomp(mammoth: Mammoth, world: BossWorld): void {
+  if (!mammoth.hasStomped && mammoth.stateTime >= MAMMOTH_STOMP_WINDUP) {
+    mammoth.slam();
+    const center = mammoth.getStompCenter();
+    const { player } = world;
+    if (Phaser.Math.Distance.Between(center.x, center.y, player.x, player.y) <= MAMMOTH_STOMP_RADIUS) player.knockBack(center);
+  }
+  if (mammoth.stateTime >= MAMMOTH_STOMP_WINDUP + MAMMOTH_STOMP_RECOVER) mammoth.tire();
 }
 
 // Выбрать цель: чаще вождь, иногда (MAMMOTH_PILE_CHANCE) — случайная непустая куча у костра.
