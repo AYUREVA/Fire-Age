@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { COLORS, toCss } from '../palette';
-import { PHASES } from '../settings';
+import { FIRE_MAX_HEAT, PHASES, STAR_HEAT_MARK } from '../settings';
 import { MODIFIER_PLATE_SIZE, TEXTURES, TITLE_FONT } from '../textures';
 import { flyArc, pop } from '../fx';
 import { SOUNDS, SOUND_VOLUMES, playSound, toggleMute } from '../sounds';
@@ -32,6 +32,27 @@ const MODIFIER_TEXT_X = -8;
 // Иконки: пламя и нога в сапоге — уменьшенные картинки из игры.
 const FLAME_ICON_SCALE = 0.28;
 const BOOT_ICON_SCALE = 0.75;
+// Плашка жара (с 0.9.1) — такая же, как плашка времени, под ней с таким зазором.
+const HEAT_PANEL_GAP = 10;
+// Пламя на плашке жара: середина по x, как солнце; низ пламени — ниже середины плашки;
+// размер — от жара (на углях пламени нет).
+const HEAT_FLAME_BOTTOM = 17;
+const HEAT_FLAME_MIN_SCALE = 0.22;
+const HEAT_FLAME_MAX_SCALE = 0.4;
+const HEAT_FLAME_FLICKER = 0.02;
+const HEAT_FLAME_FLICKER_SPEED = 0.02;
+// Шкала жара на плашке: от TIME_X до правого края плашки минус отступ; высота жёлоба;
+// засечка звезды и звёздочка над ней.
+const HEAT_BAR_RIGHT_PAD = 16;
+const HEAT_BAR_HEIGHT = 16;
+const HEAT_BAR_SHIFT_Y = 6;
+const HEAT_MARK_WIDTH = 4;
+const HEAT_MARK_OVER = 5;
+const HEAT_STAR_SCALE = 0.34;
+const HEAT_STAR_LIFT = 14;
+// Ниже засечки шкала мигает, на углях — пульсирует пустой жёлоб (скорость, мс).
+const HEAT_LOW_BLINK_SPEED = 0.012;
+const HEAT_EMBER_PULSE_SPEED = 0.008;
 // Кнопка звука стоит левее кнопки паузы с таким зазором.
 const SOUND_BUTTON_GAP = 10;
 // Кнопка паузы чуть темнее, при наведении — светлеет до настоящего цвета
@@ -53,7 +74,7 @@ export function formatTime(ms: number): string {
 /**
  * Интерфейс поверх игры: плашка «сколько осталось до конца дня или ночи»
  * (днём на ней солнце, ночью луна), справа от неё — счётчик клыков,
- * под ней ночью — плашки модификаторов
+ * под ней — такая же плашка жара главного костра (с 0.9.1), ниже ночью — плашки модификаторов
  * (огонь и скорость вождя, числа из таблицы PHASES), и кнопка паузы в правом верхнем углу (для телефона).
  * Всё в координатах экрана (scrollFactor 0) — не двигается вместе с камерой.
  */
@@ -72,6 +93,12 @@ export class Hud {
   private soundButton: Phaser.GameObjects.Image;
   // Плашки ночных модификаторов: видны только ночью.
   private modifiers: (Phaser.GameObjects.Image | Phaser.GameObjects.Text)[] = [];
+  // Плашка жара главного костра (с 0.9.1): пламя, шкала (рисуется каждый кадр), звёздочка над засечкой.
+  // Сам жар хранит костёр (Campfire.heat), HUD только показывает.
+  private heatFlame: Phaser.GameObjects.Image;
+  private heatBar: Phaser.GameObjects.Graphics;
+  private heatStar: Phaser.GameObjects.Image;
+  private heatBarBox: { x: number; y: number; width: number };
 
   // onPause — что сделать, когда нажали кнопку паузы (сцена ставит игру на паузу).
   constructor(scene: Phaser.Scene, onPause: () => void) {
@@ -109,6 +136,20 @@ export class Hud {
       })
       .setOrigin(0, 0.5);
 
+    // Плашка жара — под плашкой времени, такая же.
+    const heatPanelY = PANEL_MARGIN + panel.height + HEAT_PANEL_GAP;
+    const heatPanel = scene.add.image(PANEL_MARGIN, heatPanelY, TEXTURES.hudPanel).setOrigin(0, 0);
+    const heatCenterY = heatPanelY + panel.height / 2;
+    this.heatFlame = scene.add.image(PANEL_MARGIN + ICON_X, heatCenterY + HEAT_FLAME_BOTTOM, TEXTURES.flame).setOrigin(0.5, 1);
+    this.heatBar = scene.add.graphics();
+    this.heatBarBox = {
+      x: PANEL_MARGIN + TIME_X,
+      y: heatCenterY + HEAT_BAR_SHIFT_Y - HEAT_BAR_HEIGHT / 2,
+      width: panel.width - TIME_X - HEAT_BAR_RIGHT_PAD,
+    };
+    const markX = this.heatBarBox.x + (this.heatBarBox.width * STAR_HEAT_MARK) / FIRE_MAX_HEAT;
+    this.heatStar = scene.add.image(markX, this.heatBarBox.y - HEAT_STAR_LIFT, TEXTURES.star).setScale(HEAT_STAR_SCALE);
+
     const pauseButton = scene.add.image(0, 0, TEXTURES.pauseButton).setTint(PAUSE_IDLE_TINT);
     this.pauseButton = pauseButton;
     pauseButton.setInteractive({ useHandCursor: true });
@@ -133,8 +174,8 @@ export class Hud {
       pop(scene, soundButton);
     });
 
-    // Ночные модификаторы — числа из таблицы PHASES в settings.ts.
-    const modifierY = PANEL_MARGIN + panel.height + MODIFIER_GAP + MODIFIER_HEIGHT / 2;
+    // Ночные модификаторы — числа из таблицы PHASES в settings.ts. Стоят под плашкой жара.
+    const modifierY = heatPanelY + panel.height + MODIFIER_GAP + MODIFIER_HEIGHT / 2;
     const modifierX = PANEL_MARGIN + MODIFIER_WIDTH / 2;
     this.modifiers = [
       ...this.createModifier(modifierX, modifierY, TEXTURES.flame, FLAME_ICON_SCALE, PHASES.night.fireBurnMultiplier),
@@ -149,7 +190,20 @@ export class Hud {
     this.setModifiers(false);
 
     // Всё в координатах экрана и поверх мира.
-    const parts = [panel, this.phaseIcon, this.timeText, tuskPanel, this.tuskIcon, this.tuskText, pauseButton, soundButton];
+    const parts = [
+      panel,
+      this.phaseIcon,
+      this.timeText,
+      tuskPanel,
+      this.tuskIcon,
+      this.tuskText,
+      heatPanel,
+      this.heatFlame,
+      this.heatBar,
+      this.heatStar,
+      pauseButton,
+      soundButton,
+    ];
     for (const object of [...parts, ...this.modifiers]) {
       object.setScrollFactor(0).setDepth(HUD_DEPTH);
     }
@@ -265,6 +319,43 @@ export class Hud {
   setTimeLeft(ms: number): void {
     // setText перерисовывает надпись, только если текст изменился, — раз в секунду.
     this.timeText.setText(formatTime(ms));
+  }
+
+  // Жар главного костра (heat — от 0 до FIRE_MAX_HEAT): пламя растёт и опадает, шкала
+  // заполняется. Ниже засечки звезды шкала краснеет и мигает; потеряна звезда — звёздочка
+  // тускнеет; на углях пламени нет, пустой жёлоб пульсирует. Сцена вызывает каждый кадр.
+  setHeat(heat: number, isMarkLost: boolean, isEmbers: boolean): void {
+    const now = this.scene.time.now;
+    const share = heat / FIRE_MAX_HEAT;
+    const isLow = heat < STAR_HEAT_MARK;
+    const flicker = Math.sin(now * HEAT_FLAME_FLICKER_SPEED) * HEAT_FLAME_FLICKER;
+    const flameScale = Phaser.Math.Linear(HEAT_FLAME_MIN_SCALE, HEAT_FLAME_MAX_SCALE, share);
+    this.heatFlame.setScale(flameScale + flicker, flameScale - flicker).setVisible(!isEmbers);
+    this.heatStar.setTint(isMarkLost ? COLORS.starLost : COLORS.starOn);
+
+    const { x, y, width } = this.heatBarBox;
+    const h = HEAT_BAR_HEIGHT;
+    const bar = this.heatBar;
+    bar.clear();
+    // Жёлоб: тёмная обводка и каменная подложка (как шкала над костром).
+    const emberPulse = isEmbers ? 0.5 + 0.5 * Math.sin(now * HEAT_EMBER_PULSE_SPEED) : 0;
+    bar.fillStyle(COLORS.outline, 1);
+    bar.fillRoundedRect(x - 2, y - 2, width + 4, h + 4, h / 2 + 2);
+    bar.fillStyle(isEmbers ? COLORS.heatLow : COLORS.heatBarBack, isEmbers ? 0.35 + 0.4 * emberPulse : 1);
+    bar.fillRoundedRect(x, y, width, h, h / 2);
+    // Заливка с бликом сверху.
+    const fill = width * share;
+    if (fill > h / 2) {
+      const blink = isLow ? 0.65 + 0.35 * Math.cos(now * HEAT_LOW_BLINK_SPEED) : 1;
+      bar.fillStyle(isLow ? COLORS.heatLow : COLORS.heatBar, blink);
+      bar.fillRoundedRect(x, y, fill, h, Math.min(h / 2, fill / 2));
+      bar.fillStyle(COLORS.white, 0.35 * blink);
+      bar.fillRoundedRect(x + 3, y + 2, Math.max(0, fill - 6), h * 0.3, h * 0.15);
+    }
+    // Засечка звезды.
+    const markX = x + (width * STAR_HEAT_MARK) / FIRE_MAX_HEAT;
+    bar.fillStyle(isMarkLost ? COLORS.heatMarkLost : COLORS.heatMark, 1);
+    bar.fillRect(markX - HEAT_MARK_WIDTH / 2, y - HEAT_MARK_OVER, HEAT_MARK_WIDTH, h + HEAT_MARK_OVER * 2);
   }
 
   // Где на экране середина цифр времени: сюда прилетает крупный таймер ночи.

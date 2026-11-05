@@ -59,6 +59,7 @@ import { CycleEvent, DayNightCycle } from '../objects/DayNightCycle';
 import { NightOverlay } from '../objects/NightOverlay';
 import { PhaseBanner } from '../ui/PhaseBanner';
 import { BossBar } from '../ui/BossBar';
+import { FireArrow } from '../ui/FireArrow';
 import { TutorialHint } from '../ui/TutorialHint';
 import { StarGoals, describeStarGoals } from '../ui/StarGoals';
 import { updateTutorial } from '../systems/Tutorial';
@@ -249,6 +250,8 @@ export class GameScene extends Phaser.Scene {
   private spilled: Loot[] = [];
   // Интерфейс: сколько осталось до конца дня или ночи, кнопка паузы.
   private hud!: Hud;
+  // Стрелка к главному костру у края экрана, когда его не видно (с 0.9.1).
+  private fireArrow!: FireArrow;
   // Смена дня и ночи: фаза, номер суток, сколько осталось до конца фазы.
   private cycle!: DayNightCycle;
   // Вид ночи: закат, тьма со светлым пятном у костра, метель.
@@ -371,6 +374,8 @@ export class GameScene extends Phaser.Scene {
     this.cycle = new DayNightCycle(this.level.dayCount, this.level.day, this.level.night, this.level.boss?.day);
     this.hud = new Hud(this, () => this.pauseGame('button'));
     this.hud.setTimeLeft(this.cycle.timeLeft);
+    this.hud.setHeat(this.campfire.heat, this.campfire.wasBelowMark, this.campfire.isEmbers());
+    this.fireArrow = new FireArrow(this);
     this.starGoals = new StarGoals(this, this.level.starFed, this.level.boss !== undefined);
 
     this.setupCamera();
@@ -457,6 +462,9 @@ export class GameScene extends Phaser.Scene {
     updatePickup(this.player, this.backpack, this.cookedMeatPile, delta);
     const isFireOut = updateFire(this.campfire, this.woodpile, delta, phase.fireBurnMultiplier);
     this.campfire.update(delta);
+    // Жар главного костра — в HUD и на стрелке к костру, если его не видно.
+    this.hud.setHeat(this.campfire.heat, this.campfire.wasBelowMark, this.campfire.isEmbers());
+    this.fireArrow.update(this.cameras.main, this.campfire);
     updateCooking(this.campfire, this.rawMeatPile, this.spit, this.cookedMeatPile, this.stats, delta);
     this.spit.update(delta);
     this.nightOverlay.update(this.campfire.x, this.campfire.y, this.campfire.heat / FIRE_MAX_HEAT);

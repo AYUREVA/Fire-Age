@@ -97,7 +97,7 @@ const EMBER_PULSE_TIME = 600;
 const EMBER_MIN_ALPHA = 0.25;
 const EMBER_MAX_ALPHA = 0.7;
 
-// ===== Шкала жара =====
+// ===== Шкала жара (только у малого костра, с 0.9.1) =====
 
 // Шкала висит над пламенем.
 const HEAT_BAR_OFFSET_Y = 150;
@@ -106,9 +106,6 @@ const HEAT_BAR_OFFSET_Y = 150;
 const HEAT_BAR_DEPTH = 9000;
 // Заливка начинается на столько пикселей левее середины шкалы.
 const HEAT_FILL_LEFT = 52;
-// Засечка второй звезды: тонкая черта поперёк шкалы, чуть выше и ниже заливки.
-const HEAT_MARK_WIDTH = 3;
-const HEAT_MARK_HEIGHT = 18;
 // Пока костёр в углях, шкала мигает: самая низкая прозрачность и время мигания.
 const HEAT_BAR_BLINK_ALPHA = 0.3;
 const HEAT_BAR_BLINK_TIME = 250;
@@ -120,9 +117,9 @@ const FEED_FLY_TIME = 420;
 const FEED_ARC_HEIGHT = 110;
 
 // Вид костра: size — во сколько раз он меньше главного (1 — главный),
-// isMain — главный ли это костёр. У главного на шкале засечка второй звезды,
-// а при жаре 0 тлеют угли. У малого (у проруби, с 0.8) засечки нет и углей нет:
-// погас — кострище тёмное, шкала не мигает.
+// isMain — главный ли это костёр. Главный теряет вторую звезду ниже засечки, при жаре 0
+// тлеют угли, а его жар показывает HUD (с 0.9.1). У малого (у проруби, с 0.8) шкала висит
+// над ним, звезды и углей нет: погас — кострище тёмное, шкала не мигает.
 export type FireLook = { size: number; isMain: boolean };
 const MAIN_FIRE: FireLook = { size: 1, isMain: true };
 
@@ -133,11 +130,11 @@ function wave(time: number, halfPeriod: number): number {
 }
 
 /**
- * Костёр: кострище, языки пламени, искры, круг света и шкала жара над ним.
+ * Костёр: кострище, языки пламени, искры, круг света; у малого — шкала жара над ним.
  * Главный — в лагере; малый — у проруби (с 0.8), тот же класс поменьше.
  *
  * Костёр только хранит жар и показывает его: чем меньше жара, тем меньше
- * пламя и свет. Жар на нуле — пламени нет, тлеют угли, шкала мигает.
+ * пламя и свет. Жар на нуле — пламени нет, тлеют угли.
  * Сколько жара сгорает и когда подкидывать хворост, решает systems/Fire.ts.
  * Про вождя и поленницу костёр ничего не знает.
  */
@@ -168,11 +165,9 @@ export class Campfire {
   private haloScale: number;
   // Искры над пламенем.
   private sparks: Phaser.GameObjects.Particles.ParticleEmitter;
-  // Шкала жара: подложка и заливка, которая укорачивается вместе с жаром.
+  // Шкала жара над малым костром: подложка и заливка, которая укорачивается вместе с жаром.
   private heatBarBack: Phaser.GameObjects.Image;
   private heatBarFill: Phaser.GameObjects.Image;
-  // Засечка второй звезды на шкале.
-  private heatMark: Phaser.GameObjects.Rectangle;
   // Размер и главный ли это костёр (FireLook).
   private look: FireLook;
 
@@ -222,13 +217,9 @@ export class Campfire {
       .setOrigin(0, 0.5)
       .setTint(COLORS.heatBar)
       .setDepth(HEAT_BAR_DEPTH);
-    // Засечка стоит там, где кончается заливка при жаре STAR_HEAT_MARK.
-    const markX = x - HEAT_FILL_LEFT + (this.heatBarFill.width * STAR_HEAT_MARK) / FIRE_MAX_HEAT;
-    this.heatMark = scene.add
-      .rectangle(markX, barY, HEAT_MARK_WIDTH, HEAT_MARK_HEIGHT, COLORS.heatMark)
-      .setDepth(HEAT_BAR_DEPTH)
-      // Засечка звезды — только у главного костра.
-      .setVisible(look.isMain);
+    // Шкала над костром — только у малого (у проруби). Жар главного показывает HUD (с 0.9.1).
+    this.heatBarBack.setVisible(!look.isMain);
+    this.heatBarFill.setVisible(!look.isMain);
 
     this.update(0);
   }
@@ -277,11 +268,10 @@ export class Campfire {
     if (!isEmbers && !this.sparks.emitting) this.sparks.start();
 
     this.heatBarFill.setScale(heatShare, 1);
-    // Жар упал ниже засечки — она темнеет до конца уровня: вторая звезда потеряна.
+    // Жар упал ниже засечки — вторая звезда потеряна до конца уровня (засечку показывает HUD).
     // Звезду теряет только главный костёр.
     if (this.look.isMain && !this.wasBelowMark && this.heat < STAR_HEAT_MARK) {
       this.wasBelowMark = true;
-      this.heatMark.setFillStyle(COLORS.heatMarkLost);
     }
     // В углях шкала главного костра мигает — «спаси огонь!». Малый просто погас.
     const blink = isEmbers && this.look.isMain ? wave(this.time, HEAT_BAR_BLINK_TIME) : 0;
