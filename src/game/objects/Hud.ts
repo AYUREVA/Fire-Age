@@ -20,6 +20,14 @@ const PANEL_GAP = 10;
 // Клык летит в счётчик за столько мс по дуге такой высоты.
 const TUSK_FLY_TIME = 450;
 const TUSK_FLY_ARC = 80;
+// Клыки «лесенкой» (с 0.9.1): из пачки они вылетают по очереди с таким зазором (мс),
+// и каждый «дзынь» выше предыдущего на столько центов (100 — полутон), но не выше
+// TUSK_PITCH_STEPS ступенек. Так нет десятков одинаковых звуков в один кадр.
+const TUSK_FLY_GAP = 55;
+const TUSK_PITCH_STEP = 45;
+const TUSK_PITCH_STEPS = 20;
+// Покупка: «дзынь» ступеньками вниз; пауза дольше этого (мс) — лесенка начинается заново.
+const SPEND_STREAK_RESET = 400;
 // Плашки ночных модификаторов под плашкой времени: зазор, размер плашки
 // (картинка TEXTURES.modifierPlate), расстояние между плашками.
 const MODIFIER_GAP = 6;
@@ -91,6 +99,9 @@ export class Hud {
   private pauseButton: Phaser.GameObjects.Image;
   // Кнопка звука левее паузы: включить или выключить звук (запоминается в сохранении).
   private soundButton: Phaser.GameObjects.Image;
+  // Лесенка покупки: какой по счёту клык уходит подряд и когда ушёл прошлый (мс сцены).
+  private spendStreak = 0;
+  private lastSpendTime = -Infinity;
   // Плашки ночных модификаторов: видны только ночью.
   private modifiers: (Phaser.GameObjects.Image | Phaser.GameObjects.Text)[] = [];
   // Плашка жара главного костра (с 0.9.1): пламя, шкала (рисуется каждый кадр), звёздочка над засечкой.
@@ -263,31 +274,40 @@ export class Hud {
 
   // Клык летит из точки экрана (screenX, screenY) в счётчик. Долетел — счётчик
   // показывает total (сколько клыков у вождя вместе с этим) и «пружинит».
-  flyTuskToCounter(screenX: number, screenY: number, total: number): void {
-    const tusk = this.scene.add.image(screenX, screenY, TEXTURES.tusk).setScrollFactor(0);
-    flyArc(this.scene, tusk, {
-      from: { x: screenX, y: screenY },
-      target: () => ({ x: this.tuskIcon.x, y: this.tuskIcon.y }),
-      duration: TUSK_FLY_TIME,
-      height: TUSK_FLY_ARC,
-      onLand: () => {
-        tusk.destroy();
-        playSound(this.scene, SOUNDS.tusk, SOUND_VOLUMES.tusk);
-        this.tuskText.setText(String(total));
-        pop(this.scene, this.tuskText);
-        pop(this.scene, this.tuskIcon);
-      },
+  // index — номер клыка в пачке (0 — первый): он вылетает позже и звенит выше.
+  flyTuskToCounter(screenX: number, screenY: number, total: number, index = 0): void {
+    // Клык сразу виден на месте и ждёт своей очереди.
+    const tusk = this.scene.add.image(screenX, screenY, TEXTURES.tusk).setScrollFactor(0).setDepth(HUD_DEPTH + 1);
+    this.scene.time.delayedCall(index * TUSK_FLY_GAP, () => {
+      flyArc(this.scene, tusk, {
+        from: { x: screenX, y: screenY },
+        target: () => ({ x: this.tuskIcon.x, y: this.tuskIcon.y }),
+        duration: TUSK_FLY_TIME,
+        height: TUSK_FLY_ARC,
+        onLand: () => {
+          tusk.destroy();
+          const pitch = Math.min(index, TUSK_PITCH_STEPS) * TUSK_PITCH_STEP;
+          playSound(this.scene, SOUNDS.tusk, SOUND_VOLUMES.tusk, pitch);
+          this.tuskText.setText(String(total));
+          pop(this.scene, this.tuskText);
+          pop(this.scene, this.tuskIcon);
+        },
+      });
+      // flyArc ставит летящим предметам глубину мира — клык должен лететь поверх HUD.
+      tusk.setDepth(HUD_DEPTH + 1);
     });
-    // flyArc ставит летящим предметам глубину мира — клык должен лететь поверх HUD.
-    tusk.setDepth(HUD_DEPTH + 1);
   }
 
   // Клык уходит из счётчика на покупку: счётчик сразу показывает total
   // (сколько клыков осталось у вождя). Вернёт точку экрана, откуда клык вылетает.
+  // Клыки уходят подряд — каждый «дзынь» на ступеньку ниже.
   spendTusk(total: number): { x: number; y: number } {
     this.tuskText.setText(String(total));
     pop(this.scene, this.tuskIcon);
-    playSound(this.scene, SOUNDS.tusk, SOUND_VOLUMES.tusk);
+    const now = this.scene.time.now;
+    this.spendStreak = now - this.lastSpendTime > SPEND_STREAK_RESET ? 0 : this.spendStreak + 1;
+    this.lastSpendTime = now;
+    playSound(this.scene, SOUNDS.tusk, SOUND_VOLUMES.tusk, -Math.min(this.spendStreak, TUSK_PITCH_STEPS) * TUSK_PITCH_STEP);
     return { x: this.tuskIcon.x, y: this.tuskIcon.y };
   }
 
