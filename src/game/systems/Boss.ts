@@ -272,5 +272,5 @@ export function updateMammothFight(player: Player, mammoth: Mammoth): void {
   if (Phaser.Math.Distance.Between(player.x, player.y, mammoth.x, mammoth.y) > MAMMOTH_HIT_RADIUS * weapon.reach) return;
 
   // Пока вождь замахивался, мамонт мог отдохнуть — тогда удар мимо (hit() это проверит).
-  player.swing(mammoth.x, weapon.hitInterval, () => mammoth.hit(weapon.damage));
+  player.swing(mammoth.x, weapon.hitInterval, () => mammoth.hit(weapon.damage, player));
 }

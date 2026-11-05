@@ -172,6 +172,31 @@ const LANE_DASH_STEP = 70;
 const LANE_ARROW = 60;
 const LANE_BLINK_SPEED = 0.012;
 const LANE_FADE_TIME = 400;
+// ===== Земля дрожит и сочные удары (с 0.9.1) =====
+
+// Шаг: экран чуть вздрагивает (если мамонт на экране) — на ходу слабее, на таране сильнее.
+const STEP_SHAKE_TIME = 110;
+const STEP_SHAKE = 0.002;
+const CHARGE_STEP_SHAKE = 0.004;
+// Из-под ноги — снежная пыль; на снегу след (сплюснутый овал), который тает.
+const STEP_DUST = 3;
+const FOOTPRINT_WIDTH = 38;
+const FOOTPRINT_HEIGHT = 14;
+const FOOTPRINT_ALPHA = 0.45;
+const FOOTPRINT_LIFE = 5000;
+const FOOTPRINT_FADE_TIME = 1000;
+// Дальние ноги ступают чуть выше по экрану (они за туловищем).
+const FAR_FOOT_SHIFT = 10;
+// Удар: стоп-кадр (мамонт замирает на столько мс), потом отшатывается от вождя
+// на столько пикселей за столько мс.
+const HIT_STOP_TIME = 70;
+const STAGGER_DISTANCE = 16;
+const STAGGER_TIME = 120;
+// Серия ударов за одно «устал»: со второго удара «×N УДАР!» — каждый крупнее, до предела.
+const COMBO_LIFT = 60;
+const COMBO_SIZE_STEP = 0.15;
+const COMBO_MAX_SIZE = 1.8;
+
 // «!» над вождём, если дорожка тарана идёт через него: столько пикселей над его ногами.
 const WARN_LIFT = 150;
 const WARN_TEXT = '!';
@@ -295,6 +320,14 @@ export class Mammoth {
   private facing = 1;
   // Где был в прошлом кадре — из этого скорость, от которой отстают хобот и юбка.
   private lastX = 0;
+  // Номер последнего шага (полшага фазы ног): сменился — нога встала на снег.
+  private lastStep = 0;
+  // Сколько мс ещё длится стоп-кадр удара и отшатывание; куда отшатывается (1 вправо, −1 влево).
+  private hitStopLeft = 0;
+  private staggerLeft = 0;
+  private staggerDirection = 1;
+  // Сколько ударов в этой серии (за одно «устал»).
+  private combo = 0;
   // Фаза шага (радианы) и сколько мс он на поле (дыхание, хвост, хобот).
   private stepPhase = 0;
   private time = 0;
@@ -493,6 +526,7 @@ export class Mammoth {
   tire(): void {
     this.target = { x: this.x, y: this.y };
     this.enter('tired');
+    this.combo = 0;
     this.squash.velocity += TIRED_SQUASH;
     this.lane.clear();
     this.stompMark.clear();
@@ -555,11 +589,20 @@ export class Mammoth {
     playSound(this.scene, SOUNDS.hit, SOUND_VOLUMES.hit, STOMP_SOUND_DETUNE);
   }
 
-  // Удар на damage: белая вспышка, сжатие, клочья шерсти, всплывает урон.
+  // Удар на damage от вождя в точке from: стоп-кадр, белая вспышка, сжатие, отшатывание,
+  // клочья шерсти, всплывает урон, со второго удара серии — «×N УДАР!».
   // Здоровье кончилось — мамонт повержен.
-  hit(damage: number): void {
+  hit(damage: number, from: Point): void {
     if (!this.canBeHit()) return;
     this.hp = Math.max(0, this.hp - damage);
+    this.hitStopLeft = HIT_STOP_TIME;
+    this.staggerLeft = STAGGER_TIME;
+    this.staggerDirection = this.x >= from.x ? 1 : -1;
+    this.combo++;
+    if (this.combo >= 2) {
+      const size = Math.min(COMBO_MAX_SIZE, 1 + (this.combo - 2) * COMBO_SIZE_STEP);
+      floatText(this.scene, this.x, this.y + DAMAGE_OFFSET_Y - COMBO_LIFT, '×' + this.combo + ' УДАР!', COLORS.starOn, size);
+    }
     for (const image of this.images) image.setTint(COLORS.white).setTintMode(Phaser.TintModes.FILL);
     this.flashLeft = HIT_FLASH_TIME;
     this.scene.time.delayedCall(HIT_FLASH_TIME, () => {
@@ -632,6 +675,12 @@ export class Mammoth {
     if (this.state === 'hidden') return;
     this.stateTime += delta;
     if (this.state === 'fallen') return;
+    // Стоп-кадр удара: мамонт замер.
+    if (this.hitStopLeft > 0) {
+      this.hitStopLeft -= delta;
+      return;
+    }
+    this.stagger(delta);
 
     if (this.state === 'wander' || this.state === 'charge') {
       this.move(delta, this.state === 'charge' ? MAMMOTH_CHARGE_SPEED : MAMMOTH_SPEED);
@@ -652,6 +701,9 @@ export class Mammoth {
     this.lastX = this.x;
 
     this.stepPhase += delta * pose.stepSpeed;
+    const stepIndex = Math.floor(this.stepPhase / Math.PI);
+    if (pose.stepSpeed > 0 && stepIndex !== this.lastStep) this.footfall(stepIndex % 2);
+    this.lastStep = stepIndex;
     const bob = Math.abs(Math.sin(this.stepPhase)) * pose.bob;
     const isTired = this.state === 'tired';
     const breath = isTired ? Math.sin(this.time * TIRED_BREATH_SPEED) * TIRED_BREATH : Math.sin(this.time * BREATH_SPEED) * BREATH;
@@ -695,6 +747,39 @@ export class Mammoth {
     this.blink(delta);
     this.animateMarks();
     this.animateRage();
+  }
+
+  // Нога встала на снег (pair — какая пара ног по диагонали): пыль, следы, экран вздрагивает.
+  private footfall(pair: number): void {
+    MAMMOTH_ANATOMY.hips.forEach((hip) => {
+      if ((hip.front !== hip.far ? 0 : 1) !== pair) return;
+      const x = this.x + hip.x * SCALE * this.facing;
+      const y = this.y - (hip.far ? FAR_FOOT_SHIFT : 0);
+      this.snowDust.setDepth(this.y + PARTICLES_DEPTH_SHIFT).explode(STEP_DUST, x, y);
+      const print = this.scene.add
+        .ellipse(x, y, FOOTPRINT_WIDTH, FOOTPRINT_HEIGHT, COLORS.iceShade, FOOTPRINT_ALPHA)
+        .setDepth(GROUND_MARK_DEPTH - 1);
+      this.scene.tweens.add({
+        targets: print,
+        alpha: 0,
+        delay: FOOTPRINT_LIFE - FOOTPRINT_FADE_TIME,
+        duration: FOOTPRINT_FADE_TIME,
+        onComplete: () => print.destroy(),
+      });
+    });
+    const camera = this.scene.cameras.main;
+    if (camera.worldView.contains(this.x, this.y)) {
+      camera.shake(STEP_SHAKE_TIME, this.state === 'charge' ? CHARGE_STEP_SHAKE : STEP_SHAKE);
+    }
+  }
+
+  // После удара отшатывается от вождя: STAGGER_DISTANCE пикселей за STAGGER_TIME мс.
+  private stagger(delta: number): void {
+    if (this.staggerLeft <= 0) return;
+    const time = Math.min(delta, this.staggerLeft);
+    this.staggerLeft -= time;
+    this.x += (this.staggerDirection * STAGGER_DISTANCE * time) / STAGGER_TIME;
+    this.target.x = this.x;
   }
 
   // Дорожка тарана мигает, пока мамонт роет; красный круг топота растёт, пока мамонт на дыбах.

@@ -105,7 +105,8 @@ export function flyArc(scene: Phaser.Scene, object: Phaser.GameObjects.Image, fl
 }
 
 // Всплывающая надпись (например, «+1»): выскакивает, поднимается и тает.
-export function floatText(scene: Phaser.Scene, x: number, y: number, text: string, color: number): void {
+// size — во сколько раз крупнее обычной (серия ударов по мамонту растёт, с 0.9.1).
+export function floatText(scene: Phaser.Scene, x: number, y: number, text: string, color: number, size = 1): void {
   const label = scene.add
     .text(x, y, text, {
       fontFamily: FONT_FAMILY,
@@ -122,7 +123,7 @@ export function floatText(scene: Phaser.Scene, x: number, y: number, text: strin
 
   // Выскакивает из точки с отскоком и выпрямляется из наклона.
   label.setAngle(Phaser.Math.Between(-FLOAT_TEXT_TILT, FLOAT_TEXT_TILT));
-  scene.tweens.add({ targets: label, scale: 1, angle: 0, duration: FLOAT_TEXT_APPEAR_TIME, ease: 'Back.easeOut' });
+  scene.tweens.add({ targets: label, scale: size, angle: 0, duration: FLOAT_TEXT_APPEAR_TIME, ease: 'Back.easeOut' });
   // Поднимается вверх, замедляясь, чуть уходит вбок и в конце удаляется.
   scene.tweens.add({
     targets: label,

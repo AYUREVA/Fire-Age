@@ -442,6 +442,10 @@ export const BOSS_INTRO_TIME = 4600;
 // столько мс настоящего времени, камера наезжает на мамонта.
 export const BOSS_FINALE_SLOW = 0.25;
 export const BOSS_FINALE_SLOW_TIME = 1000;
+// Барабаны боя (с 0.9.1): мс между ударами при полном здоровье мамонта и при нуле
+// (чем меньше здоровья, тем чаще). Стихают, когда мамонт пал.
+export const MAMMOTH_DRUM_SLOW = 700;
+export const MAMMOTH_DRUM_FAST = 330;
 
 // ===== АНАЛИТИКА =====
 

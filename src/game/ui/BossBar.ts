@@ -30,6 +30,11 @@ const BAR_HEIGHT = 12;
 // Удар по мамонту: полоса вздрагивает — сдвиг вбок (пиксели) и время (мс).
 const HIT_SHAKE_SHIFT = 4;
 const HIT_SHAKE_TIME = 60;
+// Кусок полосы, который отлетает при уроне (с 0.9.1): падает на столько пикселей,
+// поворачивается на столько градусов и тает за столько мс.
+const CHUNK_FALL = 26;
+const CHUNK_TURN = 25;
+const CHUNK_TIME = 450;
 // Полоса появляется плавно за столько мс.
 const FADE_TIME = 250;
 // Ярость (с 0.9.1): подпись меняется и мигает столько раз, по столько мс.
@@ -115,14 +120,31 @@ export class BossBar {
   update(hp: number, isEnraged: boolean): void {
     if (isEnraged && !this.isRage) this.showRage();
     if (hp === this.shownHp) return;
+    const lostWidth = (BAR_WIDTH * (this.shownHp - hp)) / MAMMOTH_HP;
     this.shownHp = hp;
     this.fill.width = (BAR_WIDTH * hp) / MAMMOTH_HP;
+    this.breakChunk(BAR_X + this.fill.width, lostWidth);
     this.layout();
     this.scene.tweens.add({
       targets: this.container,
       x: this.container.x + HIT_SHAKE_SHIFT,
       duration: HIT_SHAKE_TIME,
       yoyo: true,
+    });
+  }
+
+  // От полосы отлетает кусок ширины width (x — его левый край): падает, крутится и тает.
+  private breakChunk(x: number, width: number): void {
+    const chunk = this.scene.add.rectangle(x, BAR_Y, width, BAR_HEIGHT, this.fill.fillColor).setOrigin(0, 0.5);
+    this.container.add(chunk);
+    this.scene.tweens.add({
+      targets: chunk,
+      y: BAR_Y + CHUNK_FALL,
+      angle: CHUNK_TURN,
+      alpha: 0,
+      duration: CHUNK_TIME,
+      ease: 'Quad.easeIn',
+      onComplete: () => chunk.destroy(),
     });
   }
 

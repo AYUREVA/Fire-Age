@@ -37,6 +37,9 @@ import {
   BOSS_INTRO_TIME,
   BOSS_FINALE_SLOW,
   BOSS_FINALE_SLOW_TIME,
+  MAMMOTH_HP,
+  MAMMOTH_DRUM_SLOW,
+  MAMMOTH_DRUM_FAST,
 } from '../settings';
 import { TEXTURES, createTextures, loadFonts } from '../textures';
 import { SOUNDS, SOUND_VOLUMES, createSounds, playSound } from '../sounds';
@@ -287,6 +290,8 @@ export class GameScene extends Phaser.Scene {
   private finaleSlowLeft = 0;
   // HUD спрятан на время сценки — стрелку к костру тоже не показываем.
   private isUiHidden = false;
+  // Через сколько мс следующий удар барабана боя (с 0.9.1).
+  private drumLeft = 0;
   // Стрелка к главному костру у края экрана, когда его не видно (с 0.9.1).
   private fireArrow!: FireArrow;
   // Смена дня и ночи: фаза, номер суток, сколько осталось до конца фазы.
@@ -344,6 +349,7 @@ export class GameScene extends Phaser.Scene {
     this.isFinaleStarted = false;
     this.finaleSlowLeft = 0;
     this.isUiHidden = false;
+    this.drumLeft = 0;
     // Замедление добивания не должно пережить перезапуск сцены.
     this.time.timeScale = 1;
     this.tweens.timeScale = 1;
@@ -496,6 +502,7 @@ export class GameScene extends Phaser.Scene {
       updateMammothFight(this.player, this.mammoth);
       updateSpilled(this.player, this.backpack, this.spilled);
       this.bossBar?.update(this.mammoth.hp, this.mammoth.isEnraged);
+      this.updateDrums(delta);
     }
     updateWolfFight(this.player, this.backpack, this.wolves, this.stats);
     updateGathering(this.player, this.backpack, this.bushes, this.stats, delta);
@@ -678,6 +685,15 @@ export class GameScene extends Phaser.Scene {
   }
 
   // Мамонт пал — добивание (с 0.9.1): время замедляется, HUD прячется, камера наезжает на мамонта.
+  // Барабаны боя: пока мамонт жив и на поле — бьют, тем чаще, чем меньше у него здоровья.
+  private updateDrums(delta: number): void {
+    if (!this.mammoth?.isActive()) return;
+    this.drumLeft -= delta;
+    if (this.drumLeft > 0) return;
+    playSound(this, SOUNDS.drum, SOUND_VOLUMES.drum);
+    this.drumLeft = Phaser.Math.Linear(MAMMOTH_DRUM_FAST, MAMMOTH_DRUM_SLOW, this.mammoth.hp / MAMMOTH_HP);
+  }
+
   private startFinale(): void {
     if (!this.mammoth) return;
     this.isFinaleStarted = true;
