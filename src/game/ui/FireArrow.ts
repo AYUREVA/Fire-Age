@@ -58,6 +58,11 @@ export class FireArrow {
       .setVisible(false);
   }
 
+  // Спрятать стрелку (на время сценки боя с мамонтом); следующий update() покажет снова.
+  hide(): void {
+    this.container.setVisible(false);
+  }
+
   // Каждый кадр: виден ли костёр; если нет — где у края экрана стрелка и куда смотрит.
   update(camera: Phaser.Cameras.Scene2D.Camera, fire: Campfire): void {
     const view = camera.worldView;

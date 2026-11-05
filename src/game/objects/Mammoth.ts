@@ -359,6 +359,12 @@ export class Mammoth {
     this.target = { ...to };
   }
 
+  // Рёв (выход из леса): мамонт приседает и трубит — звуковые дуги от хобота.
+  roar(): void {
+    this.squash.velocity += PREPARE_SQUASH;
+    this.trumpet();
+  }
+
   // tired → wander: отдохнул — снова ищет цель.
   wander(): void {
     this.enter('wander');

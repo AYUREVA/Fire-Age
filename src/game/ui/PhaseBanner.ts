@@ -77,33 +77,12 @@ const SWIRL: Phaser.Types.GameObjects.Particles.ParticleEmitterConfig = {
   emitting: false, // снежинки вылетают только по команде emitParticleAt
 };
 
-// ===== Мамонт идёт (с 0.9) =====
-
-// Плашка «Победи его до заката» под табличкой — шире ночных: надпись длиннее.
-const BOSS_CHIP_Y = CHIPS_Y;
-// Иконка мамонта на табличке крупнее луны и солнца.
-const BOSS_ICON_SCALE = 0.95;
-// С деревьев сыплется снег: снежинки вылетают вдоль верхнего края экрана через столько пикселей.
-const TREE_SNOW_STEP = 24;
-const TREE_SNOW_PER_POINT = 2;
-const TREE_SNOW: Phaser.Types.GameObjects.Particles.ParticleEmitterConfig = {
-  speedX: { min: -30, max: 30 },
-  speedY: { min: 60, max: 220 },
-  gravityY: 260,
-  lifespan: { min: 1200, max: 2000 },
-  scale: { start: 1.6, end: 0.6 },
-  alpha: { start: 1, end: 0 },
-  emitting: false, // снежинки вылетают только по команде emitParticleAt
-};
-
 // Надписи (раздел 5 плана).
 const NIGHT_TITLE = 'НОЧЬ';
 const NIGHT_SUFFIX = ' · МЕТЕЛЬ!';
 const MORNING_TITLE = 'РАССВЕТ · ДЕНЬ ';
 const FIRE_CHIP_TEXT = 'горит быстрее';
 const SPEED_CHIP_TEXT = 'идёшь медленнее';
-const BOSS_TITLE = 'ИДЁТ МАМОНТ!';
-const BOSS_CHIP_TEXT = 'Победи его до заката';
 
 // Крупный таймер ночи: сколько осталось (спрашиваем каждый кадр — время идёт),
 // куда улететь (середина цифр времени в HUD) и что сделать, когда долетел.
@@ -126,8 +105,6 @@ export class PhaseBanner {
   private scene: Phaser.Scene;
   // Снежинки вихря.
   private swirl: Phaser.GameObjects.Particles.ParticleEmitter;
-  // Снег, который сыплется с деревьев, когда идёт мамонт.
-  private treeSnow: Phaser.GameObjects.Particles.ParticleEmitter;
   // Текущая табличка (если показана): её убирают, когда она уехала.
   private banner?: Phaser.GameObjects.Container;
 
@@ -135,10 +112,6 @@ export class PhaseBanner {
     this.scene = scene;
     this.swirl = scene.add
       .particles(0, 0, TEXTURES.snowflake, SWIRL)
-      .setScrollFactor(0)
-      .setDepth(BANNER_DEPTH);
-    this.treeSnow = scene.add
-      .particles(0, 0, TEXTURES.snowflake, TREE_SNOW)
       .setScrollFactor(0)
       .setDepth(BANNER_DEPTH);
   }
@@ -160,30 +133,6 @@ export class PhaseBanner {
   // Наступило утро дня номер day: табличка с солнцем. onDone — когда табличка уехала.
   showMorning(day: number, onDone?: () => void): void {
     const banner = this.createBanner(TEXTURES.sunIcon, MORNING_TITLE + day);
-    this.slide(banner, onDone);
-  }
-
-  // Идёт мамонт (с 0.9): с деревьев сыплется снег, выезжает табличка «ИДЁТ МАМОНТ!»
-  // с мамонтом и плашкой «Победи его до заката». onDone — когда табличка уехала.
-  showBoss(onDone: () => void): void {
-    for (let x = 0; x <= this.scene.scale.width; x += TREE_SNOW_STEP) {
-      this.treeSnow.emitParticleAt(x, 0, TREE_SNOW_PER_POINT);
-    }
-    const banner = this.createBanner(TEXTURES.mammothIcon, BOSS_TITLE, BOSS_ICON_SCALE);
-    const plate = this.scene.add.image(0, BOSS_CHIP_Y, TEXTURES.bossChip);
-    const label = this.scene.add
-      .text(0, BOSS_CHIP_Y, BOSS_CHIP_TEXT, {
-        fontFamily: FONT_FAMILY,
-        fontSize: '17px',
-        fontStyle: 'bold',
-        color: toCss(COLORS.hudText),
-        stroke: toCss(COLORS.outline),
-        strokeThickness: 4,
-        shadow: CARVED_TEXT_SHADOW,
-        resolution: 2,
-      })
-      .setOrigin(0.5);
-    banner.add([plate, label]);
     this.slide(banner, onDone);
   }
 
@@ -259,8 +208,8 @@ export class PhaseBanner {
 
   // ===== Табличка =====
 
-  // Каменная табличка с иконкой (размера iconScale) и «высеченной» надписью. Сначала — за верхним краем экрана.
-  private createBanner(icon: string, title: string, iconScale = ICON_SCALE): Phaser.GameObjects.Container {
+  // Каменная табличка с иконкой и «высеченной» надписью. Сначала — за верхним краем экрана.
+  private createBanner(icon: string, title: string): Phaser.GameObjects.Container {
     // Прошлая табличка ещё не уехала — убираем её сразу вместе с её твинами:
     // иначе в конце старого твина сработал бы его onDone (ночные модификаторы утром).
     if (this.banner) this.scene.tweens.killTweensOf(this.banner);
@@ -268,7 +217,7 @@ export class PhaseBanner {
 
     const banner = this.scene.add.container(this.scene.scale.width / 2, BANNER_HIDDEN_Y, [
       this.scene.add.image(0, 0, TEXTURES.stoneBanner),
-      this.scene.add.image(ICON_X, ICON_Y, icon).setScale(iconScale),
+      this.scene.add.image(ICON_X, ICON_Y, icon).setScale(ICON_SCALE),
       ...addCarvedTitle(this.scene, TITLE_X, TITLE_Y, title, TITLE_FONT_SIZE),
     ]);
     banner.setDepth(BANNER_DEPTH);

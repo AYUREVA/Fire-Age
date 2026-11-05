@@ -90,10 +90,15 @@ export class BossBar {
     });
   }
 
-  // Показать полосу (когда уехала табличка «ИДЁТ МАМОНТ!»).
+  // Показать полосу (когда кончилась сценка выхода мамонта).
   show(): void {
     this.container.setVisible(true);
     this.scene.tweens.add({ targets: this.container, alpha: 1, duration: FADE_TIME });
+  }
+
+  // Спрятать полосу (мамонт повержен — идёт добивание).
+  hide(): void {
+    this.scene.tweens.add({ targets: this.container, alpha: 0, duration: FADE_TIME });
   }
 
   // Каждый кадр: hp — здоровье мамонта. Убыло — полоса короче и вздрагивает.

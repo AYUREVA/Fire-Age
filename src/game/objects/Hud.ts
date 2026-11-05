@@ -99,6 +99,9 @@ export class Hud {
   private pauseButton: Phaser.GameObjects.Image;
   // Кнопка звука левее паузы: включить или выключить звук (запоминается в сохранении).
   private soundButton: Phaser.GameObjects.Image;
+  // Все постоянные части HUD (плашки, кнопки) — их прячет сценка боя с мамонтом.
+  private parts: (Phaser.GameObjects.Image | Phaser.GameObjects.Text | Phaser.GameObjects.Graphics)[] = [];
+  private isVisible = true;
   // Лесенка покупки: какой по счёту клык уходит подряд и когда ушёл прошлый (мс сцены).
   private spendStreak = 0;
   private lastSpendTime = -Infinity;
@@ -201,7 +204,7 @@ export class Hud {
     this.setModifiers(false);
 
     // Всё в координатах экрана и поверх мира.
-    const parts = [
+    const parts = (this.parts = [
       panel,
       this.phaseIcon,
       this.timeText,
@@ -214,7 +217,7 @@ export class Hud {
       this.heatStar,
       pauseButton,
       soundButton,
-    ];
+    ]);
     for (const object of [...parts, ...this.modifiers]) {
       object.setScrollFactor(0).setDepth(HUD_DEPTH);
     }
@@ -257,6 +260,13 @@ export class Hud {
       duration: BUTTON_HOVER_TIME,
       ease: 'Sine.easeOut',
     });
+  }
+
+  // Спрятать или показать весь HUD (сценка выхода мамонта и добивание, с 0.9.1).
+  // Ночные плашки остаются как были: бой идёт днём.
+  setVisible(isVisible: boolean): void {
+    this.isVisible = isVisible;
+    for (const object of this.parts) object.setVisible(isVisible);
   }
 
   // Показать или спрятать плашки ночных модификаторов.
@@ -350,7 +360,7 @@ export class Hud {
     const isLow = heat < STAR_HEAT_MARK;
     const flicker = Math.sin(now * HEAT_FLAME_FLICKER_SPEED) * HEAT_FLAME_FLICKER;
     const flameScale = Phaser.Math.Linear(HEAT_FLAME_MIN_SCALE, HEAT_FLAME_MAX_SCALE, share);
-    this.heatFlame.setScale(flameScale + flicker, flameScale - flicker).setVisible(!isEmbers);
+    this.heatFlame.setScale(flameScale + flicker, flameScale - flicker).setVisible(this.isVisible && !isEmbers);
     this.heatStar.setTint(isMarkLost ? COLORS.starLost : COLORS.starOn);
 
     const { x, y, width } = this.heatBarBox;

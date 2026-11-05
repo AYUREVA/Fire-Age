@@ -34,6 +34,9 @@ import {
   MAMMOTH_FALL_TIME,
   BOSS_SHAKE_TIME,
   BOSS_SHAKE_INTENSITY,
+  BOSS_INTRO_TIME,
+  BOSS_FINALE_SLOW,
+  BOSS_FINALE_SLOW_TIME,
 } from '../settings';
 import { TEXTURES, createTextures, loadFonts } from '../textures';
 import { SOUNDS, SOUND_VOLUMES, createSounds, playSound } from '../sounds';
@@ -60,6 +63,7 @@ import { NightOverlay } from '../objects/NightOverlay';
 import { PhaseBanner } from '../ui/PhaseBanner';
 import { BossBar } from '../ui/BossBar';
 import { FireArrow } from '../ui/FireArrow';
+import { BossCinema } from '../ui/BossCinema';
 import { TutorialHint } from '../ui/TutorialHint';
 import { StarGoals, describeStarGoals } from '../ui/StarGoals';
 import { updateTutorial } from '../systems/Tutorial';
@@ -124,6 +128,30 @@ const SNOWFALL_DEPTH = 12000;
 
 // Шаг мамонта — тот же глухой удар, что у оружия, на октаву ниже (в центах).
 const BOSS_STEP_DETUNE = -1200;
+
+// Сценка выхода мамонта (с 0.9.1), мс от её начала: камера едет к лесу (насколько ниже
+// точки выхода смотрит и за сколько мс), тряска и снег с деревьев, мамонт выходит
+// (и проходит столько пикселей вниз), рёв с табличкой «МАМОНТ», камера возвращается к вождю.
+const INTRO_CAMERA_DROP = 216;
+const INTRO_PAN_TIME = 900;
+const INTRO_QUAKE_AT = 600;
+const INTRO_APPEAR_AT = 900;
+const INTRO_WALK = 300;
+const INTRO_ROAR_AT = 2600;
+const INTRO_ROAR_SHAKE_TIME = 900;
+const INTRO_ROAR_SHAKE = 0.012;
+const INTRO_RETURN_AT = 4000;
+const INTRO_PAN_BACK_TIME = 550;
+
+// Добивание (с 0.9.1): камера наезжает на мамонта (во сколько раз, за сколько мс, насколько
+// выше ног смотрит), потом вспышка, тряска и камера отъезжает обратно.
+const FINALE_ZOOM = 1.4;
+const FINALE_ZOOM_TIME = 400;
+const FINALE_LIFT = 110;
+const FINALE_FLASH_TIME = 250;
+const FINALE_SHAKE_TIME = 500;
+const FINALE_SHAKE = 0.012;
+const FINALE_ZOOM_BACK_TIME = 450;
 
 // ===== Декор мира =====
 
@@ -250,6 +278,15 @@ export class GameScene extends Phaser.Scene {
   private spilled: Loot[] = [];
   // Интерфейс: сколько осталось до конца дня или ночи, кнопка паузы.
   private hud!: Hud;
+  // Киношные экраны боя с мамонтом: полосы, табличка «МАМОНТ», печать «ПОВЕРЖЕН!» (с 0.9.1).
+  private bossCinema!: BossCinema;
+  // Сколько мс ещё идёт сценка выхода мамонта: пока > 0, мир стоит (с 0.9.1).
+  private bossIntroTime = 0;
+  // Добивание: началось ли и сколько мс настоящего времени ещё длится замедление.
+  private isFinaleStarted = false;
+  private finaleSlowLeft = 0;
+  // HUD спрятан на время сценки — стрелку к костру тоже не показываем.
+  private isUiHidden = false;
   // Стрелка к главному костру у края экрана, когда его не видно (с 0.9.1).
   private fireArrow!: FireArrow;
   // Смена дня и ночи: фаза, номер суток, сколько осталось до конца фазы.
@@ -303,6 +340,13 @@ export class GameScene extends Phaser.Scene {
     this.mammoth = undefined;
     this.bossBar = undefined;
     this.spilled = [];
+    this.bossIntroTime = 0;
+    this.isFinaleStarted = false;
+    this.finaleSlowLeft = 0;
+    this.isUiHidden = false;
+    // Замедление добивания не должно пережить перезапуск сцены.
+    this.time.timeScale = 1;
+    this.tweens.timeScale = 1;
     this.mode = 'ready';
     this.stats = {
       fed: 0,
@@ -376,6 +420,7 @@ export class GameScene extends Phaser.Scene {
     this.hud.setTimeLeft(this.cycle.timeLeft);
     this.hud.setHeat(this.campfire.heat, this.campfire.wasBelowMark, this.campfire.isEmbers());
     this.fireArrow = new FireArrow(this);
+    this.bossCinema = new BossCinema(this);
     this.starGoals = new StarGoals(this, this.level.starFed, this.level.boss !== undefined);
 
     this.setupCamera();
@@ -395,7 +440,18 @@ export class GameScene extends Phaser.Scene {
   // Вызывается Phaser каждый кадр. delta — сколько мс прошло с прошлого кадра.
   // Порядок: сначала двигаем вождя, потом стопку за ним, потом системы
   // (systems/) проверяют, что вождь делает рядом с кустами и с поленницей.
-  update(_time: number, delta: number): void {
+  update(_time: number, rawDelta: number): void {
+    // Добивание мамонта: время мира идёт медленнее, пока не кончится замедление.
+    const delta = this.finaleSlowLeft > 0 ? rawDelta * BOSS_FINALE_SLOW : rawDelta;
+    if (this.finaleSlowLeft > 0) {
+      this.finaleSlowLeft -= rawDelta;
+      if (this.finaleSlowLeft <= 0) this.endFinaleSlow();
+    }
+    // Сценка выхода мамонта: мир стоит, двигаются только мамонт и камера.
+    if (this.bossIntroTime > 0) {
+      this.updateBossIntro(rawDelta);
+      return;
+    }
     // Параметры текущей фазы суток. Ночью меняются три: скорость вождя,
     // скорость горения костра и скорость кроликов (таблица PHASES в settings.ts).
     const phase = PHASES[this.cycle.phase];
@@ -436,6 +492,7 @@ export class GameScene extends Phaser.Scene {
     // Мамонт — раньше волков: уставший мамонт важнее всего.
     if (this.mammoth) {
       updateMammoth(this.mammoth, this.getBossWorld(), delta);
+      if (this.mammoth.getState() === 'fallen' && !this.isFinaleStarted) this.startFinale();
       updateMammothFight(this.player, this.mammoth);
       updateSpilled(this.player, this.backpack, this.spilled);
       this.bossBar?.update(this.mammoth.hp);
@@ -464,7 +521,7 @@ export class GameScene extends Phaser.Scene {
     this.campfire.update(delta);
     // Жар главного костра — в HUD и на стрелке к костру, если его не видно.
     this.hud.setHeat(this.campfire.heat, this.campfire.wasBelowMark, this.campfire.isEmbers());
-    this.fireArrow.update(this.cameras.main, this.campfire);
+    if (!this.isUiHidden) this.fireArrow.update(this.cameras.main, this.campfire);
     updateCooking(this.campfire, this.rawMeatPile, this.spit, this.cookedMeatPile, this.stats, delta);
     this.spit.update(delta);
     this.nightOverlay.update(this.campfire.x, this.campfire.y, this.campfire.heat / FIRE_MAX_HEAT);
@@ -573,19 +630,87 @@ export class GameScene extends Phaser.Scene {
 
   // ===== Мамонт =====
 
-  // Идёт мамонт: экран трясётся от шагов, глухой удар, с деревьев сыплется снег,
-  // выезжает табличка «ИДЁТ МАМОНТ!», мамонт выходит из леса и выбирает цель.
+  // Идёт мамонт — сценка выхода (BOSS_INTRO_TIME, с 0.9.1). HUD прячется, выезжают чёрные
+  // полосы, камера едет к лесу; экран трясётся, глухой удар, с деревьев сыплется снег;
+  // мамонт выходит из леса и ревёт, выезжает табличка «МАМОНТ / ГРОЗА ЛЕДНИКА»;
+  // потом камера возвращается к вождю. Пока сценка идёт, мир стоит (updateBossIntro).
   private startBossFight(): void {
     if (!this.mammoth) return;
-    this.cameras.main.shake(BOSS_SHAKE_TIME, BOSS_SHAKE_INTENSITY);
-    playSound(this, SOUNDS.hit, SOUND_VOLUMES.hit, BOSS_STEP_DETUNE);
-    this.starGoals.setVisible(false);
-    this.phaseBanner.showBoss(() => {
-      this.starGoals.setVisible(true);
-      this.bossBar?.show();
+    const mammoth = this.mammoth;
+    const camera = this.cameras.main;
+    this.bossIntroTime = BOSS_INTRO_TIME;
+    this.setUiVisible(false);
+    this.bossCinema.setBars(true);
+    camera.stopFollow();
+    camera.pan(MAMMOTH_START.x, MAMMOTH_START.y + INTRO_CAMERA_DROP, INTRO_PAN_TIME, 'Sine.easeInOut');
+    this.time.delayedCall(INTRO_QUAKE_AT, () => {
+      camera.shake(BOSS_SHAKE_TIME, BOSS_SHAKE_INTENSITY);
+      playSound(this, SOUNDS.hit, SOUND_VOLUMES.hit, BOSS_STEP_DETUNE);
+      this.bossCinema.shakeSnowFromTrees();
     });
-    this.mammoth.appear(MAMMOTH_START);
-    chooseAim(this.mammoth, this.getBossWorld());
+    this.time.delayedCall(INTRO_APPEAR_AT, () => {
+      mammoth.appear(MAMMOTH_START);
+      mammoth.walkTo({ x: MAMMOTH_START.x, y: MAMMOTH_START.y + INTRO_WALK });
+    });
+    this.time.delayedCall(INTRO_ROAR_AT, () => {
+      mammoth.roar();
+      playSound(this, SOUNDS.roar, SOUND_VOLUMES.roar);
+      camera.shake(INTRO_ROAR_SHAKE_TIME, INTRO_ROAR_SHAKE);
+      this.bossCinema.showName();
+    });
+    this.time.delayedCall(INTRO_RETURN_AT, () => {
+      this.bossCinema.hideName();
+      this.bossCinema.setBars(false);
+      camera.pan(this.player.x, this.player.y - CAMERA_OFFSET_Y, INTRO_PAN_BACK_TIME, 'Sine.easeInOut');
+    });
+  }
+
+  // Каждый кадр сценки: мамонт выходит из леса. Сценка кончилась — бой начинается.
+  private updateBossIntro(delta: number): void {
+    this.bossIntroTime -= delta;
+    this.mammoth?.update(delta);
+    if (this.bossIntroTime > 0) return;
+    this.bossIntroTime = 0;
+    this.setUiVisible(true);
+    this.followPlayer();
+    this.bossBar?.show();
+    if (this.mammoth) chooseAim(this.mammoth, this.getBossWorld());
+  }
+
+  // Мамонт пал — добивание (с 0.9.1): время замедляется, HUD прячется, камера наезжает на мамонта.
+  private startFinale(): void {
+    if (!this.mammoth) return;
+    this.isFinaleStarted = true;
+    this.finaleSlowLeft = BOSS_FINALE_SLOW_TIME;
+    this.time.timeScale = BOSS_FINALE_SLOW;
+    this.tweens.timeScale = BOSS_FINALE_SLOW;
+    this.setUiVisible(false);
+    this.bossBar?.hide();
+    const camera = this.cameras.main;
+    camera.stopFollow();
+    camera.pan(this.mammoth.x, this.mammoth.y - FINALE_LIFT, FINALE_ZOOM_TIME, 'Sine.easeOut');
+    camera.zoomTo(FINALE_ZOOM, FINALE_ZOOM_TIME, 'Sine.easeOut');
+  }
+
+  // Замедление кончилось: вспышка, тряска, камера отъезжает к вождю, печать «ПОВЕРЖЕН!».
+  private endFinaleSlow(): void {
+    this.finaleSlowLeft = 0;
+    this.time.timeScale = 1;
+    this.tweens.timeScale = 1;
+    const camera = this.cameras.main;
+    camera.flash(FINALE_FLASH_TIME);
+    camera.shake(FINALE_SHAKE_TIME, FINALE_SHAKE);
+    camera.zoomTo(1, FINALE_ZOOM_BACK_TIME, 'Sine.easeInOut');
+    this.followPlayer();
+    this.bossCinema.showStamp();
+  }
+
+  // Спрятать или показать HUD, плашку звёзд и стрелку к костру (на время сценок боя).
+  private setUiVisible(isVisible: boolean): void {
+    this.isUiHidden = !isVisible;
+    this.hud.setVisible(isVisible);
+    this.starGoals.setVisible(isVisible);
+    if (!isVisible) this.fireArrow.hide();
   }
 
   // С чем мамонт имеет дело: вождь с рюкзаком, кучи у главного костра, частокол и рассыпанное.
@@ -1085,7 +1210,12 @@ export class GameScene extends Phaser.Scene {
   private setupCamera(): void {
     const camera = this.cameras.main;
     camera.setBounds(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
-    // Следить можно за любым объектом с x и y — у вождя это точка ног.
-    camera.startFollow(this.player, false, CAMERA_LERP, CAMERA_LERP, 0, CAMERA_OFFSET_Y);
+    camera.setZoom(1);
+    this.followPlayer();
+  }
+
+  // Камера следит за вождём. Следить можно за любым объектом с x и y — у вождя это точка ног.
+  private followPlayer(): void {
+    this.cameras.main.startFollow(this.player, false, CAMERA_LERP, CAMERA_LERP, 0, CAMERA_OFFSET_Y);
   }
 }
